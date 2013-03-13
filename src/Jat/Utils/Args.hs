@@ -1,0 +1,94 @@
+module Jat.Utils.Args
+  (
+    Options (..)
+  , Format (..)
+  , parseArgs
+  )
+where
+
+import Jat.Utils.Version
+
+import System.Console.GetOpt
+import System.Environment (getArgs)
+import System.Exit
+import System.IO
+
+data Format = Dot | TRS deriving (Show,Read)
+
+data Options = Options {
+    input       :: IO String
+  , output      :: String -> IO ()
+  , showVersion :: Bool
+  , showHelp    :: Bool
+  , file        :: String
+  , cname       :: Maybe String
+  , mname       :: Maybe String
+  , timeout     :: Int
+  , format      :: Format
+  }
+
+defaultOptions :: Options
+defaultOptions = Options {
+    input       = getContents
+  , output      = putStrLn
+  , showVersion = False
+  , showHelp    = False
+  , file        = undefined
+  , cname       = Nothing
+  , mname       = Nothing
+  , timeout     = 10 * 10000
+  , format      = Dot
+  }
+
+options :: [OptDescr (Options -> IO Options)]
+options = [
+    {-Option "i" ["input"]-}
+      {-(ReqArg (\arg opt -> return opt { input = readFile arg}) "FILE")  -}
+      {-"input file"-}
+  Option "o" ["output"]
+      (ReqArg (\arg opt -> return opt {output = writeFile arg}) "FILE")  
+      "output file"
+  , Option "f" ["format"]
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "Dot|TRS")
+      "output format"
+  , Option "t" ["timeout"]
+      (ReqArg (\arg opt -> return opt {timeout = (10^6 * (read arg :: Int))}) "sec")
+      "timeout in seconds"
+  , Option "v" ["version"]         
+      (NoArg $ \_ -> do
+        hPutStrLn stderr version
+        exitSuccess)
+      "print version" 
+  , Option "h" ["help"]         
+      (NoArg $ \_ -> do
+        hPutStrLn stderr (usageInfo header options)
+        exitSuccess)
+      "print help"
+  ]
+
+header :: String
+header = "Usage: jat [OPTION...] File [ClassId MethodId]"
+
+{-parseArgs :: IO Options-}
+{-parseArgs = do-}
+  {-args <- getArgs-}
+  {-let (actions, nonops, errors) = getOpt RequireOrder options args-}
+  {-case () of-}
+    {-_ | not (null nonops) -> error $ "unrecognized option:" ++ unwords nonops-}
+      {-| not (null errors) -> error $ concat errors ++ "\n" ++ usageInfo header options-}
+      {-| otherwise         -> foldl (>>=) (return defaultOptions) actions -}
+  
+parseArgs :: IO Options
+parseArgs = do
+  args <- getArgs
+  let (actions, nopts, errors) = getOpt Permute options args
+  case () of
+    _ | not (null errors) -> error $ concat errors ++ "\n" ++ usageInfo header options
+      | otherwise         -> do
+          opts <- foldl (>>=) (return defaultOptions) actions
+          let opts' = case nopts of
+                         [f,cn,mn] -> opts{file=f,cname=Just cn,mname=Just mn}
+                         [f]       -> opts{file=f}
+                         _         -> error header
+          return opts'
+
