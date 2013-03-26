@@ -11,8 +11,18 @@ import Jat.PState.IntDomain
 import Jat.PState.Step
 import qualified Jat.Program as P
 
-exec :: (Monad m, IntDomain i) => P.Program -> PState i a -> P.Instruction -> JatM m (PStep (PState i a))
-exec p st@(PState _ _) ins = 
+exec :: (Monad m, IntDomain i) => PState i a -> JatM m (PStep (PState i a))
+exec st@(PState _ (Frame _ _ cn mn pc :_)) = do
+  p <- getProgram
+  let ins = P.instruction p cn mn pc
+  execInstruction p st ins
+exec (PState _ []) = error "Jat.PState.Semantics.exec: empty stk."
+exec (EState _)    = error "Jat.PState.Semantics.exec: exceptional state."
+
+
+
+execInstruction :: (Monad m, IntDomain i) => P.Program -> PState i a -> P.Instruction -> JatM m (PStep (PState i a))
+execInstruction p st@(PState _ _) ins = 
   case ins of
     -- frame operations
     P.Push v         -> execPush v    `applyF` st
@@ -37,7 +47,7 @@ exec p st@(PState _ _) ins =
     --P.New cn         -> execNew p s cn 
     --P.GetField fn cn -> execGetField p s cn fn
     --P.PutField fn cn -> execPutField p s cn fn
-exec _ (EState _) _ = error "Jat.PState.Semantics.exec: exceptional state."
+execInstruction _ (EState _) _ = error "Jat.PState.Semantics.exec: exceptional state."
 
 
 -- frame operations
