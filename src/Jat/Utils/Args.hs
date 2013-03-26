@@ -13,7 +13,7 @@ import System.Environment (getArgs)
 import System.Exit
 import System.IO
 
-data Format = Dot | TRS deriving (Show,Read)
+data Format = DOT | TRS deriving (Show,Read)
 
 data Options = Options {
     input       :: IO String
@@ -36,8 +36,8 @@ defaultOptions = Options {
   , file        = undefined
   , cname       = Nothing
   , mname       = Nothing
-  , timeout     = 10 * 10000
-  , format      = Dot
+  , timeout     = 10 * 1000000
+  , format      = DOT
   }
 
 options :: [OptDescr (Options -> IO Options)]
@@ -49,10 +49,10 @@ options = [
       (ReqArg (\arg opt -> return opt {output = writeFile arg}) "FILE")  
       "output file"
   , Option "f" ["format"]
-      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "Dot|TRS")
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS")
       "output format"
   , Option "t" ["timeout"]
-      (ReqArg (\arg opt -> return opt {timeout = (10^6 * (read arg :: Int))}) "sec")
+      (ReqArg (\arg opt -> return opt {timeout = (10000000 * (read arg :: Int))}) "sec")
       "timeout in seconds"
   , Option "v" ["version"]         
       (NoArg $ \_ -> do

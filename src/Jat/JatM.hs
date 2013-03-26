@@ -2,8 +2,9 @@
 module Jat.JatM
   ( 
     JatM (..)
-  , evalJatM
-  , initJatST
+  , Jat
+  , initJat
+  , evalJat
   , freshVarIdx
   , freshKey
   , withProgram
@@ -16,10 +17,13 @@ import Jat.Program (Program)
 
 import Control.Monad.State.Lazy
 import Control.Monad (liftM,liftM2,foldM,mapM,sequence)
+import Control.Monad.Identity
 
 
 newtype JatM m a = JatM (StateT JatST m a)
      deriving (Functor, Monad, MonadState JatST)
+
+type Jat a = JatM Identity a
 
 data JatST = JatST { 
     varcounter::Int 
@@ -27,15 +31,15 @@ data JatST = JatST {
   , program::Program
   } 
 
-initJatST :: Program -> JatST
-initJatST p = JatST {
+initJat :: Program -> JatST
+initJat p = JatST {
     varcounter = 0
   , keycounter = 0
   , program    = p
   }
 
-evalJatM :: Monad m =>  JatM m a -> JatST -> m a
-evalJatM (JatM a) = evalStateT a
+evalJat :: Monad m =>  JatM m a -> JatST -> m a
+evalJat (JatM a) = evalStateT a
 
 withProgram :: Monad m => (Program -> JatM  m a) -> JatM m a
 withProgram f = gets program >>= f

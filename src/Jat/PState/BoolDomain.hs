@@ -43,7 +43,7 @@ freshBool = do {i<-freshVarIdx; return $ AbstrBoolean i}
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
-{-evali,evalb :: (Monad m, IntDomain i) => i -> i -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)-}
+evalb,evalb :: Monad m => BoolDomain -> BoolDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
 evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
 
 (.==.),(./=.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)

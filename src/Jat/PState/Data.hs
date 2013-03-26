@@ -1,10 +1,8 @@
 module Jat.PState.Data where
 
-import Jat.Constraints
 import Jat.PState.Frame
 {-import Jat.PState.Heap-}
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
 
 type Heap a = a
 

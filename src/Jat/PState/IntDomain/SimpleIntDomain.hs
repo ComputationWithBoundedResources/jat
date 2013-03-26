@@ -55,7 +55,8 @@ instance Pretty SimpleIntDomain where
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
-{-evali,evalb :: (Monad m, IntDomain i) => i -> i -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)-}
+{-evali :: (Monad m, IntDomain i) => i -> i -> (Constraint -> Constraint -> Constraint) -> JatM m (Step i b)-}
 evali i j cop = do {k <- freshInt; return $ evaluation k (mkcon k cop i j)}
+{-evalb :: (Monad m, IntDomain i) => i -> i -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)-}
 evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
 
