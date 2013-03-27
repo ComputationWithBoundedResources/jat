@@ -93,7 +93,7 @@ execIfFalse i (Frame loc stk cn mn pc) = case stk of
 
 execBinIntOp :: (Monad m, IntDomain i) => (i -> i -> JatM m (PStep i)) -> Frame i -> JatM m (PStep (Frame i))
 execBinIntOp op (Frame loc stk cn mn pc) = case stk of
-  IntVal i:IntVal j:vs -> liftPStep (\k -> Frame loc (IntVal k:vs) cn mn (pc+1)) `liftM` (i `op` j)
+  IntVal i1: IntVal i2: vs -> liftPStep (\k -> Frame loc (IntVal k:vs) cn mn (pc+1)) `liftM` (i1 `op` i2)
   _ -> error "Jat.PState.Semantics.execBinIntOp: invalid stack."
 
 
@@ -103,7 +103,7 @@ execISub = execBinIntOp (-.)
 
 execBinBoolOp :: Monad m => (BoolDomain -> BoolDomain -> JatM m (PStep BoolDomain)) -> Frame i -> JatM m (PStep (Frame i))
 execBinBoolOp op (Frame loc stk cn mn pc) = case stk of
-  BoolVal a:BoolVal b:vs -> liftPStep (\k -> Frame loc (BoolVal k:vs) cn mn (pc+1)) `liftM` (a `op` b)
+  BoolVal b1 :BoolVal b2 :vs -> liftPStep (\k -> Frame loc (BoolVal k:vs) cn mn (pc+1)) `liftM` (b1 `op` b2)
   _ -> error "Jat.PState.Semantics.execBinIntOp: invalid stack."
 
 execBAnd, execBOr :: Monad m => Frame i -> JatM m (PStep (Frame i))
@@ -117,7 +117,7 @@ execBNot (Frame loc stk cn mn pc) = case stk of
  
 execBinIntCmp :: (Monad m, IntDomain i) => (i -> i -> JatM m (Step BoolDomain i)) -> Frame i -> JatM m (PStep (Frame i))
 execBinIntCmp cmp (Frame loc stk cn mn pc) = case stk of
-  IntVal i :IntVal j :vs -> liftStep eval refine  `liftM` (i `cmp` j)
+  IntVal i1 :IntVal i2 :vs -> liftStep eval refine  `liftM` (i2 `cmp` i1)
     where
       eval   b = Frame loc (BoolVal b :vs) cn mn (pc+1)
       refine k = Frame loc (IntVal k :vs) cn mn pc

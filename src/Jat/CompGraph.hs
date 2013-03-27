@@ -81,9 +81,9 @@ join' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -
 join' ctx1 ctx2 = getProgram >>= \p -> join p (state' ctx1) (state' ctx2)
 
 mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
-mkSteps mg@(MkJGraph _ [])                               = return mg
-mkSteps (MkJGraph g (ctx1:ctx2:ctxs)) | isTerminal' ctx1 = return $ MkJGraph g (ctx2:ctxs)
-mkSteps mg                                              = mkStep mg >>= mkSteps
+mkSteps mg@(MkJGraph _ [])                        = return mg
+mkSteps (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
+mkSteps mg                                        = mkStep mg >>= mkSteps
 
 mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
 mkStep g = tryLoop g <|>! mkEval g

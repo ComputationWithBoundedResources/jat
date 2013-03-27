@@ -57,7 +57,7 @@ writeAll opts = mapM_ write'
       (cn,mn,run) <- runM
       case run of
         Left  err -> hPrint stderr (show err)
-        Right res -> writeFile (dropExtension file  ++ '-':show cn ++ '-':show mn ++ '.':lower format) res
+        Right res -> writeFile (dropExtension file  ++ '-':(show .pretty $ cn) ++ '-':(show . pretty $ mn) ++ '.':lower format) res
     dropExtension = takeWhile ('.' /= )
     lower a       = map toLower (show a)
 
@@ -79,7 +79,7 @@ run opts p cn mn = do
   where
     timeouterr = error "timeout"  
     eval p g = case format opts of
-      DOT ->  return . dot2String $ mkJGraph2Dot g
+      DOT -> return . dot2String $ mkJGraph2Dot g
       TRS -> error "TRS: yet not defined"
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]
