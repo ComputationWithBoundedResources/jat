@@ -80,12 +80,15 @@ tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryI
 tryLoop (MkJGraph _ (ctx:_)) | not (isBackJump' ctx) = Nothing
 tryLoop mg@(MkJGraph g (ctx:_))                      = eval candidates
   where
-    candidates        = do
-      Just n <-  bfsWith (\lctx -> if isSimilar' ctx lctx then Just ctx else Nothing) (node' ctx) (grev g)
-      return n
     eval ns | null ns = Nothing
     eval ns           = tryInstance nctx mg <|> Just (mkJoin nctx mg)
       where nctx = head ns
+    candidates = do
+      Just n <-  bfsWith (condition ctx) (node' ctx) (grev g)
+      return n
+    condition ctx1 ctx2 = 
+      if isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2] then Just ctx2 else Nothing
+
 
 tryInstance :: Monad m => JContext i a -> MkJGraph i a -> Maybe (JatM m (MkJGraph i a))
 tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) | isInstance' ctx1 ctx2 = Just $ mkInstance ctx2 mg
