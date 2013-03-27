@@ -16,6 +16,7 @@ import qualified Jat.Program as P
 import Jat.Utils.Pretty
 import Jat.Utils.Dot
 
+import System.IO (hFlush,stdout)
 import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
@@ -93,6 +94,9 @@ mkStep (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
 mkStep g                                         = tryLoop g <|>! mkEval g
 
 
+-- FIXME:
+-- use target rather than backjump
+-- exclude nod itself
 tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
 tryLoop mg@(MkJGraph g (ctx:_))                      = do
@@ -156,7 +160,7 @@ mkEval mg@(MkJGraph _ (ctx:_)) = do
 mkEval _ = error "Jat.CompGraph.mkEval: emtpy context."
 
 mkJGraph2Dot :: (Pretty a,IntDomain i) => MkJGraph i a -> DotGraph Int
-mkJGraph2Dot (MkJGraph g _) = 
+mkJGraph2Dot (MkJGraph g ctxs) = 
   DotGraph { 
     strictGraph     = True
   , directedGraph   = True
@@ -164,7 +168,7 @@ mkJGraph2Dot (MkJGraph g _) =
   , graphStatements = DotStmts {
       attrStmts = []
     , subGraphs = []
-    , nodeStmts = reverse . map mkCNode $ labNodes g
+    , nodeStmts = (reverse . map mkCNode $ labNodes g) ++ map (mkCtxNode . labNode') ctxs
     , edgeStmts = reverse . map mkCEdge $ labEdges g
     }
   }
@@ -172,6 +176,14 @@ mkJGraph2Dot (MkJGraph g _) =
     mkCNode (k,st) = 
       DotNode {
         nodeID = k
+      , nodeAttributes = [
+          GV.Label (GV.StrLabel . T.pack . display $ text "state:" <+> int k <$> pretty st)
+        , GV.Shape GV.BoxShape
+        ]
+      }
+    mkCtxNode (k,st) = 
+      DotNode {
+        nodeID = -k
       , nodeAttributes = [
           GV.Label (GV.StrLabel . T.pack . display $ text "state:" <+> int k <$> pretty st)
         , GV.Shape GV.BoxShape
@@ -203,6 +215,7 @@ mkJGraphPrompt mg@(MkJGraph _ []) = do
 mkJGraphPrompt mg = do
   liftIO $ writeFile "gr.dot" (dot2String $ mkJGraph2Dot mg)
   liftIO $ putStr ">: "
+  liftIO $ hFlush stdout
   ecmd <- liftIO parseCmd
   case ecmd of
     Left _    -> mkJGraphPrompt mg
