@@ -1,22 +1,17 @@
 module Jat.PState.Frame 
   (
     Frame (..)
-  --, mapValuesF
-  --, elemsF
-  --, lookupF
-
-  --, LocVars
-  --, initL
+  , locals
+  , opstk
+  , pcounter
+  , elemsF
+  
+  , initL
   , lookupL
   , updateL
-  --, updateL
-
-  --, OpStk
-  --, emptyS
-
-  --, Root (..)
-  --, Path (..)
-  --, (-->)
+  , elemsL
+  
+  , elemsS
   )
 where
 
@@ -31,10 +26,43 @@ import Prelude hiding (lookup, init)
 --import Data.Monoid (mappend)
 
 type PC        = Int
-type LocVars i = [AbstrValue i]
-type Stk i     = [AbstrValue i]
 data Frame i   = Frame (LocVars i) (Stk i) P.ClassId P.MethodId PC deriving Show
 
+locals :: Frame i -> LocVars i
+locals (Frame loc _ _ _ _) = loc
+
+pcounter :: Frame i -> PC
+pcounter (Frame _ _ _ _ pc) = pc
+
+opstk :: Frame i -> Stk i
+opstk (Frame _ stk _ _ _) = stk
+
+elemsF :: Frame i -> [AbstrValue i]
+elemsF frm = locals frm ++ opstk frm
+
+type LocVars i = [AbstrValue i]
+
+initL :: [AbstrValue i] -> Int -> LocVars i
+initL vs n = vs ++ replicate n Unit
+
+elemsL :: LocVars i -> [AbstrValue i]
+elemsL = id
+
+lookupL :: (IntDomain i) =>  Int -> LocVars i -> AbstrValue i
+lookupL i ls = lookupL' i ls
+  where
+    lookupL' _ []    = error $ "Jat.PState.Frame.lookupL: invalid index." ++ show i
+    lookupL' 0 (f:_) = f
+    lookupL' j (_:fs)= lookupL' (j-1) fs
+
+updateL :: Int -> AbstrValue i -> LocVars i -> LocVars i
+updateL i v vs = take i vs ++ v : drop (i+1) vs
+
+type Stk i     = [AbstrValue i]
+
+elemsS :: Stk i -> [AbstrValue i]
+elemsS = id
+--
 --mapValuesF :: (AbstrValue i -> AbstrValue i) -> Frame i -> Frame i
 --mapValuesF f (Frame(loc,stk,cn,mn,pc)) = Frame(mapValuesL f loc, mapValuesS f stk, cn, mn, pc)
 
@@ -55,33 +83,15 @@ data Frame i   = Frame (LocVars i) (Stk i) P.ClassId P.MethodId PC deriving Show
 
 
 
---initL :: [AbstrValue i] -> Int -> LocVars i
---initL vs n = S.fromList vs `mappend` S.replicate n Unit
---initL vs n = vs `mappend` replicate n Unit
 
-lookupL :: (IntDomain i) =>  Int -> LocVars i -> AbstrValue i
-lookupL i ls = lookupL' i ls
-  where
-    lookupL' _ []    = error $ "Jat.PState.Frame.lookupL: invalid index." ++ show i
-    lookupL' 0 (f:_) = f
-    lookupL' j (_:fs)= lookupL' (j-1) fs
-
-updateL :: Int -> AbstrValue i -> LocVars i -> LocVars i
-updateL i v vs = take i vs ++ v : drop (i+1) vs
 
 --mapValuesL :: (AbstrValue i -> AbstrValue i) -> LocVars i -> LocVars i
 --mapValuesL = fmap
-
-elemsL :: LocVars i -> [AbstrValue i]
-elemsL = id
 
 --type OpStk i   = [(AbstrValue i, Path)]
 
 --emptyS :: OpStk i
 --emptyS = []
-
-elemsS :: Stk i -> [AbstrValue i]
-elemsS = id
 
 --mapValuesS :: (AbstrValue i -> AbstrValue i) -> OpStk i -> OpStk i
 --mapValuesS f = map (\(v,p) -> (f v,p))

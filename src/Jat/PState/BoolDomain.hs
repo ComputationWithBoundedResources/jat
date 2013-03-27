@@ -31,9 +31,9 @@ instance AbstrDomain BoolDomain Bool where
   join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
   join _ _                               = freshBool
   top                                    = freshBool
-  leq (Boolean i) (Boolean j) | i == j   = return True
-  leq _ (AbstrBoolean _)                 = return True
-  leq _ _                                = return False
+  leq (Boolean i) (Boolean j) | i == j   = True
+  leq _ (AbstrBoolean _)                 = True
+  leq _ _                                = False
 
   constant = Boolean
 

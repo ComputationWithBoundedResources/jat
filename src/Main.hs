@@ -43,7 +43,7 @@ writeOne :: Options -> IO (ClassId,MethodId, Either E.SomeException String) -> I
 writeOne opts run = do
   (cn,nn,e) <- run
   case e of
-    Left  err -> hPutStrLn stderr (show err)
+    Left  err -> hPrint stderr (show err)
     Right res -> output opts res
 
 writeAll :: Options -> [IO (ClassId,MethodId,Either E.SomeException String)] -> IO ()
@@ -56,7 +56,7 @@ writeAll opts = mapM_ write'
       } = opts
       (cn,mn,run) <- runM
       case run of
-        Left  err -> hPutStrLn stderr (show err)
+        Left  err -> hPrint stderr (show err)
         Right res -> writeFile (dropExtension file  ++ '-':show cn ++ '-':show mn ++ '.':lower format) res
     dropExtension = takeWhile ('.' /= )
     lower a       = map toLower (show a)
@@ -70,7 +70,7 @@ run opts p cn mn = do
     , A.timeout = timeout
     , A.format  = format
     } = opts
-  let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain String)
+  let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
       evaluationM = do
         evaluation <- T.timeout timeout $! eval p (runIdentity . evalJat gM $ initJat p) 
         return $ error "timeout" `fromMaybe` evaluation
@@ -80,7 +80,7 @@ run opts p cn mn = do
     timeouterr = error "timeout"  
     eval p g = case format opts of
       DOT ->  return . dot2String $ mkJGraph2Dot g
-      TRS -> undefined
+      TRS -> error "TRS: yet not defined"
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]
 runAll opts p = map (uncurry $ run opts p) (methods p) 

@@ -8,8 +8,12 @@ import Jat.PState.BoolDomain
 import Jat.PState.Data
 import Jat.PState.Frame
 import Jat.PState.IntDomain
+import Jat.PState.MemoryModel
 import Jat.PState.Step
 import qualified Jat.Program as P
+
+mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.Program -> P.ClassId -> P.MethodId -> JatM m (PState i a)
+mkInitialState = initMem
 
 exec :: (Monad m, IntDomain i) => PState i a -> JatM m (PStep (PState i a))
 exec st@(PState _ (Frame _ _ cn mn pc :_)) = do
@@ -18,8 +22,6 @@ exec st@(PState _ (Frame _ _ cn mn pc :_)) = do
   execInstruction p st ins
 exec (PState _ []) = error "Jat.PState.Semantics.exec: empty stk."
 exec (EState _)    = error "Jat.PState.Semantics.exec: exceptional state."
-
-
 
 execInstruction :: (Monad m, IntDomain i) => P.Program -> PState i a -> P.Instruction -> JatM m (PStep (PState i a))
 execInstruction p st@(PState _ _) ins = 

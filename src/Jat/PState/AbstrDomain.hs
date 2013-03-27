@@ -12,7 +12,7 @@ class Pretty a => AbstrDomain a b | a -> b where
   --join semi lattice
   join :: Monad m => a -> a -> JatM m a
   top  :: Monad m => JatM m a
-  leq  :: Monad m => a -> a -> JatM m Bool
+  leq  :: a -> a -> Bool
 
   --abstract domain
   constant :: b -> a 

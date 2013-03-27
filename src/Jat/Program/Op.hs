@@ -17,6 +17,7 @@ module Jat.Program.Op
   , properReachableClasses
   , reachableClasses
   , parseProgram
+  , isBackJump
   )
 where
 
@@ -121,3 +122,7 @@ reachableClasses' p acc new =
     fds cn    = S.fromList [tp | (_,_,RefType tp) <- hasFields p cn]
     fix s1 s2 = S.size s1 == S.size s2
 
+isBackJump :: Program -> ClassId -> MethodId -> Int -> Bool
+isBackJump p cn mn pc = case instruction p cn mn pc of
+  Goto i -> i < 0
+  _      -> False

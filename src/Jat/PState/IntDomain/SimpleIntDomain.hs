@@ -29,9 +29,9 @@ instance AbstrDomain SimpleIntDomain Int where
   join (Integer i) (Integer j) | i == j  = return $ Integer i
   join _ _                               = freshInt
   top                                    = freshInt
-  leq (Integer i) (Integer j) | i == j   = return True
-  leq _ (AbsInteger _)                   = return True
-  leq _ _                                = return False
+  leq (Integer i) (Integer j) | i == j   = True
+  leq _ (AbsInteger _)                   = True
+  leq _ _                                = False
 
   constant = Integer
 

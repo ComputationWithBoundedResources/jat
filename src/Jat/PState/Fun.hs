@@ -1,11 +1,35 @@
-module Jat.PState.Fun where
+module Jat.PState.Fun
+  (
+    isTerminal
+  , isSimilar
+  , isBackJump
+  )
+where
 
 import Jat.PState.Data
+import Jat.PState.Frame
+import Jat.JatM
+import qualified Jat.Program as P
 
 
-isTerminalState :: PState i a -> Bool
-isTerminalState (PState _ frms) = null frms
-isTerminalState (EState _)      = True
+isTerminal :: PState i a -> Bool
+isTerminal (PState _ frms) = null frms
+isTerminal (EState _)      = True
+
+isSimilar :: PState i a -> PState i a -> Bool
+isSimilar (PState _ frms1) (PState _ frms2) = isSimilarFS frms1 frms2
+  where
+    isSimilarFS (f1:fs1) (f2:fs2) = isSimilarF f1 f2 && isSimilarFS fs1 fs2
+    isSimilarFS [][]              = True
+    isSimilarFS _ _               = False
+    isSimilarF (Frame _ _ cn1 mn1 pc1) (Frame _ _ cn2 mn2 pc2) = 
+      cn1 == cn2 && mn1 == mn2 && pc1 == pc2
+isSimilar _ _ = False
+
+isBackJump :: Monad m => PState i a -> JatM m Bool 
+isBackJump (PState _ (Frame _ _ cn mn pc:_)) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc
+isBackJump _                                 = return False
+
 
 
 --elemsFS :: FrameStk i -> [AbstrValue i]

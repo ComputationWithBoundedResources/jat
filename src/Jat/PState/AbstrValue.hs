@@ -4,7 +4,7 @@ module Jat.PState.AbstrValue
   , AbstrValue (..)
   , theAddress
   , abstract
-  --, defaultValue
+  , defaultValue
   )
 where
 
@@ -36,9 +36,8 @@ abstract val = case val of
   P.Unit      -> Unit
   _           -> error "assert: Jat.PState.AbstrValue.abstract: illegal use of address."
 
---defaultValue :: (IntDomain i) => P.Type -> AbstrValue i
---defaultValue = abstract . P.defaultValue
-
+defaultValue :: (IntDomain i) => P.Type -> AbstrValue i
+defaultValue = abstract . P.defaultValue
 
 instance Pretty i => Pretty (AbstrValue i) where
   pretty (BoolVal b) = pretty b

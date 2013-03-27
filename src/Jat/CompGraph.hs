@@ -14,15 +14,21 @@ import Jat.PState
 import qualified Jat.Program as P
 import Jat.Utils.Pretty
 
-import Control.Applicative ((<|>))
-import Data.Graph.Inductive
+import Control.Monad (mplus)
+import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
+import Data.Maybe (fromMaybe)
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 
-(<|>!) :: Maybe a -> a -> a
-Just a  <|>! _ = a
-Nothing <|>! a = a
+--(<|>) :: Monad m => m (Maybe a) -> m (Maybe a) -> m (Maybe a)
+--(<|>) = liftM2 mplus 
+
+(<|>!) :: Monad m => m (Maybe a) -> m a -> m a
+ma1 <|>! ma2 = do
+  a1 <- ma1
+  a2 <- ma2
+  return $ a2 `fromMaybe` a1
 
 
 -- finding instance/merge nodes for backjumps
@@ -43,56 +49,67 @@ type JContext i a = Context (NLabel i a) ELabel
 -- corresponds to a (non-terminal) leaf node.
 data MkJGraph i a  = MkJGraph (JGraph i a) [JContext i a]
 
-mkJGraph :: (Monad m, IntDomain i) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a) 
-mkJGraph cn mn = mkInitialNode cn mn >>= mkSteps
-  where mkInitialNode = undefined
+mkJGraph :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a) 
+mkJGraph cn mn = mkInitialNode >>= mkSteps
+  where 
+    mkInitialNode = do
+      k <- freshKey
+      p <- getProgram
+      st <- mkInitialState p cn mn
+      let ctx = ([],k,st,[]) 
+          g   = ctx & Gr.empty
+      return $ MkJGraph g [ctx]
+
 
 state' :: JContext i a -> PState i a
 state' = lab'
 
 isTerminal' :: JContext i a -> Bool
-isTerminal' (_,_,st,s) = null s && isTerminalState st
+isTerminal' (_,_,st,s) = null s && isTerminal st
 
-isBackJump' :: JContext i a -> Bool
-isBackJump' (_,_,st,_) = undefined
+isBackJump' :: Monad m => JContext i a -> JatM m Bool
+isBackJump' = isBackJump . state'
 -- use lab' ctx
 
 isSimilar' :: JContext i a -> JContext i a -> Bool
-isSimilar' (_,_,st1,_) (_,_,st2,_) = undefined
+isSimilar' ctx1 ctx2 = isSimilar (state' ctx1) (state' ctx2)
 
-isInstance' :: JContext i a -> JContext i a -> Bool
-isInstance' ctx1 ctx2 = undefined
+leq' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -> JatM m Bool
+leq' ctx1 ctx2 = getProgram >>= \p -> return $ leq p (state' ctx1) (state' ctx2)
 
-join' :: Monad m => JContext i a -> JContext i a -> JatM m (PState i a)
-join' ctx1 ctx2 = undefined
+join' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -> JatM m (PState i a)
+join' ctx1 ctx2 = getProgram >>= \p -> join p (state' ctx1) (state' ctx2)
 
-mkSteps :: (Monad m, IntDomain i) => MkJGraph i a -> JatM m (MkJGraph i a)
+mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkSteps mg@(MkJGraph _ [])                               = return mg
 mkSteps (MkJGraph g (ctx1:ctx2:ctxs)) | isTerminal' ctx1 = return $ MkJGraph g (ctx2:ctxs)
 mkSteps mg                                              = mkStep mg >>= mkSteps
 
-mkStep :: (Monad m, IntDomain i) => MkJGraph i a -> JatM m (MkJGraph i a) 
+mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
 mkStep g = tryLoop g <|>! mkEval g
 
 
-tryLoop :: Monad m => MkJGraph i a -> Maybe (JatM m (MkJGraph i a))
+tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
-tryLoop (MkJGraph _ (ctx:_)) | not (isBackJump' ctx) = Nothing
-tryLoop mg@(MkJGraph g (ctx:_))                      = eval candidates
+tryLoop mg@(MkJGraph g (ctx:_))                      = do
+  b <- isBackJump' ctx
+  if b then eval candidates else return Nothing
   where
-    eval ns | null ns = Nothing
-    eval ns           = tryInstance nctx mg <|> Just (mkJoin nctx mg)
+    eval ns | null ns = return Nothing
+    eval ns           = Just `liftM` (tryInstance nctx mg <|>! mkJoin nctx mg)
       where nctx = head ns
     candidates = do
       Just n <-  bfsWith (condition ctx) (node' ctx) (grev g)
       return n
-    condition ctx1 ctx2 = 
+    condition ctx1 ctx2 =
       if isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2] then Just ctx2 else Nothing
 
 
-tryInstance :: Monad m => JContext i a -> MkJGraph i a -> Maybe (JatM m (MkJGraph i a))
-tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) | isInstance' ctx1 ctx2 = Just $ mkInstance ctx2 mg
-tryInstance _ _                                                  = Nothing
+tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
+tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) = do
+  b <- leq' ctx1 ctx2
+  if b then Just `liftM` mkInstance ctx2 mg else return Nothing
+tryInstance _ _ = return Nothing
 
 mkInstance :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
 mkInstance ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
@@ -100,7 +117,7 @@ mkInstance ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
 mkInstance _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 
-mkJoin :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
+mkJoin :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
 mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
   k   <- freshKey
   st3 <- join' ctx1 ctx2

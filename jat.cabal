@@ -34,6 +34,7 @@ executable jat
     array == 0.4.*,
     mtl >= 2.0 && < 2.2,
     graphviz == 2999.13.*,
+    fgl == 5.4.*,
     text == 0.11.*
 
 --  ghc-options:
