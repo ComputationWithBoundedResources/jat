@@ -18,26 +18,24 @@ data Format = DOT | TRS deriving (Show,Read)
 data Options = Options {
     input       :: IO String
   , output      :: String -> IO ()
-  , showVersion :: Bool
-  , showHelp    :: Bool
   , file        :: String
   , cname       :: Maybe String
   , mname       :: Maybe String
   , timeout     :: Int
   , format      :: Format
+  , interactive :: Bool
   }
 
 defaultOptions :: Options
 defaultOptions = Options {
     input       = getContents
   , output      = putStrLn
-  , showVersion = False
-  , showHelp    = False
   , file        = undefined
   , cname       = Nothing
   , mname       = Nothing
   , timeout     = 10 * 1000000
   , format      = DOT
+  , interactive = False
   }
 
 options :: [OptDescr (Options -> IO Options)]
@@ -52,8 +50,11 @@ options = [
       (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS")
       "output format"
   , Option "t" ["timeout"]
-      (ReqArg (\arg opt -> return opt {timeout = (10000000 * (read arg :: Int))}) "sec")
+      (ReqArg (\arg opt -> return opt {timeout = 10000000 * (read arg :: Int)}) "sec")
       "timeout in seconds"
+  , Option "i" ["interactive"]         
+      (NoArg $ \opt -> return opt {interactive=True,timeout=0} )
+      "interactive mode" 
   , Option "v" ["version"]         
       (NoArg $ \_ -> do
         hPutStrLn stderr version

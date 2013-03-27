@@ -9,18 +9,14 @@ import Jat.Program as P
 import Jat.Utils.Args as A
 import Jat.Utils.Pretty
 import Jat.Utils.Dot
-import Data.Rewriting.Rule
 
-import qualified Data.Map as M
 import System.IO
 import qualified System.Timeout as T
 import qualified Control.Exception as E
 import Data.Char (toLower)
-import Control.Monad
 import Control.Monad.Identity (runIdentity)
 import Data.Maybe (fromMaybe)
 
-import Data.List (nub)
 
 
 main ::  IO ()
@@ -28,7 +24,6 @@ main = do
   opts <- parseArgs
   let Options {
       A.file        = file
-    , A.output      = output
     , A.cname       = cname
     , A.mname       = mname
     } = opts
@@ -62,24 +57,28 @@ writeAll opts = mapM_ write'
     lower a       = map toLower (show a)
 
 run :: Options -> Program -> P.ClassId -> P.MethodId -> IO (ClassId, MethodId, Either E.SomeException String)
-run opts p cn mn = do
+run opts p cn mn =
   let Options {
-      A.file    = file
-    , A.cname   = cname
-    , A.mname   = mname
-    , A.timeout = timeout
-    , A.format  = format
+      A.timeout     = timeout
+    , A.interactive = interactive
     } = opts
-  let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
-      evaluationM = do
-        evaluation <- T.timeout timeout $! eval p (runIdentity . evalJat gM $ initJat p) 
-        E.evaluate $ error "timeout" `fromMaybe` evaluation
-  res <- E.try evaluationM :: IO (Either E.SomeException String)
-  return (cn,mn, res)
+  in 
+  if interactive 
+    then do
+      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
+          evaluationM = eval p (evalJat gM $ initJat p) 
+      res <- E.try evaluationM :: IO (Either E.SomeException String)
+      return (cn,mn, res)
+    else do
+    let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
+        evaluationM = do
+          evaluation <- T.timeout timeout $! (return . runIdentity $ (eval p . evalJat gM $ initJat p))
+          E.evaluate $ error "timeout" `fromMaybe` evaluation
+    res <- E.try evaluationM :: IO (Either E.SomeException String)
+    return (cn,mn, res)
   where
-    timeouterr = error "timeout"  
-    eval p g = case format opts of
-      DOT -> return . dot2String $ mkJGraph2Dot g
+    eval _ g = case format opts of
+      DOT -> (dot2String . mkJGraph2Dot) `liftM` g
       TRS -> error "TRS: yet not defined"
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]

@@ -21,9 +21,11 @@ import Control.Monad.Identity
 
 
 newtype JatM m a = JatM (StateT JatST m a)
-     deriving (Functor, Monad, MonadState JatST)
+     deriving (Functor, Monad, MonadIO, MonadState JatST)
 
 type Jat a = JatM Identity a
+
+type JatIO a = JatM IO a
 
 data JatST = JatST { 
     varcounter::Int 
@@ -40,6 +42,7 @@ initJat p = JatST {
 
 evalJat :: Monad m =>  JatM m a -> JatST -> m a
 evalJat (JatM a) = evalStateT a
+
 
 withProgram :: Monad m => (Program -> JatM  m a) -> JatM m a
 withProgram f = gets program >>= f

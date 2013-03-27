@@ -4,6 +4,7 @@ module Jat.CompGraph
   , mkJGraph
   , mkJGraph2Dot
   --, mkGraph2TRS
+  , mkJGraphIO
   )
 where
 
@@ -13,11 +14,13 @@ import Jat.JatM
 import Jat.PState
 import qualified Jat.Program as P
 import Jat.Utils.Pretty
+import Jat.Utils.Dot
 
-import Control.Monad (mplus)
+import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
 import Data.Maybe (fromMaybe)
+import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 
@@ -50,15 +53,16 @@ type JContext i a = Context (NLabel i a) ELabel
 data MkJGraph i a  = MkJGraph (JGraph i a) [JContext i a]
 
 mkJGraph :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a) 
-mkJGraph cn mn = mkInitialNode >>= mkSteps
-  where 
-    mkInitialNode = do
-      k <- freshKey
-      p <- getProgram
-      st <- mkInitialState p cn mn
-      let ctx = ([],k,st,[]) 
-          g   = ctx & Gr.empty
-      return $ MkJGraph g [ctx]
+mkJGraph cn mn = mkInitialNode cn mn >>= mkSteps
+
+mkInitialNode :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a)
+mkInitialNode cn mn = do
+  k <- freshKey
+  p <- getProgram
+  st <- mkInitialState p cn mn
+  let ctx = ([],k,st,[]) 
+      g   = ctx & Gr.empty
+  return $ MkJGraph g [ctx]
 
 
 state' :: JContext i a -> PState i a
@@ -82,11 +86,11 @@ join' ctx1 ctx2 = getProgram >>= \p -> join p (state' ctx1) (state' ctx2)
 
 mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkSteps mg@(MkJGraph _ [])                        = return mg
-mkSteps (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
 mkSteps mg                                        = mkStep mg >>= mkSteps
 
 mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
-mkStep g = tryLoop g <|>! mkEval g
+mkStep (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
+mkStep g                                         = tryLoop g <|>! mkEval g
 
 
 tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
@@ -181,4 +185,52 @@ mkJGraph2Dot (MkJGraph g _) =
               GV.Label (GV.StrLabel $ T.pack $ display $ pretty l)
             ]
           }
+
+-- Interactive
+data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
+
+
+mkJGraphIO :: (IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM IO (MkJGraph i a)
+mkJGraphIO cn mn = do
+  liftIO $ putStrLn ":> enter command: (help to see the list of commands)"
+  mkInitialNode cn mn >>= mkJGraphPrompt
+
+mkJGraphPrompt :: (IntDomain i, MemoryModel a) => MkJGraph i a -> JatM IO (MkJGraph i a)
+mkJGraphPrompt mg@(MkJGraph _ []) = do
+  liftIO $ writeFile "gr.dot" (dot2String $ mkJGraph2Dot mg)
+  liftIO $ putStrLn "fin"
+  return mg
+mkJGraphPrompt mg = do
+  liftIO $ writeFile "gr.dot" (dot2String $ mkJGraph2Dot mg)
+  liftIO $ putStr ">: "
+  ecmd <- liftIO parseCmd
+  case ecmd of
+    Left _    -> mkJGraphPrompt mg
+    Right cmd -> case cmd of
+      NSteps n -> mkNStepsIO n mg
+      Until n  -> mkUStepsIO n mg
+      Run      -> mkStepsIO mg
+      Help     -> do
+        liftIO $ putStrLn "NSteps int, Until pc, Run, Help, Exit"
+        mkJGraphPrompt mg
+      Exit -> return mg
+  where 
+    parseCmd = do
+      cmd <- liftIO getLine
+      E.try (E.evaluate (read cmd :: Command)) :: IO (Either E.SomeException Command)
+
+mkNStepsIO :: (IntDomain i, MemoryModel a) => Int -> MkJGraph i a -> JatM IO (MkJGraph i a)
+mkNStepsIO _ mg@(MkJGraph _ []) = mkJGraphPrompt mg
+mkNStepsIO n mg | n < 1         = mkJGraphPrompt mg
+mkNStepsIO n mg                 = mkStep mg >>= mkNStepsIO (n-1)
+
+mkUStepsIO :: (IntDomain i, MemoryModel a) => Int -> MkJGraph i a -> JatM IO (MkJGraph i a)
+mkUStepsIO _ _ = undefined
+{-mkUStepsIO _ mg@(MkJGraph _ []) = mkJGraphPrompt mg-}
+{-mkUStepsIO n mg | n ==  (pc .frm . state' . context mg) = mkJGraphPrompt mg-}
+{-mkUStepsIO n mg                                          = mkStep mg >>= mkNStepsIO (n-1)-}
+
+mkStepsIO :: (IntDomain i, MemoryModel a) => MkJGraph i a -> JatM IO (MkJGraph i a)
+mkStepsIO mg@(MkJGraph _ []) = mkJGraphPrompt mg
+mkStepsIO mg                 = mkStep mg >>= mkStepsIO
 
