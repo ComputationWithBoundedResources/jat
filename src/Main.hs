@@ -73,7 +73,7 @@ run opts p cn mn = do
   let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
       evaluationM = do
         evaluation <- T.timeout timeout $! eval p (runIdentity . evalJat gM $ initJat p) 
-        return $ error "timeout" `fromMaybe` evaluation
+        E.evaluate $ error "timeout" `fromMaybe` evaluation
   res <- E.try evaluationM :: IO (Either E.SomeException String)
   return (cn,mn, res)
   where
