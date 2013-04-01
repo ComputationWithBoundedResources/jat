@@ -65,14 +65,16 @@ run opts p cn mn =
   in 
   if interactive 
     then do
-      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
+      --let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
+      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain UnSharing)
           evaluationM = eval p (evalJat gM $ initJat p) 
       res <- E.try evaluationM :: IO (Either E.SomeException String)
       return (cn,mn, res)
     else do
-    let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
+    let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain UnSharing)
+    --let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
         evaluationM = do
-          evaluation <- T.timeout timeout $! (return . runIdentity $ (eval p . evalJat gM $ initJat p))
+          evaluation <- T.timeout timeout $! (E.evaluate . runIdentity $ (eval p . evalJat gM $ initJat p))
           E.evaluate $ error "timeout" `fromMaybe` evaluation
     res <- E.try evaluationM :: IO (Either E.SomeException String)
     return (cn,mn, res)

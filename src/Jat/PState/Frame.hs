@@ -106,7 +106,7 @@ elemsS = id
 --_ --> Empty          = error "Jat.State.Path: invalid composing of path"
 
 instance (Pretty i) => Pretty (Frame i) where
-  pretty (Frame loc stk cn mn pc) = text (show pc) `sepx` prettyLoc `sepx` prettyStk `sepx` pretty cn `sepx` pretty mn
+  pretty (Frame loc stk cn mn pc) = text (show pc) `sepx` pretty cn `sepx` pretty mn <$> prettyLoc `sepx` prettyStk
     where
       sepx d f  = d <+> text "|" <+> f
       prettyLoc = encloseSep lbracket rbracket comma (map pretty $ elemsL loc)

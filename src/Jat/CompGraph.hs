@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Jat.CompGraph 
   (
     MkJGraph
@@ -25,6 +26,10 @@ import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 
+import Data.List (notElem)
+
+import Debug.Trace
+
 --(<|>) :: Monad m => m (Maybe a) -> m (Maybe a) -> m (Maybe a)
 --(<|>) = liftM2 mplus 
 
@@ -44,8 +49,11 @@ ma1 <|>! ma2 = do
 -- finding a candidate reduces to (predc) topsort if we do not allow merging of nodes stemming from different back jump points
 
 data ELabel     = EvaluationLabel Constraint | InstanceLabel | RefinementLabel Constraint deriving Show
+instance Pretty ELabel where
+  pretty (EvaluationLabel fm) = pretty fm
+  pretty (RefinementLabel fm) = pretty fm
+  pretty l                    = text $ show l
 type NLabel i a = PState i a
-instance Pretty ELabel where pretty = text . show
 
 type JGraph i a   = Gr (NLabel i a) ELabel
 type JContext i a = Context (NLabel i a) ELabel
@@ -74,7 +82,9 @@ isTerminal' (_,_,st,s) = null s && isTerminal st
 
 isBackJump' :: Monad m => JContext i a -> JatM m Bool
 isBackJump' = isBackJump . state'
--- use lab' ctx
+
+isTarget' :: Monad m => JContext i a -> JatM m Bool
+isTarget' = isTarget . state'
 
 isSimilar' :: JContext i a -> JContext i a -> Bool
 isSimilar' ctx1 ctx2 = isSimilar (state' ctx1) (state' ctx2)
@@ -100,15 +110,16 @@ mkStep g                                         = tryLoop g <|>! mkEval g
 tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
 tryLoop mg@(MkJGraph g (ctx:_))                      = do
-  b <- isBackJump' ctx
+  b <- isTarget' ctx
   if b then eval candidates else return Nothing
   where
     eval ns | null ns = return Nothing
-    eval ns           = Just `liftM` (tryInstance nctx mg <|>! mkJoin nctx mg)
+    eval ns           = Just `liftM` (tryInstance nctx mg <|>! mkJoin nctx mg >>= mkEval)
       where nctx = head ns
-    candidates = do
-      Just n <-  bfsWith (condition ctx) (node' ctx) (grev g)
-      return n
+    candidates = [ n | Just n <- bfsnWith (condition ctx) (pre' ctx) (grev g)]
+    --candidates = do
+      --Just n <-  bfsnWith (\lctx -> trace (show (ctx,lctx) ++ show (condition ctx lctx)) condition ctx lctx) (suc g $ node' ctx) (grev g)
+      --return n
     condition ctx1 ctx2 =
       if isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2] then Just ctx2 else Nothing
 
@@ -121,19 +132,21 @@ tryInstance _ _ = return Nothing
 
 mkInstance :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
 mkInstance ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
-  where g' = insEdge (node' ctx2, node' ctx1, InstanceLabel) g
+  where g' = insEdge (node' ctx1, node' ctx2, InstanceLabel) g
 mkInstance _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 
 mkJoin :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
+mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) | trace (">>> mkJoin: " ++ show (ctx2,ctx1)) False = undefined
 mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
   k   <- freshKey
-  st3 <- join' ctx1 ctx2
+  st3 <- join' ctx1 (trace (show ctx2) ctx2)
   let edge = (InstanceLabel, node' ctx2)
       ctx3 = ([edge],k,st3,[])
-      g1   = ctx3 & delNodes successors g
-  return $ MkJGraph g1 (ctx3: filter (\lctx -> node' lctx `elem` successors) ctxs)
-  where  successors = dfs [node' ctx1] g
+      !g1  = delNodes (trace ("succ: " ++ show successors) successors) g
+      !g2   = ctx3 & g1
+  return $ MkJGraph g2 (ctx3: filter (\lctx -> node' lctx `notElem` successors) ctxs)
+  where  successors = filter (/= (node' ctx2)) $ dfs [node' ctx2] g
 mkJoin _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 mkEval :: (Monad m, IntDomain i) => MkJGraph i a -> JatM m (MkJGraph i a)
@@ -168,8 +181,8 @@ mkJGraph2Dot (MkJGraph g ctxs) =
   , graphStatements = DotStmts {
       attrStmts = []
     , subGraphs = []
-    , nodeStmts = (reverse . map mkCNode $ labNodes g) ++ map (mkCtxNode . labNode') ctxs
-    , edgeStmts = reverse . map mkCEdge $ labEdges g
+    , nodeStmts = (map mkCNode $ labNodes g) ++ map (mkCtxNode . labNode') ctxs
+    , edgeStmts = map mkCEdge $ labEdges g
     }
   }
   where
@@ -177,7 +190,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
       DotNode {
         nodeID = k
       , nodeAttributes = [
-          GV.Label (GV.StrLabel . T.pack . display $ text "state:" <+> int k <$> pretty st)
+          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k <$> pretty st)
         , GV.Shape GV.BoxShape
         ]
       }
@@ -185,7 +198,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
       DotNode {
         nodeID = -k
       , nodeAttributes = [
-          GV.Label (GV.StrLabel . T.pack . display $ text "state:" <+> int k <$> pretty st)
+          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k <$> pretty st)
         , GV.Shape GV.BoxShape
         ]
       }
@@ -212,8 +225,9 @@ mkJGraphPrompt mg@(MkJGraph _ []) = do
   liftIO $ writeFile "gr.dot" (dot2String $ mkJGraph2Dot mg)
   liftIO $ putStrLn "fin"
   return mg
-mkJGraphPrompt mg = do
+mkJGraphPrompt mg@(MkJGraph g _) = do
   liftIO $ writeFile "gr.dot" (dot2String $ mkJGraph2Dot mg)
+  liftIO $ print g
   liftIO $ putStr ">: "
   liftIO $ hFlush stdout
   ecmd <- liftIO parseCmd

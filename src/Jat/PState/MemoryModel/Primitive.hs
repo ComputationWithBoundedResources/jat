@@ -14,16 +14,16 @@ import qualified Jat.Program as P
 import Control.Monad (zipWithM)
 
 data Primitive = Primitive deriving Show
-instance Pretty Primitive where pretty = text . show
+instance Pretty Primitive where pretty _ = text ""
 
 instance MemoryModel Primitive where
-  new       = error "not supported"
-  getField  = error "not supported"
-  putField  = error "not supported"
+  new       = error "Jat.PState.MemoryModel.Primitive: not supported."
+  getField  = error "Jat.PState.MemoryModel.Primitive: not supported."
+  putField  = error "Jat.PState.MemoryModel.Primitive: not supported."
 
-  invoke    = undefined
-  equals    = undefined
-  nequals   = undefined
+  invoke    = error "Jat.PState.MemoryModel.Primitive: not supported."
+  equals    = error "Jat.PState.MemoryModel.Primitive: not supported."
+  nequals   = error "Jat.PState.MemoryModel.Primitive: not supported."
 
   initMem   = initMemx
 
