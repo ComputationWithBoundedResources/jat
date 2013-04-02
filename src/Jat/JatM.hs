@@ -25,8 +25,6 @@ newtype JatM m a = JatM (StateT JatST m a)
 
 type Jat a = JatM Identity a
 
-type JatIO a = JatM IO a
-
 data JatST = JatST { 
     varcounter::Int 
   , keycounter::Int 

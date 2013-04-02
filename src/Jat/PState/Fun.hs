@@ -4,9 +4,11 @@ module Jat.PState.Fun
   , isSimilar
   , isBackJump
   , isTarget
+  , isNull
   )
 where
 
+import Jat.PState.AbstrValue
 import Jat.PState.Data
 import Jat.PState.Frame
 import Jat.JatM
@@ -35,8 +37,13 @@ isBackJump _                                 = return False
 isTarget :: Monad m => PState i a -> JatM m Bool 
 isTarget (PState _ (Frame _ _ cn mn pc:_)) = do
   p <- getProgram
-  return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- (A.assocs $ P.instructions p cn mn), i < 0]
+  return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
+
+isNull :: PState i a -> Bool
+isNull st = case opstk $ frame st of
+  Null :_ -> True
+  _       -> False
 
 
 --elemsFS :: FrameStk i -> [AbstrValue i]

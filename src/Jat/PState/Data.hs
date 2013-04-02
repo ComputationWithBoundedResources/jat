@@ -1,17 +1,11 @@
 module Jat.PState.Data where
 
 import Jat.PState.Frame
-{-import Jat.PState.Heap-}
+import Jat.PState.Heap
 import Jat.Utils.Pretty
 
-data Heap a = Heap deriving Show
-instance Pretty (Heap a) where pretty = text . show
-
-emptyH :: Heap a
-emptyH = Heap
-
 data PState i a  = 
-    PState (Heap a) [Frame i]
+    PState (Heap i a) [Frame i]
   | EState PException 
 data PException  = NullPointerException deriving Show
 
@@ -20,7 +14,7 @@ frames :: PState i a -> [Frame i]
 frames (PState _ frms) = frms
 frames (EState _) = []
 
-heap :: PState i a -> Heap a
+heap :: PState i a -> Heap i a
 heap (PState hp _) = hp
 heap (EState _)    = error "Jat.PState.Data.heap: assertion error: exceptional state"
 

@@ -1,9 +1,14 @@
-module Jat.PState.MemoryModel.Primitive where
+module Jat.PState.MemoryModel.Primitive 
+  (
+  Primitive
+  )
+where
 
 import Jat.JatM
 import Jat.PState.Data
 import Jat.PState.AbstrValue
 import qualified Jat.PState.AbstrDomain as AD
+import Jat.PState.Heap
 import Jat.PState.Frame
 import Jat.PState.Fun
 import Jat.PState.IntDomain
@@ -37,7 +42,7 @@ initMemx p cn mn = do
   let m   = P.theMethod p cn mn
   params <- mapM defaultAbstrValue $ P.methodParams m 
   let loc = initL params $ P.maxLoc m
-  return $ PState emptyH [Frame loc [] cn mn 0]
+  return $ PState (emptyH Primitive) [Frame loc [] cn mn 0]
   where 
     defaultAbstrValue P.BoolType = BoolVal `liftM` AD.top
     defaultAbstrValue P.IntType  = IntVal `liftM` AD.top
