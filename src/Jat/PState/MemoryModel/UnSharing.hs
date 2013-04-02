@@ -302,7 +302,20 @@ anyEqualityRefinementWithInstance (PState hp _ ann) q = anyq aliases
     anyq [] = Nothing
 anyEqualityRefinementWithInstance _ _ = error "Jat.MemoryModel.UnSharing.anyEqualityRefinementWithInstance: exceptional case."
 
-equalityRefinement = undefined
+equalityRefinement :: (IntDomain i) => PState i UnSharing -> MayAlias -> PStep (PState i UnSharing)
+equalityRefinement st@(PState hp frms (UnSharing ma ms mt)) (ref1:=?:ref2) = 
+  case (lookupH ref1 hp, lookupH ref2 hp) of
+    (AbsVar _, _) -> topRefinement [mkEqual ref1 ref2, mkNequal]
+    (_, AbsVar _) -> topRefinement [mkEqual ref2 ref1, mkNequal]
+    _ -> error "Jat.PState.MemoryModel.UnSharing.equalityRefinement: unexpected case"
+  where
+    me' = (/= (ref1:=?:ref2)) `S.filter` ma
+    mkEqual r1 r2 =  
+      let PState hp1 fs1 (UnSharing _ ms1 mt1) = substitute (RefVal r1) (RefVal r2) st
+      in  PState hp1 fs1 (UnSharing me' ms1 mt1)
+    mkNequal = PState hp frms (UnSharing me' ms mt)
+equalityRefinement _ _ = error "Jat.MemoryModel.UnSharing.equalityRefinement: unexpected case."
+
 
 data Root = RStk Int Int | RLoc Int Int deriving (Eq,Show)
 data Path = Path Root  [(P.ClassId, P.FieldId)]  | Empty deriving (Eq,Show)
