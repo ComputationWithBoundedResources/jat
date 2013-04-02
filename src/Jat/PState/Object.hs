@@ -1,10 +1,13 @@
 module Jat.PState.Object
   (
     Object (..)
-
-  , FieldTable
   , className
   , fieldTable
+  , isInstance
+  , mapValuesO
+  , referencesO
+
+  , FieldTable
   --, elemsFT
   , updateFT
   , emptyFT
@@ -28,14 +31,6 @@ data Object i =
   | AbsVar P.ClassId
   deriving (Show)
 
-mapValuesO :: (AbstrValue i -> AbstrValue i) -> Object i -> Object i
-mapValuesO f (Instance cn ft) = Instance cn (M.map f ft)
-mapValuesO _ var = var
-
---fields :: Object i -> [(P.ClassId, P.FieldId)]
---fields (Instance _ ft) = M.keys ft
---fields _ = []
-
 className :: Object i -> P.ClassId
 className (Instance cn _) = cn
 className (AbsVar cn)     = cn
@@ -43,6 +38,18 @@ className (AbsVar cn)     = cn
 fieldTable :: Object i -> FieldTable i
 fieldTable (Instance _ ft) = ft
 fieldTable _               = error "assert: illegal access to fieldtable"
+
+isInstance :: Object i -> Bool
+isInstance (Instance _ _) = True
+isInstance _              = False
+
+mapValuesO :: (AbstrValue i -> AbstrValue i) -> Object i -> Object i
+mapValuesO f (Instance cn ft) = Instance cn (M.map f ft)
+mapValuesO _ var = var
+
+referencesO :: Object i -> [Address]
+referencesO (Instance _ ft) = [ ref | RefVal ref <- M.elems ft ]
+referencesO (AbsVar _)      = []
 
 emptyFT :: FieldTable i
 emptyFT = M.empty
@@ -72,5 +79,5 @@ instance Pretty i => Pretty (Object i) where
   pretty (Instance cn ft) = pretty cn <> encloseSep lparen rparen comma (prettyFT ft)
     where
       prettyFT = map prettyElem . M.toList
-      prettyElem ((cn,fn),v) = pretty cn <> dot <> pretty fn <> equals <> pretty v
+      prettyElem ((cne,fne),v) = pretty cne <> dot <> pretty fne <> equals <> pretty v
   pretty (AbsVar cn) = text $ map toLower $ show cn

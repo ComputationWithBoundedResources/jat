@@ -16,6 +16,9 @@ evaluation = curry Evaluation
 topEvaluation :: a -> Step a b
 topEvaluation a = evaluation a top
 
+topRefinement :: [b] -> Step a b
+topRefinement bs = Refinement $ zip bs (cycle [top])
+
 map2 :: (a -> c) -> (b -> d) -> Step a b -> Step c d
 map2 f _ (Evaluation (a,c))  = Evaluation (f a,c)
 map2 _ g (Refinement bs)     = Refinement [(g b,c) | (b,c) <- bs]

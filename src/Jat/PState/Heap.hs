@@ -2,12 +2,14 @@ module Jat.PState.Heap
   (
     Heap
   , annotations
+  , mapAnnotations
 
   , emptyH
   , lookupH
   , insertH
   , insertHA
   , updateH
+  , mapValuesH
 
   , paths
   )
@@ -37,6 +39,9 @@ memory (Heap _ mem _) = mem
 annotations :: Heap i a -> a
 annotations (Heap _ _ a) = a
 
+mapAnnotations :: (a -> a) -> Heap i a -> Heap i a
+mapAnnotations f (Heap cnt mem ann) = Heap cnt mem (f ann)
+
 lookupH :: Address -> Heap i a -> Object i
 lookupH r hp = errmsg `fromMaybe` lab (memory hp) r
   where errmsg = error "Jat.PState.Object: invalid address"
@@ -56,6 +61,9 @@ updateH r obj = mapMem (insNode (r,obj))
 
 mapMem :: (Memory i -> Memory i) -> Heap i a -> Heap i a
 mapMem f (Heap cnt mem ann) = Heap cnt (f mem) ann
+
+mapValuesH :: (AbstrValue i -> AbstrValue i) -> Heap i a -> Heap i a
+mapValuesH f = mapMem (nmap (mapValuesO f))
 
 -- graph functions
 

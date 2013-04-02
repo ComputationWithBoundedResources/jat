@@ -5,12 +5,16 @@ module Jat.PState.Fun
   , isBackJump
   , isTarget
   , isNull
+
+  , mapValues
+  , substitute
   )
 where
 
 import Jat.PState.AbstrValue
 import Jat.PState.Data
 import Jat.PState.Frame
+import Jat.PState.Heap
 import Jat.JatM
 import qualified Jat.Program as P
 
@@ -45,6 +49,12 @@ isNull st = case opstk $ frame st of
   Null :_ -> True
   _       -> False
 
+mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
+mapValues f (PState hp frms) = PState (mapValuesH f hp) (map (mapValuesF f) frms)
+mapValues _ st               = st
+
+substitute :: Eq i => AbstrValue i -> AbstrValue i -> PState i a -> PState i a
+substitute v1 v2 = mapValues (\v -> if v == v1 then v2 else v)
 
 --elemsFS :: FrameStk i -> [AbstrValue i]
 --elemsFS = concatMap elemsF
@@ -75,8 +85,6 @@ isNull st = case opstk $ frame st of
     --otherwise      -> Nothing
 --maybePutField _ _ = Nothing
 
---mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
---mapValues f (PState heap frms annot) = PState (mapValuesH f heap ) (map (mapValuesF f) frms) annot
 
 -- FIXME:rename
 --isReturn :: P.Program -> PState i a -> Bool

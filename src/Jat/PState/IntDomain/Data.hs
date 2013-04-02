@@ -11,7 +11,7 @@ import Jat.PState.BoolDomain
 import Jat.Utils.Pretty
 
 
-class (Pretty a, AbstrDomain a Int) => IntDomain a where
+class (Eq a, Pretty a, AbstrDomain a Int) => IntDomain a where
   (+.)  :: Monad m => a -> a -> JatM m (Step a a)
   (-.)  :: Monad m => a -> a -> JatM m (Step a a)
 

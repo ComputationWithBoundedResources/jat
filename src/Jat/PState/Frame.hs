@@ -5,6 +5,7 @@ module Jat.PState.Frame
   , opstk
   , pcounter
   , elemsF
+  , mapValuesF
   
   , initL
   , lookupL
@@ -40,6 +41,10 @@ opstk (Frame _ stk _ _ _) = stk
 elemsF :: Frame i -> [AbstrValue i]
 elemsF frm = locals frm ++ opstk frm
 
+mapValuesF :: (AbstrValue i -> AbstrValue i) -> Frame i -> Frame i
+mapValuesF f (Frame loc stk cn mn pc ) = Frame (map f loc) (map f stk) cn mn pc 
+
+
 type LocVars i = [AbstrValue i]
 
 initL :: [AbstrValue i] -> Int -> LocVars i
@@ -58,13 +63,12 @@ lookupL i ls = lookupL' i ls
 updateL :: Int -> AbstrValue i -> LocVars i -> LocVars i
 updateL i v vs = take i vs ++ v : drop (i+1) vs
 
+
 type Stk i     = [AbstrValue i]
 
 elemsS :: Stk i -> [AbstrValue i]
 elemsS = id
---
---mapValuesF :: (AbstrValue i -> AbstrValue i) -> Frame i -> Frame i
---mapValuesF f (Frame(loc,stk,cn,mn,pc)) = Frame(mapValuesL f loc, mapValuesS f stk, cn, mn, pc)
+
 
 --elemsF :: Frame i -> [AbstrValue i]
 --elemsF (Frame(loc,stk,_,_,_)) = elemsL loc ++ elemsS stk
