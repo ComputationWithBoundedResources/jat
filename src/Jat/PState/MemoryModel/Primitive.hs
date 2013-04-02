@@ -42,7 +42,7 @@ initMemx p cn mn = do
   let m   = P.theMethod p cn mn
   params <- mapM defaultAbstrValue $ P.methodParams m 
   let loc = initL params $ P.maxLoc m
-  return $ PState (emptyH Primitive) [Frame loc [] cn mn 0]
+  return $ PState emptyH [Frame loc [] cn mn 0] Primitive
   where 
     defaultAbstrValue P.BoolType = BoolVal `liftM` AD.top
     defaultAbstrValue P.IntType  = IntVal `liftM` AD.top
@@ -66,7 +66,7 @@ leqx _ st1 st2 = frames st1 `leqFS` frames st2
 joinx :: (Monad m, IntDomain i) => P.Program -> PState i Primitive -> PState i Primitive -> JatM m (PState i Primitive)
 joinx _ st1 st2 = do
   frms3 <- frames st1 `joinFS` frames st2
-  return $ PState (heap st1) frms3
+  return $ PState (heap st1) frms3 Primitive
   where
     frms1 `joinFS` frms2 = zipWithM joinF frms1 frms2
     Frame loc1 stk1 cn1 mn1 pc1  `joinF`  Frame loc2 stk2 _ _ _  = do

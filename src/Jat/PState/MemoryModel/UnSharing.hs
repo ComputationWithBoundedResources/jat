@@ -89,7 +89,7 @@ instance MemoryModel UnSharing where
   state2TRS = undefined
 
 
-mkAbsInstance :: (Monad m, IntDomain i) => Heap i a -> Address -> P.ClassId -> JatM m  (Heap i a, Object i)
+mkAbsInstance :: (Monad m, IntDomain i) => Heap i -> Address -> P.ClassId -> JatM m  (Heap i, Object i)
 mkAbsInstance hp adr cn = do
   p <- getProgram
   (hp1,ifds) <- initfds $ P.hasFields p cn
@@ -108,7 +108,7 @@ mkAbsInstance hp adr cn = do
     mkFt = foldl (flip $ curry3 updateFT) emptyFT
     curry3 f (a,b,c) = f a b c
 
-    defaultAbstrValue :: (IntDomain i) => Monad m => Heap i a -> P.Type -> JatM m (Heap i a, AbstrValue i)
+    defaultAbstrValue :: (IntDomain i) => Monad m => Heap i -> P.Type -> JatM m (Heap i, AbstrValue i)
     defaultAbstrValue hp1 (P.BoolType)   = do {v <- AD.top; return (hp1,BoolVal v)}
     defaultAbstrValue hp1 (P.IntType)    = do {v <- AD.top; return (hp1,IntVal v)}
     defaultAbstrValue hp1 (P.RefType cn1) = return (hp2, RefVal r)
@@ -175,11 +175,11 @@ mkAbsInstance hp adr cn = do
 
 
 new' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> JatM m (PStep(PState i UnSharing))
-new' p (PState hp (Frame loc stk cn mn pc :frms)) newcn = do 
+new' p (PState hp (Frame loc stk cn mn pc :frms) ann) newcn = do 
   let obt     = mkInstance p newcn
       (a,hp') = insertHA obt hp
       stk'    = RefVal a :stk
-  return $ topEvaluation (PState hp' (Frame loc stk' cn  mn (pc+1) :frms))
+  return $ topEvaluation (PState hp' (Frame loc stk' cn  mn (pc+1) :frms) ann)
 new' _ _ _ = error "Jat.PState.MemoryModel.UnSharing.new: unexpected case."
 
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
@@ -198,11 +198,11 @@ getField' _ st cn fn = case opstk $ frame st of
   _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
 
 mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> Address -> P.ClassId -> P.FieldId -> PStep (PState i a)
-mkGetField (PState hp (Frame loc stk cn mn pc :frms)) adr cn1 fn1 = 
+mkGetField (PState hp (Frame loc stk cn mn pc :frms) ann) adr cn1 fn1 = 
   case lookupH adr hp of
     AbsVar _      -> error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
     Instance _ ft -> let stk' = lookupFT cn1 fn1 ft :stk
-                    in topEvaluation (PState hp (Frame loc stk' cn  mn (pc+1) :frms))
+                    in topEvaluation (PState hp (Frame loc stk' cn  mn (pc+1) :frms) ann)
 mkGetField _ _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
 
 putField' ::(Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
@@ -216,7 +216,7 @@ mkPutField = undefined
 
 
 tryInstanceRefinement :: (Monad m, IntDomain i) => PState i UnSharing -> Address -> JatM m (Maybe (PStep(PState i UnSharing)))
-tryInstanceRefinement st@(PState hp _) q = 
+tryInstanceRefinement st@(PState hp _ _) q = 
     tryEqualityRefinementWithInstance st q |> case lookupH q hp of
       AbsVar _     -> getProgram >>= \p -> Just `liftM` instanceRefinement p st q
       Instance _ _ -> return Nothing 
@@ -231,7 +231,7 @@ tryInstanceRefinement _ _ = error "Jat.MemoryModel.UnSharing.tryInstanceRefineme
   -- if o2 is Instance then original annot can be removed
   -- if o2 is Abstract then annot have to be kept due to "symmetry" of -><-
 instanceRefinement :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> Address -> JatM m (PStep(PState i UnSharing))
-instanceRefinement p st@(PState hp frms) adr = do
+instanceRefinement p st@(PState hp frms ann) adr = do
   instances <- instancesM
   nullref   <- nullM
   return . topRefinement $ nullref:instances
@@ -240,35 +240,34 @@ instanceRefinement p st@(PState hp frms) adr = do
     obtM = mapM (mkAbsInstance hp adr) cns
 
     instancesM = map mkInstance `liftM` obtM
-      where mkInstance (hp1,obt1) = let hp2 = updateH adr obt1 hp1 in PState (mapAnnotations (updateSharing hp1 adr obt1) hp1) frms
+      where mkInstance (hp1,obt1) = let hp2 = updateH adr obt1 hp1 in PState hp2 frms (updateSharing hp2 adr obt1 ann)
     nullM      = return $ substitute (RefVal adr) Null st
     
 
-    updateSharing :: Heap i UnSharing -> Address -> Object i -> UnSharing -> UnSharing
-    updateSharing hp adr obj = case annotations hp of
-        UnSharing ma ms mt -> 
-          let ma' = ma `S.union` S.fromList newAliases1 `S.union` S.fromList newAliases2
-              ms' = S.filter thefilter ms `S.union` S.fromList newSharing1 `S.union` S.fromList newSharing2
-              mt' = mt `S.union` S.fromList newGraphs
-          in const $ UnSharing ma' ms' mt'
-          where
-            sharesWith = adr `mayShareWith` annotations hp
-            obtrefs    = referencesO obj
+    updateSharing :: Heap i -> Address -> Object i -> UnSharing -> UnSharing
+    updateSharing hp adr obj ann@(UnSharing ma ms mt) =
+      let ma' = ma `S.union` S.fromList newAliases1 `S.union` S.fromList newAliases2
+          ms' = S.filter thefilter ms `S.union` S.fromList newSharing1 `S.union` S.fromList newSharing2
+          mt' = mt `S.union` S.fromList newGraphs
+      in UnSharing ma' ms' mt'
+      where
+        sharesWith = adr `mayShareWith` ann
+        obtrefs    = referencesO obj
 
-            thefilter (ref1:><:ref2) = not $ (ref1 == adr || ref2 == adr) && isInstanceH ref1 && isInstanceH ref2 
-            newAliases1 = [ new :=?: old | new <- obtrefs, old <- sharesWith]
-            newSharing1 = [ new :><: old | new <- obtrefs, old <- sharesWith]
-            
-            (newAliases2, newSharing2, newGraphs) =
-              if NT adr `S.member` mt
-                then
-                ( [ new1:=?:new2 | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2, let {cn1 = classNameH new1; cn2 = classNameH new2} in cn1 `isSuper` cn2 || cn2 `isSuper` cn1]
-                , [ new1:><:new2 | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2]
-                , [ NT ref | ref <- obtrefs])
-                else ([],[],[])
-            classNameH cn  = className $ lookupH cn hp
-            isSuper        = P.isSuper p
-            isInstanceH ref = isInstance $ lookupH ref hp
+        thefilter (ref1:><:ref2) = not $ (ref1 == adr || ref2 == adr) && isInstanceH ref1 && isInstanceH ref2 
+        newAliases1 = [ new :=?: old | new <- obtrefs, old <- sharesWith]
+        newSharing1 = [ new :><: old | new <- obtrefs, old <- sharesWith]
+        
+        (newAliases2, newSharing2, newGraphs) =
+          if NT adr `S.member` mt
+            then
+            ( [ new1:=?:new2 | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2, let {cn1 = classNameH new1; cn2 = classNameH new2} in cn1 `isSuper` cn2 || cn2 `isSuper` cn1]
+            , [ new1:><:new2 | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2]
+            , [ NT ref | ref <- obtrefs])
+            else ([],[],[])
+        classNameH cn  = className $ lookupH cn hp
+        isSuper        = P.isSuper p
+        isInstanceH ref = isInstance $ lookupH ref hp
 
 
 
@@ -279,8 +278,8 @@ tryEqualityRefinement st r =
     Nothing -> return Nothing
 
 anyEqualityRefinement :: (IntDomain i) => PState i UnSharing -> Address -> Maybe MayAlias
-anyEqualityRefinement (PState hp _) q = 
-  case q `mayAliasWith` annotations hp of
+anyEqualityRefinement (PState hp _ ann) q = 
+  case q `mayAliasWith` ann of
    (r:_) -> Just (q:=?:r)
    []    -> Nothing
 anyEqualityRefinement _ _ = error "Jat.MemoryModel.UnSharing.anyEqualityRefinement: exceptional case."
@@ -293,9 +292,9 @@ tryEqualityRefinementWithInstance st r =
     Nothing -> return Nothing
 
 anyEqualityRefinementWithInstance :: (IntDomain i) => PState i UnSharing -> Address -> Maybe MayAlias
-anyEqualityRefinementWithInstance (PState hp _) q = anyq aliases
+anyEqualityRefinementWithInstance (PState hp _ ann) q = anyq aliases
   where
-    aliases = q `mayAliasWith` annotations hp
+    aliases = q `mayAliasWith` ann
     anyq (r:rs)     = 
       case lookupH r hp of 
         Instance _ _ -> Just (q:=?:r)

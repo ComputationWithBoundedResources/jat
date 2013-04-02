@@ -21,11 +21,11 @@ import qualified Jat.Program as P
 import qualified Data.Array as A
 
 isTerminal :: PState i a -> Bool
-isTerminal (PState _ frms) = null frms
-isTerminal (EState _)      = True
+isTerminal (PState _ frms _) = null frms
+isTerminal (EState _)        = True
 
 isSimilar :: PState i a -> PState i a -> Bool
-isSimilar (PState _ frms1) (PState _ frms2) = isSimilarFS frms1 frms2
+isSimilar (PState _ frms1 _) (PState _ frms2 _) = isSimilarFS frms1 frms2
   where
     isSimilarFS (f1:fs1) (f2:fs2) = isSimilarF f1 f2 && isSimilarFS fs1 fs2
     isSimilarFS [][]              = True
@@ -35,11 +35,11 @@ isSimilar (PState _ frms1) (PState _ frms2) = isSimilarFS frms1 frms2
 isSimilar _ _ = False
 
 isBackJump :: Monad m => PState i a -> JatM m Bool 
-isBackJump (PState _ (Frame _ _ cn mn pc:_)) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc
-isBackJump _                                 = return False
+isBackJump (PState _ (Frame _ _ cn mn pc:_) _) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc
+isBackJump _                                   = return False
 
 isTarget :: Monad m => PState i a -> JatM m Bool 
-isTarget (PState _ (Frame _ _ cn mn pc:_)) = do
+isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do
   p <- getProgram
   return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
@@ -50,8 +50,8 @@ isNull st = case opstk $ frame st of
   _       -> False
 
 mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
-mapValues f (PState hp frms) = PState (mapValuesH f hp) (map (mapValuesF f) frms)
-mapValues _ st               = st
+mapValues f (PState hp frms ann) = PState (mapValuesH f hp) (map (mapValuesF f) frms) ann
+mapValues _ st                   = st
 
 substitute :: Eq i => AbstrValue i -> AbstrValue i -> PState i a -> PState i a
 substitute v1 v2 = mapValues (\v -> if v == v1 then v2 else v)

@@ -16,15 +16,15 @@ mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.Program -> P.ClassI
 mkInitialState = initMem
 
 exec :: (Monad m, IntDomain i) => PState i a -> JatM m (PStep (PState i a))
-exec st@(PState _ (Frame _ _ cn mn pc :_)) = do
+exec st@(PState _ (Frame _ _ cn mn pc :_) _) = do
   p <- getProgram
   let ins = P.instruction p cn mn pc
   execInstruction p st ins
-exec (PState _ []) = error "Jat.PState.Semantics.exec: empty stk."
-exec (EState _)    = error "Jat.PState.Semantics.exec: exceptional state."
+exec (PState _ [] _) = error "Jat.PState.Semantics.exec: empty stk."
+exec (EState _)      = error "Jat.PState.Semantics.exec: exceptional state."
 
 execInstruction :: (Monad m, IntDomain i) => P.Program -> PState i a -> P.Instruction -> JatM m (PStep (PState i a))
-execInstruction p st@(PState _ _) ins = 
+execInstruction p st@(PState _ _ _) ins = 
   case ins of
     -- frame operations
     P.Push v         -> execPush v    `applyF` st
@@ -54,11 +54,11 @@ execInstruction _ (EState _) _ = error "Jat.PState.Semantics.exec: exceptional s
 
 -- frame operations
 applyF :: Monad m => (Frame i -> JatM m (PStep (Frame i))) -> PState i a -> JatM m (PStep (PState i a))
-applyF execf (PState hp (frm:frms)) = do
+applyF execf (PState hp (frm:frms) ann) = do
   frm' <- execf frm
-  return $ (\lfrm -> PState hp (lfrm:frms)) `liftPStep` frm' 
-applyF _ (PState _ []) = error "Jat.PState.Semantics.applyF: empty stack."
-applyF _ (EState _) = error "Jat.PState.Semantics.applyF: exceptional state."
+  return $ (\lfrm -> PState hp (lfrm:frms) ann) `liftPStep` frm' 
+applyF _ (PState _ [] _) = error "Jat.PState.Semantics.applyF: empty stack."
+applyF _ (EState _)      = error "Jat.PState.Semantics.applyF: exceptional state."
 
 execPush :: (Monad m, IntDomain i) => P.Value -> Frame i -> JatM m (PStep (Frame i))
 execPush val (Frame loc stk cn mn pc) = return $ topEvaluation (Frame loc (aval:stk) cn mn (pc+1))
@@ -144,8 +144,8 @@ execCmpNeq fr@(Frame loc stk cn mn pc) = case stk of
 
 -- inter frame operations
 execReturn :: (Monad m) => PState i a -> JatM m (PStep (PState i a))
-execReturn (PState hp [_]) = return . topEvaluation $ PState hp []
-execReturn (PState hp (Frame _ (val:_) _ _ _ :Frame loc2 stk2 cn2 mn2 pc2 :frms)) =
-  return . topEvaluation $ PState hp (Frame loc2 (val:stk2) cn2 mn2 (pc2+1):frms) 
-execReturn (PState _ _) = error "Jat.PState.Semantcs.execReturn: illegal stack."
-execReturn (EState _)   = error "Jat.PState.Semantics.execRetur: exceptional state."
+execReturn (PState hp [_] ann) = return . topEvaluation $ PState hp [] ann
+execReturn (PState hp (Frame _ (val:_) _ _ _ :Frame loc2 stk2 cn2 mn2 pc2 :frms) ann) =
+  return . topEvaluation $ PState hp (Frame loc2 (val:stk2) cn2 mn2 (pc2+1):frms) ann
+execReturn (PState _ _ _) = error "Jat.PState.Semantcs.execReturn: illegal stack."
+execReturn (EState _)     = error "Jat.PState.Semantics.execRetur: exceptional state."

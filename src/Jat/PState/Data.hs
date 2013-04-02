@@ -5,24 +5,29 @@ import Jat.PState.Heap
 import Jat.Utils.Pretty
 
 data PState i a  = 
-    PState (Heap i a) [Frame i]
+    PState (Heap i) [Frame i] a
   | EState PException 
 data PException  = NullPointerException deriving Show
 
 
 frames :: PState i a -> [Frame i]
-frames (PState _ frms) = frms
-frames (EState _) = []
-
-heap :: PState i a -> Heap i a
-heap (PState hp _) = hp
-heap (EState _)    = error "Jat.PState.Data.heap: assertion error: exceptional state"
+frames (PState _ frms _) = frms
+frames (EState _)        = []
 
 frame :: PState i a -> Frame i
-frame (PState _ frms) 
+frame (PState _ frms _) 
   | null frms = error "Jat.PState.Data.frame: assertion error: empty stack."
   | otherwise = head frms
 frame (EState _) = error "Jat.PState.Data.frame assertion error: exceptional state"
+
+heap :: PState i a -> Heap i
+heap (PState hp _ _) = hp
+heap (EState _)      = error "Jat.PState.Data.heap: assertion error: exceptional state"
+
+annotations :: PState i a -> a
+annotations (PState _ _ ann) = ann
+annotations (EState _)       = error "Jat.PState.Data.annotations: assertion error: exceptional state"
+
 
 instance (Pretty i, Pretty a) => Show (PState i a) where
   show = show . pretty
@@ -31,7 +36,7 @@ instance Pretty PException where
   pretty = text . show
 
 instance (Pretty i, Pretty a) => Pretty (PState i a) where
-  pretty (EState ex)       = pretty ex
-  pretty (PState mem frms) =
-    vsep (map pretty frms) <$> pretty mem
+  pretty (EState ex)          = pretty ex
+  pretty (PState hp frms ann) =
+    vsep (map pretty frms) <$> pretty hp <$> pretty ann
 
