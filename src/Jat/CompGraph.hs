@@ -67,8 +67,7 @@ mkJGraph cn mn = mkInitialNode cn mn >>= mkSteps
 mkInitialNode :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a)
 mkInitialNode cn mn = do
   k <- freshKey
-  p <- getProgram
-  st <- mkInitialState p cn mn
+  st <- mkInitialState cn mn
   let ctx = ([],k,st,[]) 
       g   = ctx & Gr.empty
   return $ MkJGraph g [ctx]
@@ -93,7 +92,7 @@ leq' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a ->
 leq' ctx1 ctx2 = getProgram >>= \p -> return $ leq p (state' ctx1) (state' ctx2)
 
 join' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -> JatM m (PState i a)
-join' ctx1 ctx2 = getProgram >>= \p -> join p (state' ctx1) (state' ctx2)
+join' ctx1 ctx2 = join (state' ctx1) (state' ctx2)
 
 mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkSteps mg@(MkJGraph _ [])                        = return mg

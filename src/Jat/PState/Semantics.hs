@@ -12,7 +12,7 @@ import Jat.PState.MemoryModel
 import Jat.PState.Step
 import qualified Jat.Program as P
 
-mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.Program -> P.ClassId -> P.MethodId -> JatM m (PState i a)
+mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (PState i a)
 mkInitialState = initMem
 
 exec :: (Monad m, IntDomain i) => PState i a -> JatM m (PStep (PState i a))

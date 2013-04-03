@@ -1,6 +1,7 @@
 module Jat.PState.Fun
   (
     mkInstance
+  , mkGetField
   , isTerminal
   , isSimilar
   , isBackJump
@@ -16,8 +17,10 @@ import Jat.PState.AbstrValue
 import Jat.PState.Data
 import Jat.PState.Frame
 import Jat.PState.Object
-import Jat.PState.IntDomain
+import Jat.PState.IntDomain.Data
+import Jat.PState.MemoryModel.Data
 import Jat.PState.Heap
+import Jat.PState.Step
 import Jat.JatM
 import qualified Jat.Program as P
 
@@ -30,6 +33,15 @@ mkInstance p cn = Instance cn (mkFt . initfds $ fds)
     initfds = map (\(lfn,lcn,ltp) -> (lcn,lfn,defaultValue ltp))
     mkFt    = foldl (flip $ curry3 updateFT) emptyFT
     curry3 f (a,b,c) = f a b c
+
+mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> P.ClassId -> P.FieldId -> PStep (PState i a)
+mkGetField st _ _ | isNull st = topEvaluation $ EState NullPointerException
+mkGetField (PState hp (Frame loc (RefVal adr:stk) cn1 mn pc :frms) us) cn2 fn = 
+  case lookupH adr hp of
+    AbsVar _      -> error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case."
+    Instance _ ft -> let stk' = lookupFT cn2 fn ft :stk
+                    in topEvaluation (PState hp (Frame loc stk' cn1  mn (pc+1) :frms) us)
+mkGetField _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
 
 isTerminal :: PState i a -> Bool
 isTerminal (PState _ frms _) = null frms
