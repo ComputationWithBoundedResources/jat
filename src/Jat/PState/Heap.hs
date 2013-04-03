@@ -11,11 +11,15 @@ module Jat.PState.Heap
   , mapValuesH
 
   , paths
+  , pathValue
+  , pathsFromTo
   , reachable
   , reachableFrom
   , isCyclic
   , hasCommonSuccessor
   , isNotTreeShaped
+  , commonPrefix
+  , hasCommonPrefix
   )
 where
 
@@ -81,6 +85,26 @@ paths adr hp = paths' S.empty (RefVal adr)
           unroll (k,v) = [k]:[ k:ls | ls <- filter (not . null) $ paths' visited' v]
           visited' = r `S.insert` visited
     paths' _ _ = [[]]
+
+pathValue :: Address -> [(P.ClassId, P.FieldId)] -> Heap i -> AbstrValue i
+pathValue adr [] _            = RefVal adr
+pathValue adr [(cn,fn)] hp    = lookupFT cn fn . fieldTable $ lookupH adr hp 
+pathValue adr ((cn,fn):ls) hp = case lookupFT cn fn . fieldTable $ lookupH adr hp of
+  RefVal adr2 -> pathValue adr2 ls hp
+  val         -> val
+
+pathsFromTo :: Eq i => Address -> Address -> Heap i -> [[(P.ClassId, P.FieldId)]]
+pathsFromTo adr1 adr2 hp = filter target2 paths1 
+  where
+    paths1       = paths adr1 hp
+    target2 path = RefVal adr2 == pathValue adr1 path hp
+
+commonPrefix :: [(P.ClassId,P.FieldId)] -> [(P.ClassId,P.FieldId)] -> [(P.ClassId,P.FieldId)]
+commonPrefix (l1:ls1) (l2:ls2) | l1 == l2 = l1:commonPrefix ls1 ls2
+commonPrefix _ _ = []
+
+hasCommonPrefix :: [(P.ClassId,P.FieldId)] -> [(P.ClassId,P.FieldId)] -> Bool
+hasCommonPrefix paths1 paths2 = not . null $ commonPrefix paths1 paths2
 
 reachable :: Address -> Heap i -> [Address]
 reachable adr = Gr.reachable adr . memory

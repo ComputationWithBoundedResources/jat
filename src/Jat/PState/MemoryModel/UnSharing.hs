@@ -138,8 +138,10 @@ mkPutField st@(PState hp (Frame loc (_:_:stk) cn mn pc :frms) us) adr cn1 fn1 v 
         o0 = adr 
 
         newShares = [ p:><:q | p <- annotatedWith st o1, q <- reaches st o0, p/=q ]
-        newGraphs1 = [ NT p | p <- reachedBy st o1, q1 <- reaches st p, q2 <- reaches st o0, q1 == q2,  anyNonCommonPrefix]
-          where anyNonCommonPrefix = undefined
+        newGraphs1 = [ NT p | p <- reachedBy st o1, q1 <- reaches st p
+                            , q2 <- reaches st o0, q1 == q2
+                            , noCommonPrefix (pathsFromTo p o1 hp) (pathsFromTo p q1 hp)]
+        noCommonPrefix paths1 paths2 = not $ or [hasCommonPrefix path1 path2 | path1 <- paths1, path2 <- paths2]
         newGraphs2 = if hasCommonSuccessor o0 hp ||  any (\q -> NT q `S.member` mt) (reachable o0 hp)
                         then [NT p | p <- annotatedWith st o1]
                         else S.empty 
