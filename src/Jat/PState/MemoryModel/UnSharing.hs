@@ -94,18 +94,18 @@ instance MemoryModel UnSharing where
 
   state2TRS = undefined
 
-new' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> JatM m (PStep(PState i UnSharing))
-new' p (PState hp (Frame loc stk cn mn pc :frms) ann) newcn = 
+new' :: (Monad m, IntDomain i) => PState i UnSharing -> P.ClassId -> JatM m (PStep(PState i UnSharing))
+new' (PState hp (Frame loc stk cn mn pc :frms) ann) newcn = do
+  p <- getProgram
   let obt     = mkInstance p newcn
       (a,hp') = insertHA obt hp
       stk'    = RefVal a :stk
-  in
   return $ topEvaluation (PState hp' (Frame loc stk' cn  mn (pc+1) :frms) ann)
-new' _ _ _ = error "Jat.PState.MemoryModel.UnSharing.new: unexpected case."
+new' _ _ = error "Jat.PState.MemoryModel.UnSharing.new: unexpected case."
 
 
-getField' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
-getField' _ st cn fn = case opstk $ frame st of
+getField' :: (Monad m, IntDomain i) => PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
+getField' st cn fn = case opstk $ frame st of
   Null :_        -> return $ topEvaluation (EState NullPointerException)
   RefVal adr : _ -> tryInstanceRefinement st adr |>> return (mkGetField st adr cn fn)
   _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
@@ -118,8 +118,8 @@ mkGetField (PState hp (Frame loc stk cn mn pc :frms) ann) adr cn1 fn1 =
                     in topEvaluation (PState hp (Frame loc stk' cn  mn (pc+1) :frms) ann)
 mkGetField _ _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
 
-putField' ::(Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
-putField' _ st cn fn = case opstk $ frame st of
+putField' :: (Monad m, IntDomain i) => PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
+putField' st cn fn = case opstk $ frame st of
   _ : Null : _        -> return $ topEvaluation (EState NullPointerException)
   v : RefVal adr : _ -> tryInstanceRefinement st adr |> tryEqualityRefinement st adr |>> mkPutField st adr cn fn v
   _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
@@ -149,24 +149,28 @@ mkPutField st@(PState hp (Frame loc (_:_:stk) cn mn pc :frms) us) adr cn1 fn1 v 
                         then [NT p | p <- annotatedWith st o1]
                         else S.empty 
 
-invoke' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.MethodId -> Int -> JatM m (PStep(PState i UnSharing))
-invoke' p s@(PState hp (Frame loc stk cn mn pc :frms) us) mn2 n =
-  case rv  of
-    Null     -> return . topEvaluation $ EState NullPointerException
-    RefVal q -> tryInstanceRefinement s q
-               |>> return (topEvaluation $ PState hp (frm:Frame loc stk2 cn mn pc:frms) us)
-    _        -> error "Jat.PState.Data.exec.invoke: invalid type on stack"
+invoke' :: (Monad m, IntDomain i) => PState i UnSharing -> P.MethodId -> Int -> JatM m (PStep(PState i UnSharing))
+invoke' st mn n = do
+  p <- getProgram
+  invoke'' p st mn n
   where
-    (ps,stk1) = splitAt n stk
-    ([rv],stk2) = splitAt 1 stk1
-    cn'      = className $ lookupH (theAddress rv) hp
-    (cn'',mb) = P.seesMethodIn p cn' mn2
-    mxl = P.maxLoc mb
-    frm = Frame (initL (rv:reverse ps) mxl) [] cn'' mn2 0
-invoke' _ _ _ _ = error "Jat.PState.MemoryModel.UnSharing.inoke: exceptional case."
+    invoke'' p s@(PState hp (Frame loc stk cn mn pc :frms) us) mn2 n =
+      case rv  of
+        Null     -> return . topEvaluation $ EState NullPointerException
+        RefVal q -> tryInstanceRefinement s q
+                  |>> return (topEvaluation $ PState hp (frm:Frame loc stk2 cn mn pc:frms) us)
+        _        -> error "Jat.PState.Data.exec.invoke: invalid type on stack"
+      where
+        (ps,stk1) = splitAt n stk
+        ([rv],stk2) = splitAt 1 stk1
+        cn'      = className $ lookupH (theAddress rv) hp
+        (cn'',mb) = P.seesMethodIn p cn' mn2
+        mxl = P.maxLoc mb
+        frm = Frame (initL (rv:reverse ps) mxl) [] cn'' mn2 0
+    invoke'' _ _ _ _ = error "Jat.PState.MemoryModel.UnSharing.inoke: exceptional case."
 
-equals' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> JatM m (PStep(PState i UnSharing))
-equals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
+equals' :: (Monad m, IntDomain i) => PState i UnSharing -> JatM m (PStep(PState i UnSharing))
+equals' st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
   equalsx v1 v2
   where
     equalsx (RefVal q) (RefVal r) | q == r = mkBool True
@@ -181,10 +185,10 @@ equals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma 
     equalsx _ _ = error "equals: unexpected case"
     mkBool b = return . topEvaluation $ PState hp (Frame loc stk' cn mn (pc+1):frms) us
       where stk' = BoolVal (AD.constant b) : stk
-equals' _ _ = error "Jat.PState.MemoryModel.UnSharing.equals: unexpected case."
+equals' _ = error "Jat.PState.MemoryModel.UnSharing.equals: exceptional case."
 
-nequals' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> JatM m (PStep(PState i UnSharing))
-nequals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
+nequals' :: (Monad m, IntDomain i) => PState i UnSharing -> JatM m (PStep(PState i UnSharing))
+nequals' st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
   nequalsx v1 v2
   where
     nequalsx (RefVal q) (RefVal r) | q == r = mkBool False
@@ -199,7 +203,7 @@ nequals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma
     nequalsx _ _ = error "nequals: unexpected case"
     mkBool b = return . topEvaluation $ PState hp (Frame loc stk' cn mn (pc+1):frms) us
       where stk' = BoolVal (AD.constant b) : stk
-nequals' _ _ = error "Jat.PState.MemoryModel.UnSharing.equals: unexpected case."
+nequals' _ = error "Jat.PState.MemoryModel.UnSharing.equals: exceptional case."
 
 mkAbsInstance :: (Monad m, IntDomain i) => Heap i -> Address -> P.ClassId -> JatM m  (Heap i, Object i)
 mkAbsInstance hp adr cn = do
@@ -238,11 +242,11 @@ initMem' p cn mn = do
     defaultAbstrValue :: (Monad m, IntDomain i) => (Heap i, [AbstrValue i]) -> P.Type -> JatM m (Heap i, [AbstrValue i])
     defaultAbstrValue acc _          = return acc
     defaultAbstrValue (hp,params) ty = case ty of
-      P.BoolType -> AD.top >>= \b -> return $ (hp, params++[BoolVal b])
-      P.IntType  -> AD.top >>= \i -> return $ (hp, params++[IntVal i])
-      P.NullType -> return $ (hp, params++[Null])
-      P.Void     -> return $ (hp, params++[Unit])
-      P.RefType cn -> return $ (hp', params++[RefVal r])
+      P.BoolType -> AD.top >>= \b -> return (hp, params++[BoolVal b])
+      P.IntType  -> AD.top >>= \i -> return (hp, params++[IntVal i])
+      P.NullType ->                  return (hp, params++[Null])
+      P.Void     ->                  return (hp, params++[Unit])
+      P.RefType cn ->                return (hp', params++[RefVal r])
         where (r, hp') = insertHA (AbsVar cn) hp
 
 

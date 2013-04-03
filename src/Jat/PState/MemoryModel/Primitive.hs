@@ -37,8 +37,9 @@ instance MemoryModel Primitive where
 
   state2TRS = undefined
  
-initMemx :: (Monad m, IntDomain i) => P.Program -> P.ClassId -> P.MethodId -> JatM m (PState i Primitive)
-initMemx p cn mn = do
+initMemx :: (Monad m, IntDomain i) => P.ClassId -> P.MethodId -> JatM m (PState i Primitive)
+initMemx cn mn = do
+  p <- getProgram
   let m   = P.theMethod p cn mn
   params <- mapM defaultAbstrValue $ P.methodParams m 
   let loc = initL params $ P.maxLoc m
@@ -63,8 +64,8 @@ leqx _ st1 st2 = frames st1 `leqFS` frames st2
     IntVal i1  `leqV` IntVal i2  = i1 `AD.leq` i2
     _          `leqV` _          = error "Jat.PState.MemoryModel.Primitive: not supported."
 
-joinx :: (Monad m, IntDomain i) => P.Program -> PState i Primitive -> PState i Primitive -> JatM m (PState i Primitive)
-joinx _ st1 st2 = do
+joinx :: (Monad m, IntDomain i) => PState i Primitive -> PState i Primitive -> JatM m (PState i Primitive)
+joinx st1 st2 = do
   frms3 <- frames st1 `joinFS` frames st2
   return $ PState (heap st1) frms3 Primitive
   where
