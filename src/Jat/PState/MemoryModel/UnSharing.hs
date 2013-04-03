@@ -1,3 +1,5 @@
+{-# LANGUAGE MonadComprehensions #-}
+
 module Jat.PState.MemoryModel.UnSharing 
   (
   UnSharing
@@ -20,7 +22,8 @@ import Jat.Utils.Pretty
 import Jat.Utils.Fun
 import qualified Jat.Program as P
 
-import qualified Data.Set as S
+import Data.Set.Monad (Set)
+import qualified Data.Set.Monad as S
 
 data MayShare = Int :><: Int deriving Show
 data MayAlias = Int :=?: Int deriving Show
@@ -78,8 +81,8 @@ instance MemoryModel UnSharing where
   putField  = putField'
 
   invoke    = undefined
-  equals    = undefined
-  nequals   = undefined
+  equals    = equals'
+  nequals   = nequals'
 
   initMem   = undefined
 
@@ -88,6 +91,93 @@ instance MemoryModel UnSharing where
 
   state2TRS = undefined
 
+new' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> JatM m (PStep(PState i UnSharing))
+new' p (PState hp (Frame loc stk cn mn pc :frms) ann) newcn = 
+  let obt     = mkInstance p newcn
+      (a,hp') = insertHA obt hp
+      stk'    = RefVal a :stk
+  in
+  return $ topEvaluation (PState hp' (Frame loc stk' cn  mn (pc+1) :frms) ann)
+new' _ _ _ = error "Jat.PState.MemoryModel.UnSharing.new: unexpected case."
+
+
+getField' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
+getField' _ st cn fn = case opstk $ frame st of
+  Null :_        -> return $ topEvaluation (EState NullPointerException)
+  RefVal adr : _ -> tryInstanceRefinement st adr |>> return (mkGetField st adr cn fn)
+  _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
+
+mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> Address -> P.ClassId -> P.FieldId -> PStep (PState i a)
+mkGetField (PState hp (Frame loc stk cn mn pc :frms) ann) adr cn1 fn1 = 
+  case lookupH adr hp of
+    AbsVar _      -> error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
+    Instance _ ft -> let stk' = lookupFT cn1 fn1 ft : tail stk
+                    in topEvaluation (PState hp (Frame loc stk' cn  mn (pc+1) :frms) ann)
+mkGetField _ _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
+
+putField' ::(Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
+putField' _ st cn fn = case opstk $ frame st of
+  _ : Null : _        -> return $ topEvaluation (EState NullPointerException)
+  v : RefVal adr : _ -> tryInstanceRefinement st adr |> tryEqualityRefinement st adr |>> mkPutField st adr cn fn v
+  _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
+
+mkPutField :: (Monad m, IntDomain i) => PState i UnSharing -> Address -> 
+             P.ClassId -> P.FieldId -> AbstrValue i -> JatM m (PStep (PState i UnSharing))
+mkPutField st@(PState hp (Frame loc (_:_:stk) cn mn pc :frms) us) adr cn1 fn1 v = 
+  case lookupH adr hp of
+    AbsVar _         -> error "Jat.PState.MemoryModel.Sharing.putField: unexpected case"
+    Instance cn2 ft ->  return $ topEvaluation  (mkPut cn2 ft)
+  where
+    mkPut dn ft = PState (updateH adr (mkObt dn ft) hp) (Frame loc stk cn mn (pc+1):frms) (updateAnnot us)
+    mkObt cn ft = Instance cn (updateFT cn1 fn1 v ft)
+    updateAnnot us@(UnSharing me ms mt) = case v of
+      RefVal o0 -> UnSharing me (ms `S.union` newShares) (mt `S.union` newGraphs1 `S.union` newGraphs2)
+      _ -> us
+      where
+        o1 = let RefVal o1 = v in o1
+        o0 = adr 
+
+        newShares = [ p:><:q | p <- annotatedWith st o1, q <- reaches st o0, p/=q ]
+        newGraphs1 = [ NT p | p <- reachedBy st o1, q1 <- reaches st p, q2 <- reaches st o0, q1 == q2,  anyNonCommonPrefix]
+          where anyNonCommonPrefix = undefined
+        newGraphs2 = if hasCommonSuccessor o0 hp ||  any (\q -> NT q `S.member` mt) (reachable o0 hp)
+                        then [NT p | p <- annotatedWith st o1]
+                        else S.empty 
+
+equals' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> JatM m (PStep(PState i UnSharing))
+equals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
+  equalsx v1 v2
+  where
+    equalsx (RefVal q) (RefVal r) | q == r = mkBool True
+    equalsx (RefVal q) (RefVal r) = 
+      if (q :=?: r) `S.member` ma
+        then return $ equalityRefinement st (q:=?:r)
+        else mkBool False
+    equalsx (RefVal q) Null =
+      tryInstanceRefinement st q |>> mkBool False
+    equalsx Null (RefVal r) =
+      tryInstanceRefinement st r |>> mkBool False
+    equalsx _ _ = error "equals: unexpected case"
+    mkBool b = return . topEvaluation $ PState hp (Frame loc stk' cn mn (pc+1):frms) us
+      where stk' = BoolVal (AD.constant b) : stk
+equals' _ _ = error "Jat.PState.MemoryModel.UnSharing.equals: unexpected case."
+
+nequals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
+  nequalsx v1 v2
+  where
+    nequalsx (RefVal q) (RefVal r) | q == r = mkBool False
+    nequalsx (RefVal q) (RefVal r) =
+      if (q :=?: r) `S.member` ma
+        then return $ equalityRefinement st (q:=?:r)
+        else mkBool True
+    nequalsx (RefVal q) Null =
+      tryInstanceRefinement st q |>> mkBool True
+    nequalsx Null (RefVal r) =
+      tryInstanceRefinement st r |>> mkBool True
+    nequalsx _ _ = error "nequals: unexpected case"
+    mkBool b = return . topEvaluation $ PState hp (Frame loc stk' cn mn (pc+1):frms) us
+      where stk' = BoolVal (AD.constant b) : stk
+nequals' _ _ = error "Jat.PState.MemoryModel.UnSharing.equals: unexpected case."
 
 mkAbsInstance :: (Monad m, IntDomain i) => Heap i -> Address -> P.ClassId -> JatM m  (Heap i, Object i)
 mkAbsInstance hp adr cn = do
@@ -174,45 +264,21 @@ mkAbsInstance hp adr cn = do
     --defaultAbstrValue _          = error "Jat.PState.MemorModel.Primitive: not supported"
 
 
-new' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> JatM m (PStep(PState i UnSharing))
-new' p (PState hp (Frame loc stk cn mn pc :frms) ann) newcn = do 
-  let obt     = mkInstance p newcn
-      (a,hp') = insertHA obt hp
-      stk'    = RefVal a :stk
-  return $ topEvaluation (PState hp' (Frame loc stk' cn  mn (pc+1) :frms) ann)
-new' _ _ _ = error "Jat.PState.MemoryModel.UnSharing.new: unexpected case."
-
-mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
-mkInstance p cn = Instance cn (mkFt . initfds $ fds)
-  where
-    fds     = P.hasFields p cn
-    initfds = map (\(lfn,lcn,ltp) -> (lcn,lfn,defaultValue ltp))
-    mkFt    = foldl (flip $ curry3 updateFT) emptyFT
-    curry3 f (a,b,c) = f a b c
 
 
-getField' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
-getField' _ st cn fn = case opstk $ frame st of
-  Null :_        -> return $ topEvaluation (EState NullPointerException)
-  RefVal adr : _ -> tryInstanceRefinement st adr |>> (return $ mkGetField st adr cn fn)
-  _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
 
-mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> Address -> P.ClassId -> P.FieldId -> PStep (PState i a)
-mkGetField (PState hp (Frame loc stk cn mn pc :frms) ann) adr cn1 fn1 = 
-  case lookupH adr hp of
-    AbsVar _      -> error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
-    Instance _ ft -> let stk' = lookupFT cn1 fn1 ft :stk
-                    in topEvaluation (PState hp (Frame loc stk' cn  mn (pc+1) :frms) ann)
-mkGetField _ _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
 
-putField' ::(Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i UnSharing))
-putField' _ st cn fn = case opstk $ frame st of
-  Null :_        -> return $ topEvaluation (EState NullPointerException)
-  RefVal adr : _ -> tryInstanceRefinement st adr |> tryEqualityRefinement st adr |>> mkPutField st adr cn fn
-  _              -> error "Jat.MemoryModel.UnSharing.getField: unexpected case."
 
-mkPutField = undefined 
+annotatedWith :: PState i UnSharing -> Address -> Set Address
+annotatedWith st adr = S.fromList (adr `mayAliasWith` ann) `S.union` S.fromList (adr `mayShareWith` ann)
+  where ann = annotations st
 
+reaches :: PState i UnSharing -> Address -> Set Address
+reaches st adr = S.unions $ S.fromList reachables : map (annotatedWith st) reachables
+  where reachables = reachable adr (heap st)
+
+reachedBy :: PState i UnSharing -> Address -> Set Address
+reachedBy st adr1 = S.fromList $ filter (\adr2 -> adr1 `S.member` reaches st adr2) (addresses $ heap st) 
 
 
 tryInstanceRefinement :: (Monad m, IntDomain i) => PState i UnSharing -> Address -> JatM m (Maybe (PStep(PState i UnSharing)))

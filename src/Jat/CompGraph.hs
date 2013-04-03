@@ -127,13 +127,13 @@ tryLoop mg@(MkJGraph g (ctx:_))                      = do
 tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) = do
   b <- leq' ctx1 ctx2
-  if b then Just `liftM` mkInstance ctx2 mg else return Nothing
+  if b then Just `liftM` mkInstanceNode ctx2 mg else return Nothing
 tryInstance _ _ = return Nothing
 
-mkInstance :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
-mkInstance ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
+mkInstanceNode :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
+mkInstanceNode ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
   where g' = insEdge (node' ctx1, node' ctx2, InstanceLabel) g
-mkInstance _ _ = error "Jat.CompGraph.mkInstance: empty context."
+mkInstanceNode _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 
 mkJoin :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)

@@ -1,6 +1,7 @@
 module Jat.PState.Fun
   (
-    isTerminal
+    mkInstance
+  , isTerminal
   , isSimilar
   , isBackJump
   , isTarget
@@ -14,11 +15,21 @@ where
 import Jat.PState.AbstrValue
 import Jat.PState.Data
 import Jat.PState.Frame
+import Jat.PState.Object
+import Jat.PState.IntDomain
 import Jat.PState.Heap
 import Jat.JatM
 import qualified Jat.Program as P
 
 import qualified Data.Array as A
+
+mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
+mkInstance p cn = Instance cn (mkFt . initfds $ fds)
+  where
+    fds     = P.hasFields p cn
+    initfds = map (\(lfn,lcn,ltp) -> (lcn,lfn,defaultValue ltp))
+    mkFt    = foldl (flip $ curry3 updateFT) emptyFT
+    curry3 f (a,b,c) = f a b c
 
 isTerminal :: PState i a -> Bool
 isTerminal (PState _ frms _) = null frms
