@@ -1,12 +1,14 @@
 module Jat.PState.Fun
   (
     mkInstance
+  , mkAbsInstance
   , mkGetField
+  , mkPutField
+
   , isTerminal
   , isSimilar
   , isBackJump
   , isTarget
-  , isNull
 
   , mapValues
   , substitute
@@ -21,6 +23,7 @@ import Jat.PState.IntDomain.Data
 import Jat.PState.MemoryModel.Data
 import Jat.PState.Heap
 import Jat.PState.Step
+import Jat.PState.AbstrDomain as AD
 import Jat.JatM
 import qualified Jat.Program as P
 
@@ -34,14 +37,59 @@ mkInstance p cn = Instance cn (mkFt . initfds $ fds)
     mkFt    = foldl (flip $ curry3 updateFT) emptyFT
     curry3 f (a,b,c) = f a b c
 
+mkAbsInstance :: (Monad m, IntDomain i) => Heap i -> Address -> P.ClassId -> JatM m  (Heap i, Object i)
+mkAbsInstance hp adr cn = do
+  p <- getProgram
+  (hp1,ifds) <- initfds $ P.hasFields p cn
+  let obt = mkObt cn ifds
+      hp2 = updateH adr obt hp1
+  return (hp2,obt)
+  where 
+    initfds = initfds' (return (hp,[]))
+    initfds' m [] = m
+    initfds' m ((ln1,cn1,tp1):fds) = do
+      (hp1,ifds) <- m
+      (hp2,v) <- defaultAbstrValue hp1 tp1
+      initfds' (return (hp2, (cn1,ln1,v):ifds)) fds
+
+    mkObt cn1 fds = Instance cn1 (mkFt fds)
+    mkFt = foldl (flip $ curry3 updateFT) emptyFT
+    curry3 f (a,b,c) = f a b c
+
+    defaultAbstrValue :: (IntDomain i) => Monad m => Heap i -> P.Type -> JatM m (Heap i, AbstrValue i)
+    defaultAbstrValue hp1 (P.BoolType)   = do {v <- AD.top; return (hp1,BoolVal v)}
+    defaultAbstrValue hp1 (P.IntType)    = do {v <- AD.top; return (hp1,IntVal v)}
+    defaultAbstrValue hp1 (P.RefType cn1) = return (hp2, RefVal r)
+      where (r, hp2) = insertHA (AbsVar cn1) hp1
+    defaultAbstrValue _ _              = error "Jat.PState.MemoryModel.UnSharing.mkAbsInstance: unexpected type."
+
 mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> P.ClassId -> P.FieldId -> PStep (PState i a)
-mkGetField st _ _ | isNull st = topEvaluation $ EState NullPointerException
+mkGetField (PState _ (Frame _ (Null:_) _ _ _ :_) _) _ _ =  topEvaluation $ EState NullPointerException
 mkGetField (PState hp (Frame loc (RefVal adr:stk) cn1 mn pc :frms) us) cn2 fn = 
   case lookupH adr hp of
-    AbsVar _      -> error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case."
+    AbsVar _      -> error "Jat.PState.Fun.mkGetField: unexpected case."
     Instance _ ft -> let stk' = lookupFT cn2 fn ft :stk
                     in topEvaluation (PState hp (Frame loc stk' cn1  mn (pc+1) :frms) us)
-mkGetField _ _ _ = error "Jat.MemoryModel.UnSharing.mkGetField: unexpected case"
+mkGetField _ _ _ = error "Jat.PState.Fun.mkGetField: unexpected case"
+
+mkPutField :: (Monad m, IntDomain i, MemoryModel a) => a -> PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
+mkPutField us2 st@(PState hp (Frame loc fstk fcn mn pc :frms) us1) cn fn = 
+  return $ case opstk $ frame st of
+  _            : Null      : _ ->  topEvaluation $ EState NullPointerException
+  v@(RefVal _) : RefVal o1 : _ ->  topEvaluation $ mkPut v o1 us2
+  v            : RefVal o1 : _ ->  topEvaluation $ mkPut v o1 us1
+  _ -> error "Jat.PState.Fun.putField: unexpected case."
+  where
+    mkPut v o1 uso = case lookupH o1 hp of
+      AbsVar _         -> error "Jat.PState.Fun.mkPutField: unexpected case."
+      Instance cno fto -> 
+        let (_:_:stk) = fstk
+            obt = Instance cno (updateFT cn fn v fto)
+            hp' = updateH o1 obt hp
+        in  PState hp' (Frame loc stk fcn mn (pc+1):frms) uso
+mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
+
+
 
 isTerminal :: PState i a -> Bool
 isTerminal (PState _ frms _) = null frms
@@ -66,11 +114,6 @@ isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do
   p <- getProgram
   return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
-
-isNull :: PState i a -> Bool
-isNull st = case opstk $ frame st of
-  Null :_ -> True
-  _       -> False
 
 mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
 mapValues f (PState hp frms ann) = PState (mapValuesH f hp) (map (mapValuesF f) frms) ann

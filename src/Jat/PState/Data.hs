@@ -3,6 +3,7 @@ module Jat.PState.Data where
 import Jat.PState.Frame
 import Jat.PState.Heap
 import Jat.Utils.Pretty
+import qualified Jat.Program as P
 
 data PState i a  = 
     PState (Heap i) [Frame i] a
@@ -28,6 +29,9 @@ annotations :: PState i a -> a
 annotations (PState _ _ ann) = ann
 annotations (EState _)       = error "Jat.PState.Data.annotations: assertion error: exceptional state"
 
+type Path = [(P.ClassId, P.FieldId)]
+data Root = RStk Int Int | RLoc Int Int deriving (Eq,Show)
+data RPath= RPath Root Path deriving (Eq,Show)
 
 instance (Pretty i, Pretty a) => Show (PState i a) where
   show = show . pretty
