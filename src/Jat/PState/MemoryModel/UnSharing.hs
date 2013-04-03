@@ -57,6 +57,9 @@ instance Pretty MayGraph where
 
 data UnSharing = UnSharing (S.Set MayAlias) (S.Set MayShare) (S.Set MayGraph) deriving (Eq,Ord,Show)
 
+emptyUS :: UnSharing 
+emptyUS = UnSharing S.empty S.empty S.empty
+
 mayShareWith :: Address -> UnSharing -> [Address]
 adr `mayShareWith` (UnSharing _ ms _) = 
   [ adr'  | (adr1:><:adr2) <- S.elems ms
@@ -80,7 +83,7 @@ instance MemoryModel UnSharing where
   getField  = getField'
   putField  = putField'
 
-  invoke    = undefined
+  invoke    = invoke'
   equals    = equals'
   nequals   = nequals'
 
@@ -146,6 +149,22 @@ mkPutField st@(PState hp (Frame loc (_:_:stk) cn mn pc :frms) us) adr cn1 fn1 v 
                         then [NT p | p <- annotatedWith st o1]
                         else S.empty 
 
+invoke' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> P.MethodId -> Int -> JatM m (PStep(PState i UnSharing))
+invoke' p s@(PState hp (Frame loc stk cn mn pc :frms) us) mn2 n =
+  case rv  of
+    Null     -> return . topEvaluation $ EState NullPointerException
+    RefVal q -> tryInstanceRefinement s q
+               |>> return (topEvaluation $ PState hp (frm:Frame loc stk2 cn mn pc:frms) us)
+    _        -> error "Jat.PState.Data.exec.invoke: invalid type on stack"
+  where
+    (ps,stk1) = splitAt n stk
+    ([rv],stk2) = splitAt 1 stk1
+    cn'      = className $ lookupH (theAddress rv) hp
+    (cn'',mb) = P.seesMethodIn p cn' mn2
+    mxl = P.maxLoc mb
+    frm = Frame (initL (rv:reverse ps) mxl) [] cn'' mn2 0
+invoke' _ _ _ _ = error "Jat.PState.MemoryModel.UnSharing.inoke: exceptional case."
+
 equals' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> JatM m (PStep(PState i UnSharing))
 equals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
   equalsx v1 v2
@@ -164,6 +183,7 @@ equals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma 
       where stk' = BoolVal (AD.constant b) : stk
 equals' _ _ = error "Jat.PState.MemoryModel.UnSharing.equals: unexpected case."
 
+nequals' :: (Monad m, IntDomain i) => P.Program -> PState i UnSharing -> JatM m (PStep(PState i UnSharing))
 nequals' _ st@(PState hp (Frame loc (v1:v2:stk) cn mn pc :frms) us@(UnSharing ma _ _)) =
   nequalsx v1 v2
   where
@@ -207,68 +227,23 @@ mkAbsInstance hp adr cn = do
       where (r, hp2) = insertHA (AbsVar cn1) hp1
     defaultAbstrValue _ _              = error "Jat.PState.MemoryModel.UnSharing.mkAbsInstance: unexpected type."
     
---initMem' ::(Monad m, IntDomain i) => P.Program -> P.ClassId -> P.MethodId -> JatM m (PState i UnSharing)
---initMem' p cn mn = do
-  --let m = P.theMethod p cn mn
-  --heap1 = addAbsInstance 0 cn emptyH
-  --this <- abstractInstance
-  --(heap,params) <- foldM defaultAbstrValue (P.methodParams m)
-  --let loc = initL params $ P.maxLoc m
-  --return $ PState emptyH [Frame loc [] cn mn 0]
-  --where
-    --defaultAbstrValue acc [] = acc
-    --defaultAbstrValue (hp,params) (t:tys) = case t of
-      --P.BoolType -> AD.top >>= \b -> return $ (hp, params++[BoolVal b])
-      --P.IntTyp   -> AD.top >>= \i -> return $ (hp, params++[IntVal i])
-      --P.NullType -> return $ (hp, params++[Null])
-      --P.Void     -> return $ (hp, params++[Unit])
-      --P.RefType cn -> return $ (hp', params++[RefVal r])
-        --where (r, hp') = insertH2 (AbsVar cn) hp
-
---addAbsInstance :: (IntDomain i) => Address -> P.ClassId -> Heap i a -> JatM m (Heap i a)
---addAbsInstance p heap a cn = do
-  --(heap',ifds) <- initfds' fds
-  --let obt = mkObt cn ifds
-      --heap'' = updateH a obt heap'
-  --return (heap'')
-  --where 
-    --fds     = P.hasFields p cn
-    --initfds' fds = initfds (return (heap,[])) fds
-    --initfds m [] = m
-    --initfds m ((ln,cn,tp):fds) = do
-      --(h,ifds) <- m
-      --(h',v) <- defaultAbstrValue h tp
-      --initfds (return (h', (cn,ln,v):ifds)) fds
-
-    --mkObt cn fds = Instance cn (mkFt fds)
-    --mkFt = foldl (flip $ curry3 updateFT) emptyFT
-    --curry3 f (a,b,c) = f a b c
-
-    --defaultAbstrValue :: (IntDomain i) => Heap i-> P.Type -> Jat (Heap i, AbstrValue i)
-    --defaultAbstrValue h (P.BoolType)   = do {v <- top; return (h,BoolVal v)}
-    --defaultAbstrValue h (P.IntType)    = do {v <- top; return (h,IntVal v)}
-    --defaultAbstrValue h (P.RefType cn) = return (h', RefVal r)
-      --where (r, h') = insertHA (AbsVar cn) h
-    --defaultAbstrValue _ _              = error "Jat.PState.Opsem.instanceRefinement: unexpected type"
-
-
-
-
-  --let m   = P.theMethod p cn mn
-  --params <- mapM defaultAbstrValue $ P.methodParams m 
-  --let loc = initL params $ P.maxLoc m
-  --return $ PState emptyH [Frame loc [] cn mn 0]
-  --where 
-    --defaultAbstrValue P.BoolType = BoolVal `liftM` AD.top
-    --defaultAbstrValue P.IntType  = IntVal `liftM` AD.top
-    --defaultAbstrValue P.NullType = return Null
-    --defaultAbstrValue P.Void     = return Unit
-    --defaultAbstrValue _          = error "Jat.PState.MemorModel.Primitive: not supported"
-
-
-
-
-
+initMem' :: (Monad m, IntDomain i) => P.Program -> P.ClassId -> P.MethodId -> JatM m (PState i UnSharing)
+initMem' p cn mn = do
+  let m = P.theMethod p cn mn
+  (heap1,o) <- mkAbsInstance emptyH 0 cn
+  (heap,params) <- foldM defaultAbstrValue (heap1,[]) (P.methodParams m)
+  let loc = initL params $ P.maxLoc m
+  return $ PState emptyH [Frame loc [] cn mn 0] emptyUS
+  where
+    defaultAbstrValue :: (Monad m, IntDomain i) => (Heap i, [AbstrValue i]) -> P.Type -> JatM m (Heap i, [AbstrValue i])
+    defaultAbstrValue acc _          = return acc
+    defaultAbstrValue (hp,params) ty = case ty of
+      P.BoolType -> AD.top >>= \b -> return $ (hp, params++[BoolVal b])
+      P.IntType  -> AD.top >>= \i -> return $ (hp, params++[IntVal i])
+      P.NullType -> return $ (hp, params++[Null])
+      P.Void     -> return $ (hp, params++[Unit])
+      P.RefType cn -> return $ (hp', params++[RefVal r])
+        where (r, hp') = insertHA (AbsVar cn) hp
 
 
 annotatedWith :: PState i UnSharing -> Address -> Set Address
