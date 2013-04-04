@@ -13,6 +13,7 @@ module Jat.PState.Frame
   , elemsL
   
   , elemsS
+  , lookupS
   )
 where
 
@@ -68,6 +69,13 @@ type Stk i     = [AbstrValue i]
 
 elemsS :: Stk i -> [AbstrValue i]
 elemsS = id
+
+lookupS :: (IntDomain i) =>  Int -> Stk i -> AbstrValue i
+lookupS i ls = lookupS' i ls
+  where
+    lookupS' _ []    = error $ "Jat.PState.Frame.lookupS: invalid index." ++ show i
+    lookupS' 0 (f:_) = f
+    lookupS' j (_:fs)= lookupS' (j-1) fs
 
 
 --elemsF :: Frame i -> [AbstrValue i]

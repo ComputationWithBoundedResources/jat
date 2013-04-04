@@ -10,8 +10,15 @@ module Jat.PState.Fun
   , isBackJump
   , isTarget
 
+  , mapAnnotations
   , mapValues
+  , mapValuesFS
   , substitute
+
+  , rpaths
+  , rpathValue  
+  , rcommonPrefix
+  , rmaxPrefix
   )
 where
 
@@ -28,6 +35,7 @@ import Jat.JatM
 import qualified Jat.Program as P
 
 import qualified Data.Array as A
+import Data.List (inits)
 
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
 mkInstance p cn = Instance cn (mkFt . initfds $ fds)
@@ -115,12 +123,63 @@ isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do
   return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
 
+mapAnnotations :: MemoryModel a => (a -> a) -> PState i a -> PState i a
+mapAnnotations f (PState hp frms ann) = PState hp frms (f ann)
+mapAnnotations _ st                   = st
+
+mapValuesFS :: (AbstrValue i -> AbstrValue i) -> [Frame i] -> [Frame i]
+mapValuesFS f = map (mapValuesF f) 
+
 mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
 mapValues f (PState hp frms ann) = PState (mapValuesH f hp) (map (mapValuesF f) frms) ann
 mapValues _ st                   = st
 
 substitute :: Eq i => AbstrValue i -> AbstrValue i -> PState i a -> PState i a
 substitute v1 v2 = mapValues (\v -> if v == v1 then v2 else v)
+
+rpaths :: PState i a -> [RPath]
+rpaths (PState hp frms _) =
+  concatMap rpahts' $ zip [0..] frms
+  where
+    rpahts' (m, Frame loc stk _ _ _ ) = 
+      let nloc = zip [0..1] (elemsL loc)
+          nstk = zip [0..1] (elemsS stk)
+      in  concatMap (locpath m) nloc ++ concatMap (stkpath m) nstk
+    locpath m (n,v) = RPath (RLoc m n) `map` valpath v
+    stkpath m (n,v) = RPath (RStk m n) `map` valpath v
+    valpath (RefVal q) = paths q hp
+    valpath _          = []
+rpaths (EState _) = []
+
+rpathValue :: (IntDomain i) => RPath -> PState i a -> AbstrValue i
+rpathValue rpath st = 
+  let (val,path) = 
+        case rpath of
+          RPath (RLoc m n) lpath -> (lookupL n . locals $ frames st !! m,lpath)
+          RPath (RStk m n) spath -> (lookupS n . opstk  $ frames st !! m,spath)
+  in case val of 
+    RefVal q -> pathValue q path (heap st)
+    _        -> val
+
+rcommonRoot :: RPath -> RPath -> Bool
+rcommonRoot (RPath r1 _) (RPath r2 _) = r1 == r2
+
+rcommonPrefix :: RPath -> RPath -> Maybe RPath
+rcommonPrefix (RPath r1 ls1) (RPath r2 ls2) 
+  | r1 == r2  = Just $ RPath r1 (commonPrefix ls1 ls2)
+  | otherwise = Nothing
+
+rmaxPrefix :: RPath -> [RPath] -> RPath
+rmaxPrefix path@(RPath r rls) pths = 
+  RPath r (findFirst (reverse $ inits rls) (filterRoot path pths))
+  where  
+    filterRoot path1 paths2 = [ rls | path2 <- paths2, rcommonRoot path1 path2]
+    findFirst (l:ls) lss 
+      | l `elem` lss = l
+      | otherwise    = findFirst ls lss
+    findFirst [] _ = []
+  
+
 
 --elemsFS :: FrameStk i -> [AbstrValue i]
 --elemsFS = concatMap elemsF

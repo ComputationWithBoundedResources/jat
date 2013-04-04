@@ -23,6 +23,8 @@ import qualified Jat.Program as P
 
 import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
+import Control.Monad (guard)
+import Data.Maybe (isJust,fromJust)
 
 mname :: String
 mname = "Jat.PState.MemoryModel.UnSharing"
@@ -63,6 +65,41 @@ emptyUS :: UnSharing
 emptyUS = UnSharing S.empty S.empty S.empty
 
 type US i = PState i UnSharing
+
+nullify :: Address -> UnSharing -> UnSharing
+nullify q (UnSharing ma ms mt) = 
+  let ma' = (\(q1:=?:q2) -> not (q == q1 || q == q2)) `S.filter` ma
+      ms' = (\(q1:><:q2) -> not (q == q1 || q == q2)) `S.filter` ms
+      mt' = (\(NT q1) -> q /= q1) `S.filter` mt
+  in  UnSharing ma' ms' mt'
+
+--nullify2 :: Address -> Address -> UnSharing -> UnSharing
+--nullify2 q r (UnSharing ma ms mt) = 
+  --let ma' = (/= q:=?:r) `S.filter` ma
+      --ms' = (/= q:><:r) `S.filter` ms
+      --mt' = (\(NT q1) -> q1 /= q && q1 /= q) `S.filter` mt
+  --in  UnSharing ma' ms' mt'
+
+--mapValuesUS :: (AbstrValue i -> AbstrValue i) -> (Address -> Address) -> US i -> US i
+--mapValuesUS f1 f2 (PState hp frms (UnSharing ma ms mt)) =
+  --let hp'   = mapValuesH f1 hp
+      --frms' = mapValuesFS f1 frms
+      --us'   = UnSharing (fmap (mamap f2) ma) (fmap (msmap f2) ms) (fmap (mtmap f2) mt)
+  --in  PState hp' frms' us'
+  --where
+    --mamap f (q:=?:r) = f q:=?:f r
+    --msmap f (q:><:r) = f q:><:f r
+    --mtmap f (NT q) = NT (f q)
+--mapValuesUS _ _ st  = st
+
+substituteUS :: Eq i => AbstrValue i -> AbstrValue i -> US i -> US i
+substituteUS v1 v2 st = case v1 of
+  RefVal q -> mapAnnotations (nullify q) $ substitute v1 v2 st
+  _        -> substitute v1 v2 st
+
+-- Notes:
+-- annotations are not transitivve , i.e. 1=?2 1=?3 does note imply 2=?3 
+-- terefore substituteion does note update the values
 
 mayShareWith :: Address -> UnSharing -> [Address]
 adr `mayShareWith` (UnSharing _ ms _) = 
@@ -249,7 +286,7 @@ instanceRefinement p st@(PState hp frms us) adr = do
 
     instancesM = map mkInstanceM `liftM` obtM
       where mkInstanceM (hp1,obt1) = let hp2 = updateH adr obt1 hp1 in PState hp2 frms (updateSharing adr obt1 hp2 us)
-    nullM      = return $ substitute (RefVal adr) Null st
+    nullM      = return $ substituteUS (RefVal adr) Null st
     
 
     updateSharing :: Address -> Object i -> Heap i -> UnSharing -> UnSharing
@@ -322,36 +359,148 @@ equalityRefinement st@(PState hp frms (UnSharing ma ms mt)) (ref1:=?:ref2) =
   where
     me' = (/= (ref1:=?:ref2)) `S.filter` ma
     mkEqual r1 r2 =  
-      let PState hp1 fs1 (UnSharing _ ms1 mt1) = substitute (RefVal r1) (RefVal r2) st
+      let PState hp1 fs1 (UnSharing _ ms1 mt1) = substituteUS (RefVal r1) (RefVal r2) st
       in  PState hp1 fs1 (UnSharing me' ms1 mt1)
     mkNequal = PState hp frms (UnSharing me' ms mt)
 equalityRefinement _ _ = merror ".equalityRefinement: unexpected case."
 
 
+leq' :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
+leq' p st1 st2 | not $ isSimilar st1 st2 = False
+leq' p st1 st2 
+  | not $ all (`elem` paths1) paths2 = False
+  | otherwise  = and  [checkValues paths2
+                      ,checkDistinctness paths2
+                      ,checkAlias refpaths2
+                      ,checkMayAlias refpaths2 
+                      ,propagateShare refpaths1
+                      ,checkMayShare refpaths1
+                      ,checkMaybeGraph refpaths1
+                      ,propagateGraph refpaths1
+                      ]
+  where
+    paths1 = rpaths st1
+    paths2 = rpaths st2
 
---leq' :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
---leq' p st1 st2 | not $ isSimilar st1 st2 = False
---leq' p st1 st2 
-  -- | not $ all (`elem` spaths) tpaths = False
-  -- | otherwise  = and  [checkValues
-                      --,checkDistinctness
-                      --,checkAlias
-                      --,checkMayAlias
-                      --,propagateShare
-                      --,checkMayShare
-                      --,checkMaybeGraph
-                      --,propagateGraph]
-  --where
-    --spaths = undefined
-    --tpaths = undefined
-    --checkValues = undefined
-    --checkDistinctness = undefined
-    --checkAlias = undefined
-    --checkMayAlias = undefined
-    --propagateShare = undefined
-    --checkMayShare = undefined
-    --checkMaybeGraph = undefined
-    --propagateGraph = undefined
+    refpaths1 = [ path | path <- paths1, RefVal _ <- [pval1 path]]
+    refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
+
+    -- TODO: shoold be a lookup table
+    pval1 path = rpathValue path st1
+    pval2 path = rpathValue path st2
+    rval1 path = theAddress $ pval1 path
+    rval2 path = theAddress $ pval2 path
+
+    hp1 = heap st1
+    hp2 = heap st2
+    (ma1,ms1,mt1) = case annotations st1 of UnSharing ma ms mt -> (ma,ms,mt)
+    (ma2,ms2,mt2) = case annotations st2 of UnSharing ma ms mt -> (ma,ms,mt)
+
+    maxPath2 = undefined
+
+    -- (a-d)
+    checkValues = all checkPath
+      where
+        checkPath path   = checkValue (pval1 path) (pval2 path)
+        checkValue v1 v2 = case (v1,v2) of
+          (BoolVal a, BoolVal b) -> a `AD.leq` b
+          (IntVal i, IntVal j)   -> i `AD.leq` j
+          (Unit, Unit)           -> True
+          (Unit, Null)           -> True
+          (Null, Null)           -> True
+          (Null, RefVal q)       -> 
+            case lookupH q hp2 of
+              AbsVar _ -> True
+              _        -> False
+          (RefVal q, RefVal r)   ->
+            case (lookupH q hp1, lookupH r hp2) of
+              (AbsVar cn, AbsVar cn')          -> P.isSuper p cn' cn
+              (Instance cn _, AbsVar cn')      -> P.isSuper p cn' cn
+              (Instance cn _, Instance cn' _)  -> cn == cn'
+              _                                -> False
+          _ -> False
+
+    -- (e)
+    checkDistinctness pths = all distinctIn2 distinctPaths1
+      where
+        distinctIn2 (pathx,pathy) = cmp (pval2 pathx) (pval2 pathy)
+        distinctPaths1 = do
+          pathx <- pths
+          pathy <- pths
+          guard $ cmp (pval1 pathx) (pval1 pathy)
+          return (pathx,pathy)
+        cmp (RefVal q) (RefVal r) = q   /= r
+        cmp _ _                   = True
+    -- (f)
+    checkAlias pths = all maybeEuqalIn2 equalPaths1
+      where
+        maybeEuqalIn2 (pathx,pathy) = 
+          let r1 = rval1 pathx 
+              r2 = rval1 pathy
+          in  r1 == r2 || (r1:=?:r2 `S.member` ma2)
+        equalPaths1 = do
+          pathx <- pths
+          pathy <- pths
+          guard $ rval2 pathx == rval2 pathy
+          return (pathx,pathy)
+    -- (g)
+    checkMayAlias pths = all mayAliasIn2 mayAliasIn1
+      where
+        mayAliasIn2 (pathx,pathy) = rval2 pathx:=?:rval2 pathy `S.member` ma2
+        mayAliasIn1 = do
+          pathx <- pths
+          pathy <- pths
+          guard $ rval1 pathx:=?: rval1 pathy `S.member` ma1
+          return (pathx,pathy)
+    -- (h)
+    propagateShare pths = all maxPrefixIn2 mayEqualIn1
+      where
+        maxPrefixIn2 (pathx,pathy) = 
+          rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+        mayEqualIn1 = do
+          pathx <- pths
+          pathy <- pths
+          let (r1,r2) = (rval1 pathx, rval1 pathy)
+          guard $ r1 == r2 || (r1:=?:r2 `S.member` ma1) && pathx /= pathy
+          return (pathx,pathy)
+    -- (i) 
+    checkMayShare pths = all maxShareIn2 mayShare1
+      where
+        maxShareIn2 (pathx,pathy) = 
+          rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+        mayShare1 = do
+          pathx <- pths
+          pathy <- pths
+          let (r1,r2) = (rval1 pathx, rval1 pathy)
+          guard $ r1:><:r2 `S.member` ms1
+          return (pathx,pathy)
+    -- (j)
+    checkMaybeGraph pths = all maxGraphIn2 mayGraph1
+      where
+        maxGraphIn2 pathx = 
+          NT (rval2 $ maxPath2 pathx) `S.member` mt2
+        mayGraph1 = do
+          pathx <- pths
+          let r1 = rval1 pathx
+          guard $ NT r1 `S.member` mt1
+          return pathx
+    -- (k)
+    propagateGraph pths = all maxGraphIn2 graphIn2
+      where
+        maxGraphIn2 (pathx,pathy,prefix) = 
+          if not (pathx `elem` refpaths1 && pathy `elem` refpaths1)
+             || rval2 pathx:=?:rval2 pathy `S.member` ma2
+          then NT (rval2 prefix) `S.member` mt2
+          else True
+        graphIn2 = do
+          pathx <- pths
+          pathy <- pths
+          let prefix = rcommonPrefix pathx pathy
+          guard $ pathx /= pathy && isJust prefix
+          return (pathx,pathy,fromJust prefix)  
+
+
+
 
   
 
