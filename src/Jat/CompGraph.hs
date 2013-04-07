@@ -16,28 +16,18 @@ import Jat.PState
 import qualified Jat.Program as P
 import Jat.Utils.Pretty
 import Jat.Utils.Dot
+import Jat.Utils.Fun
 
 import System.IO (hFlush,stdout)
 import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
-import Data.Maybe (fromMaybe)
 import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 
-import Data.List (notElem)
 
 import Debug.Trace
-
---(<|>) :: Monad m => m (Maybe a) -> m (Maybe a) -> m (Maybe a)
---(<|>) = liftM2 mplus 
-
-(<|>!) :: Monad m => m (Maybe a) -> m a -> m a
-ma1 <|>! ma2 = do
-  a1 <- ma1
-  a2 <- ma2
-  return $ a2 `fromMaybe` a1
 
 
 -- finding instance/merge nodes for backjumps
@@ -79,8 +69,8 @@ state' = lab'
 isTerminal' :: JContext i a -> Bool
 isTerminal' (_,_,st,s) = null s && isTerminal st
 
-isBackJump' :: Monad m => JContext i a -> JatM m Bool
-isBackJump' = isBackJump . state'
+--isBackJump' :: Monad m => JContext i a -> JatM m Bool
+--isBackJump' = isBackJump . state'
 
 isTarget' :: Monad m => JContext i a -> JatM m Bool
 isTarget' = isTarget . state'
@@ -100,7 +90,7 @@ mkSteps mg                                        = mkStep mg >>= mkSteps
 
 mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
 mkStep (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
-mkStep g                                         = tryLoop g <|>! mkEval g
+mkStep g                                         = tryLoop g |>> mkEval g
 
 
 -- FIXME:
@@ -113,7 +103,7 @@ tryLoop mg@(MkJGraph g (ctx:_))                      = do
   if b then eval candidates else return Nothing
   where
     eval ns | null ns = return Nothing
-    eval ns           = Just `liftM` (tryInstance nctx mg <|>! mkJoin nctx mg >>= mkEval)
+    eval ns           = Just `liftM` (tryInstance nctx mg |>> (mkJoin nctx mg >>= mkEval))
       where nctx = head ns
     candidates = [ n | Just n <- bfsnWith (condition ctx) (pre' ctx) (grev g)]
     --candidates = do
@@ -124,9 +114,10 @@ tryLoop mg@(MkJGraph g (ctx:_))                      = do
 
 
 tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
+tryInstance ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> tryInstance: " ++ show (ctx2,ctx1)) False = undefined
 tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) = do
   b <- leq' ctx1 ctx2
-  if b then Just `liftM` mkInstanceNode ctx2 mg else return Nothing
+  if trace("isInstance: " ++ show b) b then Just `liftM` mkInstanceNode ctx2 mg else return Nothing
 tryInstance _ _ = return Nothing
 
 mkInstanceNode :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
@@ -136,19 +127,20 @@ mkInstanceNode _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 
 mkJoin :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
-mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) | trace (">>> mkJoin: " ++ show (ctx2,ctx1)) False = undefined
+mkJoin ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> mkJoin: \n" ++ show (ctx2,ctx1)) False = undefined
 mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
   k   <- freshKey
   st3 <- join' ctx1 (trace (show ctx2) ctx2)
   let edge = (InstanceLabel, node' ctx2)
-      ctx3 = ([edge],k,st3,[])
-      !g1  = delNodes (trace ("succ: " ++ show successors) successors) g
+      ctx3 = trace ("join: \n" ++ show st3) ([edge],k,st3,[])
+      !g1  = delNodes successors g
       !g2   = ctx3 & g1
   return $ MkJGraph g2 (ctx3: filter (\lctx -> node' lctx `notElem` successors) ctxs)
-  where  successors = filter (/= (node' ctx2)) $ dfs [node' ctx2] g
+  {-return $ MkJGraph g2 (ctx3: ctxs)-}
+  where  successors = filter (/= node' ctx2) $ dfs [node' ctx2] g
 mkJoin _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
-mkEval :: (Monad m, IntDomain i) => MkJGraph i a -> JatM m (MkJGraph i a)
+mkEval :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkEval mg@(MkJGraph _ (ctx:_)) = do
   let st = state' ctx 
   step <- exec st
@@ -180,7 +172,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
   , graphStatements = DotStmts {
       attrStmts = []
     , subGraphs = []
-    , nodeStmts = (map mkCNode $ labNodes g) ++ map (mkCtxNode . labNode') ctxs
+    , nodeStmts = map mkCNode (labNodes g) ++ map (mkCtxNode . labNode') ctxs
     , edgeStmts = map mkCEdge $ labEdges g
     }
   }

@@ -25,6 +25,7 @@ import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
 import Control.Monad (guard)
 import Data.Maybe (isJust,fromJust)
+import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.UnSharing"
@@ -105,13 +106,15 @@ mayShareWith :: Address -> UnSharing -> [Address]
 adr `mayShareWith` (UnSharing _ ms _) = 
   [ adr'  | (adr1:><:adr2) <- S.elems ms
           , adr == adr1 || adr == adr2
-          , let adr' = if adr == adr1 then adr1 else adr2]
+          , adr1 /= adr2
+          , let adr' = if adr == adr1 then adr2 else adr1]
 
 mayAliasWith :: Address -> UnSharing -> [Address]
 adr `mayAliasWith` (UnSharing ma _ _) = 
   [ adr'  | (adr1:=?:adr2) <- S.elems ma
           , adr == adr1 || adr == adr2
-          , let adr' = if adr == adr1 then adr1 else adr2]
+          , adr1 /= adr2
+          , let adr' = if adr == adr1 then adr2 else adr1]
 
 instance Pretty UnSharing where
   pretty (UnSharing ma ms mg) =
@@ -130,8 +133,8 @@ instance MemoryModel UnSharing where
 
   initMem   = initMemUS
 
-  leq       = undefined
-  join      = undefined
+  leq       = leqUS
+  join      = joinUS
 
   state2TRS = undefined
 
@@ -251,8 +254,8 @@ initMemUS cn mn = do
   let m = P.theMethod p cn mn
   (hp1,_)      <- mkAbsInstance emptyH 0 cn
   (hp2,params) <- foldM defaultAbstrValue (hp1,[]) (P.methodParams m)
-  let loc = initL params $ P.maxLoc m
-  return $ PState hp2 [Frame loc [] cn mn 0] emptyUS
+  let loc = initL (RefVal 0:params) $ P.maxLoc m
+  return $ PState (trace (show $ pretty hp2) hp2) [Frame loc [] cn mn 0] emptyUS
   where
     defaultAbstrValue (hp,params) ty = case ty of
       P.BoolType    -> AD.top >>= \b -> return (hp, params++[BoolVal b])
@@ -342,7 +345,7 @@ tryEqualityRefinementWithInstance st r =
 anyEqualityRefinementWithInstance :: (IntDomain i) => US i -> Address -> Maybe MayAlias
 anyEqualityRefinementWithInstance (PState hp _ ann) q = anyq aliases
   where
-    aliases = q `mayAliasWith` ann
+    aliases = let qs = q `mayAliasWith` ann in trace ("ALIASES:" ++ show (q,qs)) qs
     anyq (r:rs)     = 
       case lookupH r hp of 
         Instance _ _ -> Just (q:=?:r)
@@ -365,29 +368,34 @@ equalityRefinement st@(PState hp frms (UnSharing ma ms mt)) (ref1:=?:ref2) =
 equalityRefinement _ _ = merror ".equalityRefinement: unexpected case."
 
 
-leq' :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
-leq' p st1 st2 | not $ isSimilar st1 st2 = False
-leq' p st1 st2 
+leqUS :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
+leqUS _ st1 st2 | trace ("LEQ: " ++ show st1 ++ show st2) False = undefined
+leqUS _ st1 st2 | not $ isSimilar st1 st2 = False
+leqUS p st1 st2 
   | not $ all (`elem` paths1) paths2 = False
-  | otherwise  = and  [checkValues paths2
-                      ,checkDistinctness paths2
-                      ,checkAlias refpaths2
-                      ,checkMayAlias refpaths2 
-                      ,propagateShare refpaths1
-                      ,checkMayShare refpaths1
-                      ,checkMaybeGraph refpaths1
-                      ,propagateGraph refpaths1
-                      ]
+  | otherwise  = let b =
+                            [checkValues paths2
+                            ,checkDistinctness paths2
+                            ,checkAlias refpaths2
+                            ,checkMayAlias refpaths2 
+                            ,propagateShare refpaths1
+                            ,checkMayShare refpaths1
+                            ,checkMaybeGraph refpaths1
+                            ,propagateGraph refpaths1
+                            ]
+                in trace (show b) (and b)
   where
-    paths1 = rpaths st1
-    paths2 = rpaths st2
+    paths1 = trace ("RPATHS1: " ++ show (rpaths st1)) rpaths st1
+    paths2 = trace ("RPATHS2: " ++ show (rpaths st2)) rpaths st2
+    {-paths1 = rpaths st1-}
+    {-paths2 = rpaths st2-}
 
     refpaths1 = [ path | path <- paths1, RefVal _ <- [pval1 path]]
     refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
 
     -- TODO: shoold be a lookup table
-    pval1 path = rpathValue path st1
-    pval2 path = rpathValue path st2
+    pval1 path = let v = rpathValue path st1 in trace ("valOf1: " ++ show path) v
+    pval2 path = let v = rpathValue path st2 in trace ("valOf2: " ++ show path) v
     rval1 path = theAddress $ pval1 path
     rval2 path = theAddress $ pval2 path
 
@@ -396,10 +404,11 @@ leq' p st1 st2
     (ma1,ms1,mt1) = case annotations st1 of UnSharing ma ms mt -> (ma,ms,mt)
     (ma2,ms2,mt2) = case annotations st2 of UnSharing ma ms mt -> (ma,ms,mt)
 
-    maxPath2 = undefined
+    maxPath2 path = let mp = rmaxPrefix path refpaths2 in trace ("maxPath" ++ show (mp,path,refpaths2)) mp
 
     -- (a-d)
-    checkValues = all checkPath
+    checkValues ps | trace ("CV" ++ show ps) False = undefined
+    checkValues pths = all checkPath pths
       where
         checkPath path   = checkValue (pval1 path) (pval2 path)
         checkValue v1 v2 = case (v1,v2) of
@@ -421,6 +430,7 @@ leq' p st1 st2
           _ -> False
 
     -- (e)
+    checkDistinctness ps | trace ("CD" ++ show ps) False = undefined
     checkDistinctness pths = all distinctIn2 distinctPaths1
       where
         distinctIn2 (pathx,pathy) = cmp (pval2 pathx) (pval2 pathy)
@@ -432,18 +442,21 @@ leq' p st1 st2
         cmp (RefVal q) (RefVal r) = q   /= r
         cmp _ _                   = True
     -- (f)
+    checkAlias ps | trace ("CA" ++ show ps) False = undefined
     checkAlias pths = all maybeEuqalIn2 equalPaths1
       where
         maybeEuqalIn2 (pathx,pathy) = 
-          let r1 = rval1 pathx 
-              r2 = rval1 pathy
+          let r1 = rval2 pathx 
+              r2 = rval2 pathy
           in  r1 == r2 || (r1:=?:r2 `S.member` ma2)
         equalPaths1 = do
           pathx <- pths
           pathy <- pths
-          guard $ rval2 pathx == rval2 pathy
+          guard $ pathx /= pathy
+          guard $ rval1 pathx == rval1 pathy
           return (pathx,pathy)
     -- (g)
+    checkMayAlias ps | trace ("CMA" ++ show ps) False = undefined
     checkMayAlias pths = all mayAliasIn2 mayAliasIn1
       where
         mayAliasIn2 (pathx,pathy) = rval2 pathx:=?:rval2 pathy `S.member` ma2
@@ -453,10 +466,13 @@ leq' p st1 st2
           guard $ rval1 pathx:=?: rval1 pathy `S.member` ma1
           return (pathx,pathy)
     -- (h)
+    propagateShare ps | trace ("PRS" ++ show ps) False = undefined
     propagateShare pths = all maxPrefixIn2 mayEqualIn1
       where
         maxPrefixIn2 (pathx,pathy) = 
-          rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+          if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
+            then rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+            else True
         mayEqualIn1 = do
           pathx <- pths
           pathy <- pths
@@ -464,6 +480,7 @@ leq' p st1 st2
           guard $ r1 == r2 || (r1:=?:r2 `S.member` ma1) && pathx /= pathy
           return (pathx,pathy)
     -- (i) 
+    checkMayShare ps | trace ("CMS" ++ show ps) False = undefined
     checkMayShare pths = all maxShareIn2 mayShare1
       where
         maxShareIn2 (pathx,pathy) = 
@@ -475,6 +492,7 @@ leq' p st1 st2
           guard $ r1:><:r2 `S.member` ms1
           return (pathx,pathy)
     -- (j)
+    checkMaybeGraph ps | trace ("CMG" ++ show ps) False = undefined
     checkMaybeGraph pths = all maxGraphIn2 mayGraph1
       where
         maxGraphIn2 pathx = 
@@ -485,10 +503,11 @@ leq' p st1 st2
           guard $ NT r1 `S.member` mt1
           return pathx
     -- (k)
+    propagateGraph ps | trace ("PRG" ++ show ps) False = undefined
     propagateGraph pths = all maxGraphIn2 graphIn2
       where
         maxGraphIn2 (pathx,pathy,prefix) = 
-          if not (pathx `elem` refpaths1 && pathy `elem` refpaths1)
+          if not (pathx `elem` refpaths2 && pathy `elem` refpaths2)
              || rval2 pathx:=?:rval2 pathy `S.member` ma2
           then NT (rval2 prefix) `S.member` mt2
           else True
@@ -500,14 +519,124 @@ leq' p st1 st2
           return (pathx,pathy,fromJust prefix)  
 
 
+joinUS :: (Monad m, IntDomain i) => PState i UnSharing -> PState i UnSharing -> JatM m (PState i UnSharing)
+joinUS st1 st2 = do
+  p <- getProgram
+  st3 <- mergeStates p st1 st2 emptyUS
+  let st3' = mergeAnnotations p st1 st3
+      st3''= mergeAnnotations p st2 st3'
+  return st3''
+
+mergeAnnotations :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> PState i UnSharing
+mergeAnnotations _ _ st2 | trace (show "mergeAnnotations: " ++ show st2) False = undefined
+mergeAnnotations p st1@(PState hp1 _ (UnSharing ma1 ms1 mt1)) st2 = 
+  let aliased =  updateAlias p st1 st2
+      normalized = normalizeAlias $ trace ("aliased: " ++ show aliased) aliased
+      shared = updateSharing p st1 $ trace ("normalized: " ++ show normalized) normalized
+      graphed = updateGraph p st1 $ trace ("shared: " ++ show shared) shared
+  in trace ("graphed: " ++ show graphed) graphed
+  where
+    paths1 = trace ("RPATHS1: " ++ show (rpaths st1)) rpaths st1
+    refpaths1 = [ path | path <- paths1, RefVal _ <- [pval1 path]]
+
+    pval1 path = rpathValue path st1
+    rval1 path = theAddress $ pval1 path
+
+    updateAlias _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) = 
+      let ma2' = foldr addAlias ma2 differentPaths1 in 
+          PState hp2 frms2 (UnSharing ma2' ms2 mt2)
+      where
+        addAlias (pathx,pathy) ma | trace ("addAlias: " ++ show (pathx,pathy,ma)) False = undefined
+        addAlias (pathx,pathy) ma = 
+          if pathx `elem` refpaths2 && pathy `elem` refpaths2 && rval2 pathx /= rval2 pathy
+            then rval2 pathx :=?: rval2 pathy `S.insert` ma
+            else ma
+        differentPaths1 = do
+          pathx <- refpaths1
+          pathy <- refpaths1
+          guard $ pathx /= pathy
+          let (adrx,adry) = (rval1 pathx, rval1 pathy)
+          guard $ adrx == adry || (adrx:=?:adry `S.member` ma1)
+          return $ trace ("differ: " ++ show (pathx,pathy)) (pathx,pathy)
+
+        paths2 = trace ("pathsxy: " ++ show (rpaths st)) rpaths st
+        refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
+        pval2 path = rpathValue path st
+        rval2 path = theAddress $ pval2 path
+    updateAlias _ _ _ = merror ".mergeAnnotations: exceptional state."
+
+    normalizeAlias (PState hp frms (UnSharing ma ms mt)) = 
+      PState (S.foldr abstraction hp ma) frms (UnSharing ma ms mt)
+      where
+        abstraction (q:=?:r) h = case (lookupH q hp, lookupH r hp) of
+          (Instance _ _, Instance cn' _) -> updateH r (AbsVar cn') h
+          _ -> h
+    normalizeAlias _ = merror ".mergeAnnotations: exceptional state."
+
+    updateSharing _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) = 
+      let ms2' = foldr addSharing ms2 differentPaths1
+          ms2''= foldr propagateSharing ms2' sharingPaths1
+      in  PState hp2 frms2 (UnSharing ma2 ms2'' mt2)
+      where
+        addSharing (pathx,pathy) ms = 
+          if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
+            then ms
+            else maxRef2 pathx :><: maxRef2 pathy `S.insert` ms
+        propagateSharing (pathx,pathy) ms = maxRef2 pathx :><: maxRef2 pathy `S.insert` ms
+
+        differentPaths1 = do
+          pathx <- refpaths1
+          pathy <- refpaths1
+          guard $ pathx /= pathy
+          let (adrx,adry) = (rval1 pathx, rval1 pathy)
+          guard $ adrx == adry || (adrx:><:adry `S.member` ms2)
+          return (pathx,pathy)
+        sharingPaths1 = do
+          pathx <- refpaths1
+          pathy <- refpaths1
+          guard $ pathx /= pathy
+          let (adrx,adry) = (rval1 pathx, rval1 pathy)
+          guard $ adrx:><:adry `S.member` ms1
+          return (pathx,pathy)
+
+        paths2 = rpaths st
+        refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
+        pval2 path = rpathValue path st
+        rval2 path = theAddress $ pval2 path
+        maxRef2 path = rval2 $ rmaxPrefix path refpaths2
+
+    updateSharing _ _ _ = merror ".mergeAnnotations: exceptional state."
+
+    updateGraph _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) =
+      let mt2' = foldr propagateGraph mt2 graphPaths
+          mt2''= foldr addGraph mt2' cyclicPaths
+      in  PState hp2 frms2 (UnSharing ma2 ms2 mt2'')
+      where
+        propagateGraph pathx mt = NT (rval2 $ maxPath2 pathx) `S.insert` mt
+        addGraph pth mt |trace ("addGraph: " ++ show (pth,pth `elem` refpaths2)) False = undefined
+        addGraph pathx mt = 
+          if pathx `elem` refpaths2 && isNotTreeShaped (rval2 pathx) hp2
+            then mt
+            else trace ("NT: " ++ show pathx) $ NT (rval2 pathx) `S.insert` mt
+
+        graphPaths = do
+          pathx <- refpaths1
+          guard $ NT (rval1 pathx) `S.member` mt1
+          return pathx
+        cyclicPaths = do
+          pathx <- refpaths1
+          guard $ isNotTreeShaped (rval1 pathx) hp1
+          return pathx
 
 
-  
+        paths2 = rpaths st
+        refpaths2 = let rps = [ path | path <- paths2, RefVal _ <- [pval2 path]] in trace ("REFPATHS2: " ++ show rps) rps
+        pval2 path = rpathValue path st
+        rval2 path = theAddress $ pval2 path
+        maxPath2 path = rmaxPrefix path refpaths2
+    updateGraph _ _ _ = merror ".mergeAnnotations: exceptional state."
 
-
-
-
-
+mergeAnnotations _ _ _ = merror ".mergeAnnotations: unexpected case."
 
 
 
