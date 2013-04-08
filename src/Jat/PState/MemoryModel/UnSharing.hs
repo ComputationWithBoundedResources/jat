@@ -24,7 +24,7 @@ import qualified Jat.Program as P
 import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
 import Control.Monad (guard)
-import Data.Maybe (isJust,fromJust)
+import Data.Maybe (isJust,fromJust,maybe)
 import Debug.Trace
 
 mname :: String
@@ -471,13 +471,14 @@ leqUS p st1 st2
       where
         maxPrefixIn2 (pathx,pathy) = 
           if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
-            then rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+            then let b = rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2 in trace (show $ (pathx,pathy,b)) b
             else True
         mayEqualIn1 = do
           pathx <- pths
           pathy <- pths
           let (r1,r2) = (rval1 pathx, rval1 pathy)
-          guard $ r1 == r2 || (r1:=?:r2 `S.member` ma1) && pathx /= pathy
+          guard $ pathx /= pathy
+          guard $ r1 == r2 || (r1:=?:r2 `S.member` ma1)
           return (pathx,pathy)
     -- (i) 
     checkMayShare ps | trace ("CMS" ++ show ps) False = undefined
@@ -516,6 +517,7 @@ leqUS p st1 st2
           pathy <- pths
           let prefix = rcommonPrefix pathx pathy
           guard $ pathx /= pathy && isJust prefix
+          guard $ maybe False (\lprefix -> isNotTreeShaped (rval1 lprefix) hp1) prefix
           return (pathx,pathy,fromJust prefix)  
 
 
@@ -581,7 +583,7 @@ mergeAnnotations p st1@(PState hp1 _ (UnSharing ma1 ms1 mt1)) st2 =
         addSharing (pathx,pathy) ms = 
           if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
             then ms
-            else maxRef2 pathx :><: maxRef2 pathy `S.insert` ms
+            else let (mpx,mpy) = (maxRef2 pathx,maxRef2 pathy) in trace ("ADDSHARING:" ++ show (mpx,mpy)) $ mpx:><:mpy `S.insert` ms
         propagateSharing (pathx,pathy) ms = maxRef2 pathx :><: maxRef2 pathy `S.insert` ms
 
         differentPaths1 = do
