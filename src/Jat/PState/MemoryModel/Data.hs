@@ -26,5 +26,6 @@ class Pretty a => MemoryModel a where
   widening  :: (Monad m, IntDomain i) =>  PState i a -> PState i a -> JatM m (PState i a)
   widening  = join
 
+  normalize :: PState i a -> PState i a
   state2TRS :: (Monad m, IntDomain i) => Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
 

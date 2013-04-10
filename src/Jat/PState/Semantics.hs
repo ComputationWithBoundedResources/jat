@@ -34,7 +34,7 @@ execInstruction st@(PState{}) ins =
     P.Push v         -> execPush v    `applyF` st
     P.Pop            -> execPop       `applyF` st
     P.Load n         -> execLoad n    `applyF` st
-    P.Store n        -> execStore n   `applyF` st
+    P.Store n        -> liftPStep normalize `liftM` (execStore n `applyF` st)
     P.Goto i         -> execGoto i    `applyF` st
     P.IfFalse n      -> execIfFalse n `applyF` st
     P.IAdd           -> execIAdd      `applyF` st

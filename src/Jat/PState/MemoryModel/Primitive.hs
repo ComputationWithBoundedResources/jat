@@ -35,6 +35,7 @@ instance MemoryModel Primitive where
   leq       = leqx
   join      = joinx
 
+  normalize = undefined
   state2TRS = undefined
  
 initMemx :: (Monad m, IntDomain i) => P.ClassId -> P.MethodId -> JatM m (PState i Primitive)

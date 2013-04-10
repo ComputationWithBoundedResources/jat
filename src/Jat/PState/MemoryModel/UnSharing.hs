@@ -136,6 +136,7 @@ instance MemoryModel UnSharing where
   leq       = leqUS
   join      = joinUS
 
+  normalize = normalizeUS
   state2TRS = undefined
 
 newUS :: (Monad m, IntDomain i) => US i -> P.ClassId -> JatM m (PStep(US i))
@@ -159,7 +160,7 @@ putFieldUS st cn fn = case opstk $ frame st of
   _ : Null       : _ -> return $ topEvaluation (EState NullPointerException)
   _ : RefVal adr : _ -> tryInstanceRefinement st adr 
                        |> tryEqualityRefinement st adr 
-                       |>> mkPutField (updatePutField st) st cn fn
+                       |>> liftPStep normalizeUS `liftM` mkPutField (updatePutField st) st cn fn
   _                  -> merror ".getField: unexpected case."
 
 
@@ -360,11 +361,8 @@ equalityRefinement st@(PState hp frms (UnSharing ma ms mt)) (ref1:=?:ref2) =
     (_, AbsVar _) -> topRefinement [mkEqual ref2 ref1, mkNequal]
     _             -> merror ".equalityRefinement: unexpected case"
   where
-    me' = (/= (ref1:=?:ref2)) `S.filter` ma
-    mkEqual r1 r2 =  
-      let PState hp1 fs1 (UnSharing _ ms1 mt1) = substituteUS (RefVal r1) (RefVal r2) st
-      in  PState hp1 fs1 (UnSharing me' ms1 mt1)
-    mkNequal = PState hp frms (UnSharing me' ms mt)
+    mkEqual r1 r2 = substituteUS (RefVal r1) (RefVal r2) st
+    mkNequal = PState hp frms (UnSharing ((/= ref1:=?:ref2) `S.filter` ma) ms mt)
 equalityRefinement _ _ = merror ".equalityRefinement: unexpected case."
 
 
@@ -525,7 +523,7 @@ joinUS :: (Monad m, IntDomain i) => PState i UnSharing -> PState i UnSharing -> 
 joinUS st1 st2 = do
   p <- getProgram
   st3 <- mergeStates p st1 st2 emptyUS
-  let st3' = updateAnnotations st1 st2 st3
+  let st3' = normalizeUS $ updateAnnotations st1 st2 st3
   return st3'
 
 
@@ -575,8 +573,8 @@ updateAnnotations st1 st2 st3 =
           return (pathx,pathy)
     updateAlias _ _ = merror ".mergeAnnotations: exceptional state."
 
-    normalizeAlias ma (PState hp frms us) = 
-      PState (S.foldr abstraction hp ma) frms us
+    normalizeAlias ma (PState hp frms (UnSharing _ ms mt)) = 
+      normalizeUS $ PState (S.foldr abstraction hp ma) frms (UnSharing ma ms mt)
       where
         abstraction (q:=?:r) h = case (lookupH q hp, lookupH r hp) of
           (Instance _ _, Instance cn' _) -> updateH r (AbsVar cn') h
@@ -633,6 +631,23 @@ updateAnnotations st1 st2 st3 =
 
         maxPath3 path = rmaxPrefix path refpaths3
     updateGraph _ _ = merror ".mergeAnnotations: exceptional state."
+
+normalizeUS :: PState i UnSharing -> PState i UnSharing
+normalizeUS (PState hp frms (UnSharing ma ms mt)) = PState hp' frms (UnSharing me' ms' mt')
+   where
+     refsF = [ r | RefVal r <- concatMap elemsF frms]
+     hp'   = normalizeH refsF hp
+     (me',ms',mt') = let refs = addresses hp' in
+        ( S.filter (\(q:=?:r) -> q `elem` refs && r `elem` refs && q /= r && classH q == classH r) ma
+        , S.filter (\(q:><:r) -> q `elem` refs && r `elem` refs && q /= r) ms
+        , S.filter (\(NT q) -> q `elem` refs) mt
+        )
+     classH q = className $ lookupH q hp'
+normalizeUS st = st
+
+       
+  
+
 
 
 

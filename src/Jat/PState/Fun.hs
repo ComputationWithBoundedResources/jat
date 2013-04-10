@@ -231,7 +231,10 @@ mapValues f (PState hp frms ann) = PState (mapValuesH f hp) (map (mapValuesF f) 
 mapValues _ st                   = st
 
 substitute :: Eq i => AbstrValue i -> AbstrValue i -> PState i a -> PState i a
-substitute v1 v2 = mapValues (\v -> if v == v1 then v2 else v)
+substitute v1@(RefVal adr1) v2 st = 
+  let PState hp frms ann = mapValues (\v -> if v == v1 then v2 else v) st
+  in  PState (deallocate adr1 hp) frms ann
+substitute v1 v2 st = mapValues (\v -> if v == v1 then v2 else v) st
 
 rpaths :: PState i a -> [RPath]
 rpaths (PState hp frms _) =

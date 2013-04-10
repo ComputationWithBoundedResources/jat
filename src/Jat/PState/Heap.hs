@@ -7,8 +7,10 @@ module Jat.PState.Heap
   , lookupH
   , insertH
   , insertHA
+  , deallocate
   , updateH
   , mapValuesH
+  , normalizeH
 
   , paths
   , pathValue
@@ -62,6 +64,8 @@ insertHA obj (Heap cnt mem) = (cnt,hp)
     cnt' = cnt+1
     hp   = Heap cnt' (M.insert cnt obj mem)
 
+deallocate :: Address -> Heap i -> Heap i
+deallocate = mapMem . M.delete
 
 updateH :: Address -> Object i -> Heap i -> Heap i
 updateH r obj = mapMem $ M.insert r obj
@@ -71,6 +75,10 @@ mapMem f (Heap cnt mem) = Heap cnt (f mem)
 
 mapValuesH :: (AbstrValue i -> AbstrValue i) -> Heap i -> Heap i
 mapValuesH f = mapMem (fmap (mapValuesO f))
+
+normalizeH :: [Address] -> Heap i -> Heap i
+normalizeH as hp = mapMem (M.filterWithKey (\a _ -> a `elem` as')) hp
+  where as' = reachables as hp
 
 -- graph functions
 
@@ -114,7 +122,11 @@ toGraph hp = Gr.mkUGraph (fst $ unzip lnodes) ledges
     ledges = concatMap (\(src,obj) -> map (\trg -> (src,trg)) $ referencesO obj) lnodes
 
 reachable :: Address -> Heap i -> [Address]
-reachable adr = Gr.reachable adr . toGraph
+reachable adr = reachables [adr]
+
+reachables :: [Address] -> Heap i -> [Address]
+reachables adrs hp = concatMap (`Gr.reachable` gr) adrs
+  where gr = toGraph hp
 
 reachableFrom :: Address -> Heap i -> [Address]
 reachableFrom adr hp = filter (\ladr -> adr `elem` reachable ladr hp) (Gr.nodes . toGraph $ hp)
@@ -126,10 +138,10 @@ isCyclic adr hp = any (adr `elem`) $ filter notTrivial $ Gr.scc (toGraph hp)
     notTrivial _   = True
 
 hasCommonSuccessor :: Address -> Heap i -> Bool
-hasCommonSuccessor adr hp = anyIntersection $ map (S.fromList . reachables) refs
+hasCommonSuccessor adr hp = anyIntersection $ map (S.fromList . reaches) refs
   where
-    refs            = referencesO $ lookupH adr hp
-    reachables adr' = reachable adr' hp
+    refs         = referencesO $ lookupH adr hp
+    reaches adr' = reachable adr' hp
 
 isNotTreeShaped :: Address -> Heap i -> Bool
 isNotTreeShaped adr hp = isCyclic adr hp || hasCommonSuccessor adr hp 
