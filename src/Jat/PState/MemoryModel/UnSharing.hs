@@ -24,7 +24,7 @@ import qualified Jat.Program as P
 import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
 import Control.Monad (guard)
-import Data.Maybe (isJust,fromJust,maybe)
+import Data.Maybe (isJust,fromJust)
 import Debug.Trace
 
 mname :: String
@@ -525,125 +525,114 @@ joinUS :: (Monad m, IntDomain i) => PState i UnSharing -> PState i UnSharing -> 
 joinUS st1 st2 = do
   p <- getProgram
   st3 <- mergeStates p st1 st2 emptyUS
-  let st3' = mergeAnnotations p st1 st3
-      st3''= mergeAnnotations p st2 st3'
-  return st3''
+  let st3' = updateAnnotations st1 st2 st3
+  return st3'
 
-mergeAnnotations :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> PState i UnSharing
-mergeAnnotations _ _ st2 | trace (show "mergeAnnotations: " ++ show st2) False = undefined
-mergeAnnotations p st1@(PState hp1 _ (UnSharing ma1 ms1 mt1)) st2 = 
-  let aliased =  updateAlias p st1 st2
-      normalized = normalizeAlias $ trace ("aliased: " ++ show aliased) aliased
-      shared = updateSharing p st1 $ trace ("normalized: " ++ show normalized) normalized
-      graphed = updateGraph p st1 $ trace ("shared: " ++ show shared) shared
-  in trace ("graphed: " ++ show graphed) graphed
+
+updateAnnotations :: IntDomain i => PState i UnSharing -> PState i UnSharing -> PState i UnSharing -> PState i UnSharing
+updateAnnotations st1 st2 st3 = 
+  let paths3     = rpaths st3
+      refpaths3  = [ path | path <- paths3, RefVal _ <- [pval3 path]]
+      pval3 path = rpathValue path st3
+      rval3 path = theAddress $ pval3 path
+
+      paths1     = rpaths st1
+      refpaths1  = [ path | path <- paths1, RefVal _ <- [pval1 path]]
+      pval1 path = rpathValue path st1
+      rval1 path = theAddress $ pval1 path
+        
+      paths2     = rpaths st2
+      refpaths2  = [ path | path <- paths2, RefVal _ <- [pval2 path]]
+      pval2 path = rpathValue path st2
+      rval2 path = theAddress $ pval2 path
+
+      ma3 = updateAlias (st1,refpaths1,rval1) (refpaths3,rval3) `S.union` updateAlias (st2,refpaths2,rval2) (refpaths3,rval3)
+      st3'@(PState hp3 frms3 _) = normalizeAlias ma3 st3
+
+      paths3'     = rpaths st3'
+      refpaths3'  = [ path | path <- paths3', RefVal _ <- [pval3' path]]
+      pval3' path = rpathValue path st3'
+      rval3' path = theAddress $ pval3' path
+
+      ms3 = updateSharing (st1,refpaths1,rval1) (refpaths3',rval3') `S.union` updateSharing (st2,refpaths2,rval2) (refpaths3',rval3')
+      mt3 = updateGraph (st1,refpaths1,rval1) (refpaths3',rval3',st3') `S.union` updateGraph (st2,refpaths2,rval2) (refpaths3',rval3',st3')
+  in  PState hp3 frms3 (UnSharing ma3 ms3 mt3)
   where
-    paths1 = trace ("RPATHS1: " ++ show (rpaths st1)) rpaths st1
-    refpaths1 = [ path | path <- paths1, RefVal _ <- [pval1 path]]
-
-    pval1 path = rpathValue path st1
-    rval1 path = theAddress $ pval1 path
-
-    updateAlias _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) = 
-      let ma2' = foldr addAlias ma2 differentPaths1 in 
-          PState hp2 frms2 (UnSharing ma2' ms2 mt2)
+    updateAlias (PState _ _ (UnSharing ma' _ _),refpaths',rval') (refpaths3,rval3) = 
+      foldr addAlias S.empty differentPaths'
       where
         addAlias (pathx,pathy) ma | trace ("addAlias: " ++ show (pathx,pathy,ma)) False = undefined
         addAlias (pathx,pathy) ma = 
-          if pathx `elem` refpaths2 && pathy `elem` refpaths2 && rval2 pathx /= rval2 pathy
-            then rval2 pathx :=?: rval2 pathy `S.insert` ma
+          if pathx `elem` refpaths3 && pathy `elem` refpaths3 && rval3 pathx /= rval3 pathy
+            then rval3 pathx :=?: rval3 pathy `S.insert` ma
             else ma
-        differentPaths1 = do
-          pathx <- refpaths1
-          pathy <- refpaths1
+        differentPaths' = do
+          pathx <- refpaths'
+          pathy <- refpaths'
           guard $ pathx /= pathy
-          let (adrx,adry) = (rval1 pathx, rval1 pathy)
-          guard $ adrx == adry || (adrx:=?:adry `S.member` ma1)
-          return $ trace ("differ: " ++ show (pathx,pathy)) (pathx,pathy)
+          let (adrx,adry) = (rval' pathx, rval' pathy)
+          guard $ adrx == adry || (adrx:=?:adry `S.member` ma')
+          return (pathx,pathy)
+    updateAlias _ _ = merror ".mergeAnnotations: exceptional state."
 
-        paths2 = trace ("pathsxy: " ++ show (rpaths st)) rpaths st
-        refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
-        pval2 path = rpathValue path st
-        rval2 path = theAddress $ pval2 path
-    updateAlias _ _ _ = merror ".mergeAnnotations: exceptional state."
-
-    normalizeAlias (PState hp frms (UnSharing ma ms mt)) = 
-      PState (S.foldr abstraction hp ma) frms (UnSharing ma ms mt)
+    normalizeAlias ma (PState hp frms us) = 
+      PState (S.foldr abstraction hp ma) frms us
       where
         abstraction (q:=?:r) h = case (lookupH q hp, lookupH r hp) of
           (Instance _ _, Instance cn' _) -> updateH r (AbsVar cn') h
           _ -> h
-    normalizeAlias _ = merror ".mergeAnnotations: exceptional state."
+    normalizeAlias _ _ = merror ".mergeAnnotations: exceptional state."
 
-    updateSharing _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) = 
-      let ms2' = foldr addSharing ms2 differentPaths1
-          ms2''= foldr propagateSharing ms2' sharingPaths1
-      in  PState hp2 frms2 (UnSharing ma2 ms2'' mt2)
+    updateSharing (PState _ _ (UnSharing ma' ms' _),refpaths',rval') (refpaths3,rval3) = 
+      foldr addSharing S.empty differentPaths' `S.union` foldr propagateSharing S.empty sharingPaths'
       where
         addSharing (pathx,pathy) ms = 
-          if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
-            then ms
-            else let (mpx,mpy) = (maxRef2 pathx,maxRef2 pathy) in trace ("ADDSHARING:" ++ show (mpx,mpy)) $ mpx:><:mpy `S.insert` ms
-        propagateSharing (pathx,pathy) ms = maxRef2 pathx :><: maxRef2 pathy `S.insert` ms
+          if not $ pathx `elem` refpaths3 && pathy `elem` refpaths3
+            then let (mpx,mpy) = (maxRef3 pathx,maxRef3 pathy) in trace ("ADDSHARING:" ++ show (mpx,mpy)) $ mpx:><:mpy `S.insert` ms
+            else ms
+        propagateSharing (pathx,pathy) ms = maxRef3 pathx :><: maxRef3 pathy `S.insert` ms
 
-        differentPaths1 = do
-          pathx <- refpaths1
-          pathy <- refpaths1
+        differentPaths' = do
+          pathx <- refpaths'
+          pathy <- refpaths'
           guard $ pathx /= pathy
-          let (adrx,adry) = (rval1 pathx, rval1 pathy)
-          guard $ adrx == adry || (adrx:><:adry `S.member` ms2)
+          let (adrx,adry) = (rval' pathx, rval' pathy)
+          guard $ adrx == adry || (adrx:=?:adry `S.member` ma')
           return (pathx,pathy)
-        sharingPaths1 = do
-          pathx <- refpaths1
-          pathy <- refpaths1
+        sharingPaths' = do
+          pathx <- refpaths'
+          pathy <- refpaths'
           guard $ pathx /= pathy
-          let (adrx,adry) = (rval1 pathx, rval1 pathy)
-          guard $ adrx:><:adry `S.member` ms1
+          let (adrx,adry) = (rval' pathx, rval' pathy)
+          guard $ adrx:><:adry `S.member` ms'
           return (pathx,pathy)
 
-        paths2 = rpaths st
-        refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
-        pval2 path = rpathValue path st
-        rval2 path = theAddress $ pval2 path
-        maxRef2 path = rval2 $ rmaxPrefix path refpaths2
+        maxRef3 path = rval3 $ rmaxPrefix path refpaths3
 
-    updateSharing _ _ _ = merror ".mergeAnnotations: exceptional state."
+    updateSharing _ _ = merror ".mergeAnnotations: exceptional state."
 
-    updateGraph _ _ st@(PState hp2 frms2 (UnSharing ma2 ms2 mt2)) =
-      let mt2' = foldr propagateGraph mt2 graphPaths
-          mt2''= foldr addGraph mt2' cyclicPaths
-      in  PState hp2 frms2 (UnSharing ma2 ms2 mt2'')
+    updateGraph (PState hp' _ (UnSharing _ _ mt'),refpaths',rval') (refpaths3,rval3,st3') =
+      foldr propagateGraph S.empty graphPaths `S.union` foldr addGraph S.empty cyclicPaths
       where
-        propagateGraph pathx mt = NT (rval2 $ maxPath2 pathx) `S.insert` mt
-        addGraph pth mt |trace ("addGraph: " ++ show (pth,pth `elem` refpaths2)) False = undefined
+        propagateGraph pathx mt = NT (rval3 $ maxPath3 pathx) `S.insert` mt
+        addGraph pth _ |trace ("addGraph: " ++ show (pth,pth `elem` refpaths3)) False = undefined
         addGraph pathx mt = 
-          if pathx `elem` refpaths2 && isNotTreeShaped (rval2 pathx) hp2
+          if pathx `elem` refpaths3 && isNotTreeShaped (rval3 pathx) (heap st3')
             then mt
-            else trace ("NT: " ++ show pathx) $ NT (rval2 pathx) `S.insert` mt
+            else trace ("NT: " ++ show pathx) $ NT (rval3 $ maxPath3 pathx) `S.insert` mt
 
         graphPaths = do
-          pathx <- refpaths1
-          guard $ NT (rval1 pathx) `S.member` mt1
+          pathx <- refpaths'
+          guard $ NT (rval' pathx) `S.member` mt'
           return pathx
         cyclicPaths = do
-          pathx <- refpaths1
-          guard $ isNotTreeShaped (rval1 pathx) hp1
+          pathx <- refpaths'
+          guard $ isNotTreeShaped (rval' pathx) hp'
           return pathx
 
 
-        paths2 = rpaths st
-        refpaths2 = let rps = [ path | path <- paths2, RefVal _ <- [pval2 path]] in trace ("REFPATHS2: " ++ show rps) rps
-        pval2 path = rpathValue path st
-        rval2 path = theAddress $ pval2 path
-        maxPath2 path = rmaxPrefix path refpaths2
-    updateGraph _ _ _ = merror ".mergeAnnotations: exceptional state."
-
-mergeAnnotations _ _ _ = merror ".mergeAnnotations: unexpected case."
-
-
-
-
-
+        maxPath3 path = rmaxPrefix path refpaths3
+    updateGraph _ _ = merror ".mergeAnnotations: exceptional state."
 
 
 

@@ -80,4 +80,4 @@ instance Pretty i => Pretty (Object i) where
     where
       prettyFT = map prettyElem . M.toList
       prettyElem ((cne,fne),v) = pretty cne <> dot <> pretty fne <> equals <> pretty v
-  pretty (AbsVar cn) = text $ map toLower $ show cn
+  pretty (AbsVar cn) = text . map toLower . show $ pretty cn
