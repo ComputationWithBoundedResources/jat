@@ -21,11 +21,14 @@ import Jat.Utils.Pretty
 import Jat.Utils.Fun
 import qualified Jat.Program as P
 
+import qualified Data.Rewriting.Term as TRS (Term (..)) 
+
 import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
 import Control.Monad (guard)
 import Data.Maybe (isJust,fromJust)
 import Debug.Trace
+import Data.Char (toLower)
 
 mname :: String
 mname = "Jat.PState.MemoryModel.UnSharing"
@@ -646,6 +649,43 @@ normalizeUS (PState hp frms (UnSharing ma ms mt)) = PState hp' frms (UnSharing m
 normalizeUS st = st
 
        
+{-state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> PState i UnSharing -> Int -> JatM m (TRS.Term String String) -}
+{-state2TRSUS m s@(PState heap frms (UnSharing me ms mt)) k = do-}
+  {-p <- getProgram -}
+  {-TRS.Fun (var "f" k)  `liftM` (mapM (tval p) $ concatMap elemsF frms)-}
+  {-where-}
+    {-nullterm = TRS.Fun "null" []-}
+    {-var cn k = map toLower cn ++ '_':show k-}
+    
+    {-tval p Null        = return nullterm-}
+    {-tval p Unit        = return nullterm-}
+    {-tval p (RefVal r)  = taddr p r-}
+    {-tval p (BoolVal b) = return $ let sb = show (pretty b) in if AD.isConstant b then TRS.Fun sb [] else TRS.Var sb-}
+    {-tval p (IntVal i)  = return $ let is = show (pretty i) in if AD.isConstant i then TRS.Fun is [] else TRS.Var is-}
+
+    {-isSpecial p q = isCyclic heap q || isNonTreeShaped heap q || NS q `elem` mt-}
+        
+    {-taddr p r = case m of-}
+      {-Just q  -> taddrStar p q r-}
+      {-Nothing -> taddr' p r-}
+
+    {-taddr' p r | isSpecial p r = do-}
+      {-let cn = className $ lookupH heap r-}
+      {-return . TRS.Var  $ var (cn ++ "x") r-}
+    {-taddr' p r = -}
+      {-case lookupH heap r of -}
+        {-AbsVar cn      -> return . TRS.Var $ var cn r-}
+        {-Instance cn ft -> TRS.Fun cn `liftM` (mapM (tval p) $ elemsFT ft)-}
+
+    
+    {-isJoinable q r = (q:-><-:r) `elem` ms-}
+    {-taddrStar p q r  | isJoinable q r = do-}
+                          {-k <- freshVarIdx-}
+                          {-let cn = className $ lookupH heap r-}
+                          {-return . TRS.Var  $ var cn k-}
+                      {-| otherwise = taddr' p r-}
+
+{-state2TRS' _ s@(EState  ex) _ = return $ TRS.Fun (show ex) []-}
   
 
 

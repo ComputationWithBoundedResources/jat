@@ -10,6 +10,7 @@ module Jat.PState.Fun
   , isSimilar
   , isBackJump
   , isTarget
+  , maybePutField
 
   , mapAnnotations
   , mapValues
@@ -218,6 +219,13 @@ isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do
   p <- getProgram
   return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
+
+maybePutField :: P.Program -> PState i a -> Maybe Address
+maybePutField p (PState _ (Frame _ (_:RefVal q:_) cn mn pc:_) _)   = 
+  case P.instruction p cn mn pc of
+    P.PutField _ _ -> Just q
+    _              -> Nothing
+maybePutField _ _ = Nothing
 
 mapAnnotations :: MemoryModel a => (a -> a) -> PState i a -> PState i a
 mapAnnotations f (PState hp frms ann) = PState hp frms (f ann)

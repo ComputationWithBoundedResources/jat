@@ -4,7 +4,7 @@ module Jat.CompGraph
     MkJGraph
   , mkJGraph
   , mkJGraph2Dot
-  --, mkGraph2TRS
+  , mkJGraph2TRS
   , mkJGraphIO
   )
 where
@@ -17,6 +17,9 @@ import qualified Jat.Program as P
 import Jat.Utils.Pretty
 import Jat.Utils.Dot
 import Jat.Utils.Fun
+import Jat.Constraints
+import Data.Rewriting.Rule (Rule (..))
+import qualified Data.Rewriting.Constraint as RC
 
 import System.IO (hFlush,stdout)
 import Control.Monad.State hiding (join)
@@ -25,6 +28,7 @@ import Data.GraphViz.Types.Canonical
 import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
+import Data.Maybe (fromMaybe)
 
 
 import Debug.Trace
@@ -201,6 +205,54 @@ mkJGraph2Dot (MkJGraph g ctxs) =
               GV.Label (GV.StrLabel $ T.pack $ display $ pretty l)
             ]
           }
+
+mkJGraph2TRS :: (Monad m, Pretty a,IntDomain i) => MkJGraph i a -> JatM m [Rule String String]
+mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p) ledges
+  where
+    rule _ (k,k',InstanceLabel) = ruleM (ts s k) (ts s k') Nothing
+      where s = lookupN k
+    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') (Just $ translateConstraint con)
+      where t = lookupN k'
+    rule p (k,k',EvaluationLabel con) = 
+      case maybePutField p s of
+        Just q  -> ruleM (ts s k) (tsStar q t k') (Just $ translateConstraint con)
+        Nothing -> ruleM (ts s k) (ts t k') (Just $ translateConstraint con)
+      where s = lookupN k
+            t = lookupN k'
+
+    ruleM ms mt con = do
+      s <- ms
+      t <- mt
+      return $ Rule {lhs = s, rhs = t, con = con}
+      
+    lnodes = labNodes g
+    ledges = labEdges g
+
+    lookupN k = errmsg `fromMaybe` lookup k lnodes
+    errmsg    = error "Jat.CompGraph.mkGraph2TRS: unexpected key"
+    ts        = undefined
+    tsStar q  = undefined
+
+  
+    -- refactor
+    translateConstraint :: Constraint -> RC.Constraint String 
+    translateConstraint con = case con of
+      CVar i  -> RC.Atom $ RC.V i
+      IConst i -> RC.Atom $ RC.I i
+      BConst b -> RC.Atom $ if b then RC.Top else RC.Bot
+
+      Not c     -> RC.Not (tc c)
+      And c1 c2 -> RC.And (tc c1) (tc c2)
+      Or  c1 c2 -> RC.Or (tc c1) (tc c2)
+
+      Ass c1 c2 -> RC.Ass (tc c1) (tc c2)
+      Eq  c1 c2 -> RC.Eq (tc c1) (tc c2)
+      Neq c1 c2 -> RC.Neq (tc c1) (tc c2)
+      Gte c1 c2 -> RC.Gte (tc c1) (tc c2)
+
+      Add c1 c2 -> RC.Add (tc c1) (tc c2)
+      Sub c1 c2 -> RC.Sub (tc c1) (tc c2)
+      where tc = translateConstraint
 
 -- Interactive
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
