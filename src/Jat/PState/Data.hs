@@ -31,7 +31,10 @@ annotations (EState _)       = error "Jat.PState.Data.annotations: assertion err
 
 type Path = [(P.ClassId, P.FieldId)]
 data Root = RStk Int Int | RLoc Int Int deriving (Eq,Show)
-data RPath= RPath Root Path deriving (Eq,Show)
+data RPath= RPath Root Path deriving (Eq)
+instance Show RPath where
+  show (RPath root path) = show root ++ show (map prettyEdge path)
+    where prettyEdge (cn,fn) = pretty cn <> char '.' <> pretty fn <> char '>'
 
 instance (Pretty i, Pretty a) => Show (PState i a) where
   show = show . pretty

@@ -65,6 +65,10 @@ instance Pretty MayGraph where
 
 data UnSharing = UnSharing (S.Set MayAlias) (S.Set MayShare) (S.Set MayGraph) deriving (Eq,Ord,Show)
 
+-- TODO: 
+-- define `safe` member, adding and union functions
+-- a :><: a | a == a should never be a member
+
 emptyUS :: UnSharing 
 emptyUS = UnSharing S.empty S.empty S.empty
 
@@ -169,17 +173,21 @@ putFieldUS st cn fn = case opstk $ frame st of
 
 updatePutField :: Eq i => US i -> UnSharing
 updatePutField st@(PState hp _ (UnSharing ma ms mt)) = case opstk $ frame st of
-  RefVal o1 : RefVal o0 : _ -> 
-    let ms' = (ms `S.union` newShares o1 o0)
-        mt' = (mt `S.union` newGraphs1 o1 o0 `S.union` newGraphs2 o1 o0)
+  RefVal o0 : RefVal o1 : _ -> 
+    let ms' = (ms `S.union` newShares o0 o1)
+        mt' = (mt `S.union` ((\a -> not $ a `S.member` noGraphs1 o0 o1) `S.filter` newGraphs1 o0 o1) `S.union` newGraphs2 o0 o1)
     in  UnSharing ma ms' mt'
   _                         -> merror ".updatePutfield: unexpected case."
   where
-    newShares  o1 o0 = [ p:><:q | p <- o1 `annotatedWith` st , q <- o0 `reaches` st, p/=q ]
-    newGraphs1 o1 o0 = [ NT p | p <- o1 `reachedBy` st, q1 <- p `reaches` st
+    newShares  o0 o1 = [ p:><:q | p <- o1 `annotatedWith` st , q <- o0 `reaches` st, p/=q ]
+    noGraphs1  o0 o1 = [ NT p | p <- o1 `reachedDirectBy` st, q1 <- p `reachesDirect` st
+                              , q2 <- o0 `reachesDirect` st , q1 == q2
+                              , noCommonPrefix (pathsFromTo p o1 hp) (pathsFromTo p q1 hp)]
+    newGraphs1 o0 o1 = [ NT p | p <- o1 `reachedBy` st, q1 <- p `reaches` st
                               , q2 <- o0 `reaches` st , q1 == q2
                               , noCommonPrefix (pathsFromTo p o1 hp) (pathsFromTo p q1 hp)]
-    noCommonPrefix paths1 paths2 = not $ or [hasCommonPrefix path1 path2 | path1 <- paths1, path2 <- paths2]
+
+    noCommonPrefix paths1 paths2 = not $ or [ hasCommonPrefix path1 path2 | path1 <- paths1, path2 <- paths2]
     newGraphs2 o1 o0 = if hasCommonSuccessor o0 hp ||  any (\q -> NT q `S.member` mt) (reachable o0 hp)
                     then [NT p | p <- o1 `annotatedWith` st]
                     else S.empty
@@ -188,11 +196,21 @@ updatePutField _ = merror ".updatePutField: unexpected case."
 annotatedWith :: Address ->  US i -> Set Address
 adr `annotatedWith` st = S.fromList (adr `mayAliasWith` us) `S.union` S.fromList (adr `mayShareWith` us)
   where us = annotations st
+
 reaches :: Address -> US i -> Set Address
 adr `reaches` st = S.unions $ S.fromList reachables : map (`annotatedWith` st) reachables
   where reachables = reachable adr (heap st)
+
 reachedBy :: Address -> US i-> Set Address
-adr1 `reachedBy` st = S.fromList $ filter (\adr2 -> adr1 `S.member` (adr2 `reaches` st)) (addresses $ heap st) 
+adr1 `reachedBy` st = 
+  S.fromList $ filter (\adr2 -> adr1 `S.member` (adr2 `reaches` st)) (addresses $ heap st)
+
+reachesDirect :: Address -> US i -> Set Address
+adr `reachesDirect` st = S.fromList $ reachable adr (heap st)
+
+reachedDirectBy :: Address -> US i-> Set Address
+adr1 `reachedDirectBy` st = 
+  S.fromList $ filter (\adr2 -> adr1 `S.member` (adr2 `reachesDirect` st)) (addresses $ heap st)
 
 
 invokeUS :: (Monad m, IntDomain i) => US i -> P.MethodId -> Int -> JatM m (PStep(US i))
@@ -286,7 +304,7 @@ instanceRefinement :: (Monad m, IntDomain i) => P.Program -> US i -> Address -> 
 instanceRefinement p st@(PState hp frms us) adr = do
   instances <- instancesM
   nullref   <- nullM
-  return . topRefinement $ nullref:instances
+  return . topRefinement $ map normalizeUS $ nullref:instances
   where
     cns  = P.subClassesOf p . className $ lookupH adr hp
     obtM = mapM (mkAbsInstance hp adr) cns
@@ -307,20 +325,20 @@ instanceRefinement p st@(PState hp frms us) adr = do
         obtrefs    = referencesO obj1
 
         thefilter (ref1:><:ref2) = not $ (ref1 == adr || ref2 == adr) && isInstanceH ref1 && isInstanceH ref2 
-        newAliases1 = [ newr :=?: oldr | newr <- obtrefs, oldr <- sharesWith]
+        newAliases1 = [ newr :=?: oldr | newr <- obtrefs, oldr <- sharesWith, newr `isRelativeH` oldr]
         newSharing1 = [ newr :><: oldr | newr <- obtrefs, oldr <- sharesWith]
         
         (newAliases2, newSharing2, newGraphs) =
           if NT adr `S.member` mt
             then
             ( [ new1:=?:new2  | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2
-                              , let {cn1 = classNameH new1; cn2 = classNameH new2}
-                                in  cn1 `isSuper` cn2 || cn2 `isSuper` cn1]
+                              , new1 `isRelativeH` new2]
             , [ new1:><:new2 | new1 <- adr:obtrefs, new2 <- obtrefs, new1 /= new2]
             , [ NT ref | ref <- obtrefs])
             else ([],[],[])
         classNameH cn  = className $ lookupH cn hp1
-        isSuper        = P.isSuper p
+        isRelativeH ref1 ref2 = P.isSuper p cn1 cn2 || P.isSuper p cn2 cn1
+          where (cn1,cn2) = (classNameH ref1, classNameH ref2)
         isInstanceH ref = isInstance $ lookupH ref hp1
 instanceRefinement _ _ _ = merror ".instanceRefinement: unexpected case."
 
@@ -370,7 +388,7 @@ equalityRefinement _ _ = merror ".equalityRefinement: unexpected case."
 
 
 leqUS :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
-leqUS _ st1 st2 | trace ("LEQ: " ++ show st1 ++ show st2) False = undefined
+leqUS _ st1 st2 | trace ("LEQ:\n" ++ show st1 ++ "\n" ++ show st2) False = undefined
 leqUS _ st1 st2 | not $ isSimilar st1 st2 = False
 leqUS p st1 st2 
   | not $ all (`elem` paths1) paths2 = False
@@ -407,10 +425,15 @@ leqUS p st1 st2
 
     maxPath2 path = let mp = rmaxPrefix path refpaths2 in trace ("maxPath" ++ show (mp,path,refpaths2)) mp
 
+    isNull Null = True
+    isNull Unit = True
+    isNull _    = False
+
     -- (a-d)
     checkValues ps | trace ("CV" ++ show ps) False = undefined
     checkValues pths = all checkPath pths
       where
+        checkPath path   | trace ("cv: " ++ show path) False = undefined
         checkPath path   = checkValue (pval1 path) (pval2 path)
         checkValue v1 v2 = case (v1,v2) of
           (BoolVal a, BoolVal b) -> a `AD.leq` b
@@ -419,6 +442,10 @@ leqUS p st1 st2
           (Unit, Null)           -> True
           (Null, Null)           -> True
           (Null, RefVal q)       -> 
+            case lookupH q hp2 of
+              AbsVar _ -> True
+              _        -> False
+          (Unit, RefVal q)       -> 
             case lookupH q hp2 of
               AbsVar _ -> True
               _        -> False
@@ -434,10 +461,12 @@ leqUS p st1 st2
     checkDistinctness ps | trace ("CD" ++ show ps) False = undefined
     checkDistinctness pths = all distinctIn2 distinctPaths1
       where
+        distinctIn2 (pathx,pathy) | trace ("cd: " ++ show (pathx,pathy)) False = undefined
         distinctIn2 (pathx,pathy) = cmp (pval2 pathx) (pval2 pathy)
         distinctPaths1 = do
           pathx <- pths
           pathy <- pths
+          guard $ pathx /= pathy
           guard $ cmp (pval1 pathx) (pval1 pathy)
           return (pathx,pathy)
         cmp (RefVal q) (RefVal r) = q   /= r
@@ -446,6 +475,7 @@ leqUS p st1 st2
     checkAlias ps | trace ("CA" ++ show ps) False = undefined
     checkAlias pths = all maybeEuqalIn2 equalPaths1
       where
+        maybeEuqalIn2 (pathx,pathy) | trace ("meq" ++ show (pathx,pathy)) False = undefined
         maybeEuqalIn2 (pathx,pathy) = 
           let r1 = rval2 pathx 
               r2 = rval2 pathy
@@ -454,6 +484,7 @@ leqUS p st1 st2
           pathx <- pths
           pathy <- pths
           guard $ pathx /= pathy
+          guard $ not (isNull (pval1 pathx) || isNull (pval1 pathy))
           guard $ rval1 pathx == rval1 pathy
           return (pathx,pathy)
     -- (g)
@@ -464,6 +495,8 @@ leqUS p st1 st2
         mayAliasIn1 = do
           pathx <- pths
           pathy <- pths
+          guard $ pathx /= pathy
+          guard $ not (isNull (pval1 pathx) || isNull (pval1 pathy))
           guard $ rval1 pathx:=?: rval1 pathy `S.member` ma1
           return (pathx,pathy)
     -- (h)
@@ -472,7 +505,10 @@ leqUS p st1 st2
       where
         maxPrefixIn2 (pathx,pathy) = 
           if not $ pathx `elem` refpaths2 && pathy `elem` refpaths2
-            then let b = rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2 in trace (show $ (pathx,pathy,b)) b
+            then let valx = pval2 $ maxPath2 pathx
+                     valy = pval2 $ maxPath2 pathy
+                     (ref1,ref2) = ([ q | RefVal q <- [valx] ], [ r | RefVal r <- [valy]]) 
+                 in if not (null ref1 || null ref2 || ref1 == ref2)  then head ref1:><:head ref2 `S.member` ms2 else True
             else True
         mayEqualIn1 = do
           pathx <- pths
@@ -485,8 +521,11 @@ leqUS p st1 st2
     checkMayShare ps | trace ("CMS" ++ show ps) False = undefined
     checkMayShare pths = all maxShareIn2 mayShare1
       where
+        maxShareIn2 (pathx,pathy) | trace ("cms: " ++ show (pathx,pathy)) False = undefined
         maxShareIn2 (pathx,pathy) = 
-          rval2 (maxPath2 pathx):><:rval2 (maxPath2 pathy) `S.member` ms2
+          let refx = rval2 (maxPath2 pathx)
+              refy = rval2 (maxPath2 pathy)
+          in if refx /= refy then refx:><:refy `S.member` ms2 else True
         mayShare1 = do
           pathx <- pths
           pathy <- pths
@@ -508,10 +547,11 @@ leqUS p st1 st2
     propagateGraph ps | trace ("PRG" ++ show ps) False = undefined
     propagateGraph pths = all maxGraphIn2 graphIn2
       where
+        maxGraphIn2 (pathx,pathy,prefix) | trace ("prg: " ++ show (pathx,pathy,prefix)) False = undefined
         maxGraphIn2 (pathx,pathy,prefix) = 
           if not (pathx `elem` refpaths2 && pathy `elem` refpaths2)
              || rval2 pathx:=?:rval2 pathy `S.member` ma2
-          then NT (rval2 prefix) `S.member` mt2
+          then NT (rval2 $ maxPath2 prefix) `S.member` mt2
           else True
         graphIn2 = do
           pathx <- pths
@@ -527,7 +567,10 @@ joinUS st1 st2 = do
   p <- getProgram
   st3 <- mergeStates p st1 st2 emptyUS
   let st3' = normalizeUS $ updateAnnotations st1 st2 st3
-  return st3'
+  if not (leqUS p st1 st3' && leqUS p st2 st3')
+    then merror ".joinUS: not an abstraction."
+    else return st3'
+  {-return st3'-}
 
 
 updateAnnotations :: IntDomain i => PState i UnSharing -> PState i UnSharing -> PState i UnSharing -> PState i UnSharing

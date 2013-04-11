@@ -7,6 +7,7 @@ module Jat.Program.Op
   , supClassesOf
   , subClassesOf
   , isSuper
+  , isRelative
   , theMethod
   , seesMethodIn
   , instructions
