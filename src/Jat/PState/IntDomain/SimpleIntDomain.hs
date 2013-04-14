@@ -2,7 +2,7 @@
 
 module Jat.PState.IntDomain.SimpleIntDomain 
   (
-    SimpleIntDomain (..)
+    SimpleIntDomain
   )
 where
 
