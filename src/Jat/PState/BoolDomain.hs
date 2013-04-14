@@ -36,6 +36,8 @@ instance AbstrDomain BoolDomain Bool where
   leq _ _                                = False
 
   constant = Boolean
+  isConstant (Boolean _) = True
+  isConstant _           = False
 
 freshBool :: Monad m => JatM m BoolDomain
 freshBool = do {i<-freshVarIdx; return $ AbstrBoolean i} 

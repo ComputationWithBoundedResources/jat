@@ -5,6 +5,7 @@ module Jat.PState.Fun
   , mergeStates
   , mkGetField
   , mkPutField
+  , pState2TRS
 
   , isTerminal
   , isSimilar
@@ -37,6 +38,10 @@ import Jat.JatM
 import qualified Jat.Program as P
 import Jat.Utils.Pretty
 
+import qualified Data.Rewriting.Term as TRS (Term (..)) 
+
+
+import Data.Char (toLower)
 import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
@@ -193,6 +198,43 @@ mkPutField us2 st@(PState hp (Frame loc fstk fcn mn pc :frms) us1) cn fn =
             hp' = updateH o1 obt hp
         in  PState hp' (Frame loc stk fcn mn (pc+1):frms) uso
 mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
+
+pState2TRS :: (Monad m, IntDomain i) => (Address -> Bool) -> (Address -> Address -> Bool) -> Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
+pState2TRS isSpecial isJoinable m (PState hp frms _) k =
+  TRS.Fun (var "f" k)  `liftM` mapM tval (concatMap elemsF frms)
+  where
+    nullterm = TRS.Fun "null" []
+    var cn key = map toLower cn ++ '_':show key
+    
+    tval Null        = return nullterm
+    tval Unit        = return nullterm
+    tval (RefVal r)  = taddr r
+    tval (BoolVal b) = return $ let sb = show (pretty b) in if AD.isConstant b then TRS.Fun sb [] else TRS.Var sb
+    tval (IntVal i)  = return $ let is = show (pretty i) in if AD.isConstant i then TRS.Fun is [] else TRS.Var is
+
+        
+    taddr r = case m of
+      Just q  -> taddrStar q r
+      Nothing -> taddr' r
+
+    taddr' r | isSpecial r = do
+      let cn = className $ lookupH r hp
+      return . TRS.Var  $ var ((show . pretty) cn ++ "x") r
+    taddr' r =
+      case lookupH r hp of
+        AbsVar cn      -> return . TRS.Var $ var (showcn cn) r
+        Instance cn ft -> TRS.Fun (showcn cn) `liftM` mapM tval (elemsFT ft)
+
+    
+    taddrStar q r | isJoinable q r = do
+                          key <- freshVarIdx
+                          let cn = className $ lookupH r hp
+                          return . TRS.Var  $ var (showcn cn) key
+                  | otherwise = taddr' r
+    showcn = show . pretty
+
+pState2TRS _ _ _ (EState  ex) _ = return $ TRS.Fun (show ex) []
+  
 
 
 

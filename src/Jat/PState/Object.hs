@@ -8,7 +8,7 @@ module Jat.PState.Object
   , referencesO
 
   , FieldTable
-  --, elemsFT
+  , elemsFT
   , updateFT
   , emptyFT
   , lookupFT
@@ -67,8 +67,8 @@ assocsFT = M.assocs
 --keysFT :: FieldTable i -> [(P.ClassId, P.FieldId)]
 --keysFT = M.keys
 
---elemsFT :: FieldTable i -> [AbstrValue i]
---elemsFT = M.elems
+elemsFT :: FieldTable i -> [AbstrValue i]
+elemsFT = M.elems
 
 --referencesFT :: FieldTable i -> [Address]
 --referencesFT ft = [ q | RefVal q <- M.elems ft ]

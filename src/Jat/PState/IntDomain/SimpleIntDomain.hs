@@ -34,6 +34,8 @@ instance AbstrDomain SimpleIntDomain Int where
   leq _ _                                = False
 
   constant = Integer
+  isConstant (Integer _) = True
+  isConstant _           = False
 
 instance IntDomain SimpleIntDomain where
   Integer i +. Integer j  = eval $ Integer (i+j)

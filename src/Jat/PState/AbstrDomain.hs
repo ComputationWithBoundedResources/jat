@@ -16,6 +16,7 @@ class Pretty a => AbstrDomain a b | a -> b where
 
   --abstract domain
   constant :: b -> a 
+  isConstant :: a -> Bool
   widening :: Monad m => a -> a -> JatM m a 
   widening = join
 

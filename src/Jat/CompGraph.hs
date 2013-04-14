@@ -10,7 +10,6 @@ module Jat.CompGraph
 where
 
 
-import Jat.Constraints (Constraint)
 import Jat.JatM
 import Jat.PState
 import qualified Jat.Program as P
@@ -157,9 +156,9 @@ mkEval mg@(MkJGraph _ (ctx:_)) = do
     addNodes :: Monad m => (Constraint -> ELabel) -> [(PState i a, Constraint)] -> MkJGraph i a -> JatM m (MkJGraph i a)
     addNodes label rs (MkJGraph g (origin:ctxs)) = foldM (addNode (node' origin)) (MkJGraph g ctxs) rs
       where 
-      addNode k1 (MkJGraph g1 ctxs1) (st,con) = do
+      addNode k1 (MkJGraph g1 ctxs1) (st,cons) = do
           k2 <- freshKey
-          let edge = (label con, k1)
+          let edge = (label cons, k1)
               ctx2 = ([edge],k2,st,[])
               g2   = ctx2 & g1
           return $ MkJGraph g2 (ctx2:ctxs1)
@@ -206,37 +205,37 @@ mkJGraph2Dot (MkJGraph g ctxs) =
             ]
           }
 
-mkJGraph2TRS :: (Monad m, Pretty a,IntDomain i) => MkJGraph i a -> JatM m [Rule String String]
+mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [Rule String String]
 mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p) ledges
   where
     rule _ (k,k',InstanceLabel) = ruleM (ts s k) (ts s k') Nothing
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') (Just $ translateConstraint con)
+    rule _ (k,k',RefinementLabel cons) = ruleM (ts t k) (ts t k') (Just $ translateConstraint cons)
       where t = lookupN k'
-    rule p (k,k',EvaluationLabel con) = 
+    rule p (k,k',EvaluationLabel cons) = 
       case maybePutField p s of
-        Just q  -> ruleM (ts s k) (tsStar q t k') (Just $ translateConstraint con)
-        Nothing -> ruleM (ts s k) (ts t k') (Just $ translateConstraint con)
+        Just q  -> ruleM (ts s k) (tsStar q t k') (Just $ translateConstraint cons)
+        Nothing -> ruleM (ts s k) (ts t k') (Just $ translateConstraint cons)
       where s = lookupN k
             t = lookupN k'
 
-    ruleM ms mt con = do
+    ruleM ms mt cons = do
       s <- ms
       t <- mt
-      return $ Rule {lhs = s, rhs = t, con = con}
+      return Rule {lhs = s, rhs = t, con = cons}
       
     lnodes = labNodes g
     ledges = labEdges g
 
     lookupN k = errmsg `fromMaybe` lookup k lnodes
     errmsg    = error "Jat.CompGraph.mkGraph2TRS: unexpected key"
-    ts        = undefined
-    tsStar q  = undefined
+    ts        = state2TRS Nothing
+    tsStar q  = state2TRS (Just q)
 
   
     -- refactor
     translateConstraint :: Constraint -> RC.Constraint String 
-    translateConstraint con = case con of
+    translateConstraint cons = case cons of
       CVar i  -> RC.Atom $ RC.V i
       IConst i -> RC.Atom $ RC.I i
       BConst b -> RC.Atom $ if b then RC.Top else RC.Bot
