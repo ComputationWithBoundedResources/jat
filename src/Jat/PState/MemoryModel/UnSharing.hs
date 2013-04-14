@@ -35,6 +35,15 @@ mname = "Jat.PState.MemoryModel.UnSharing"
 merror :: String -> a
 merror msg = error $ mname ++ msg
 
+-- TODO: 
+-- define `safe` member, adding and union functions
+-- a :><: a | a == a should never be a member
+-- take types into account:
+-- =? wrt to inheritance relation
+-- >< wrt to reachable classes
+-- define path to return (value, path) pairs
+-- add directed sharing check for putfield refinement
+
 data MayShare = Int :><: Int deriving Show
 data MayAlias = Int :=?: Int deriving Show
 data MayGraph = NT Int deriving (Eq,Ord,Show)
@@ -63,10 +72,6 @@ instance Pretty MayGraph where
   pretty (NT q) = text $ '&': show q
 
 data UnSharing = UnSharing (S.Set MayAlias) (S.Set MayShare) (S.Set MayGraph) deriving (Eq,Ord,Show)
-
--- TODO: 
--- define `safe` member, adding and union functions
--- a :><: a | a == a should never be a member
 
 emptyUS :: UnSharing 
 emptyUS = UnSharing S.empty S.empty S.empty

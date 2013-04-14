@@ -17,11 +17,11 @@ module Jat.PState.Object
 where
 
 import Jat.PState.AbstrValue 
-import qualified Jat.Program as P
 import Jat.Utils.Pretty
+import qualified Jat.Program as P
 
-import Data.Maybe (fromMaybe)
 import Data.Char (toLower)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 
 type FieldTable i = M.Map (P.ClassId, P.FieldId) (AbstrValue i)
@@ -51,6 +51,7 @@ referencesO :: Object i -> [Address]
 referencesO (Instance _ ft) = [ ref | RefVal ref <- M.elems ft ]
 referencesO (AbsVar _)      = []
 
+
 emptyFT :: FieldTable i
 emptyFT = M.empty
 
@@ -64,15 +65,8 @@ lookupFT cn fn ft = errmsg `fromMaybe` M.lookup (cn,fn) ft
 assocsFT :: FieldTable i -> [((P.ClassId,P.FieldId),AbstrValue i)]
 assocsFT = M.assocs
 
---keysFT :: FieldTable i -> [(P.ClassId, P.FieldId)]
---keysFT = M.keys
-
 elemsFT :: FieldTable i -> [AbstrValue i]
 elemsFT = M.elems
-
---referencesFT :: FieldTable i -> [Address]
---referencesFT ft = [ q | RefVal q <- M.elems ft ]
-
 
 
 instance Pretty i => Pretty (Object i) where
@@ -81,3 +75,4 @@ instance Pretty i => Pretty (Object i) where
       prettyFT = map prettyElem . M.toList
       prettyElem ((cne,fne),v) = pretty cne <> dot <> pretty fne <> equals <> pretty v
   pretty (AbsVar cn) = text . map toLower . show $ pretty cn
+
