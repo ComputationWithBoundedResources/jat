@@ -84,11 +84,11 @@ mkAbsInstance hp adr cn = do
 data Correlation = C Address Address deriving (Show,Eq,Ord)
 
 correlation :: Address -> Address -> Correlation
-correlation q r | q<= r = C q r
-correlation q r = C r q
+correlation = C
 
 data Corre i = Corr {unCorr :: M.Map Correlation Address, unHeap:: Heap i}
 
+-- FXIME: correlation should be added before recursive call
 mergeStates :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a -> PState i a -> a -> JatM m (PState i a)
 mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
   (st,frms3) <- wideningFs Corr{unCorr=M.empty, unHeap=emptyH} frms1 frms2
