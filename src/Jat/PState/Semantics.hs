@@ -97,7 +97,7 @@ execIfFalse i (Frame loc stk cn mn pc) = case stk of
 
 execBinIntOp :: (Monad m, IntDomain i) => (i -> i -> JatM m (PStep i)) -> Frame i -> JatM m (PStep (Frame i))
 execBinIntOp op (Frame loc stk cn mn pc) = case stk of
-  IntVal i1: IntVal i2: vs -> liftPStep (\k -> Frame loc (IntVal k:vs) cn mn (pc+1)) `liftM` (i1 `op` i2)
+  IntVal i1: IntVal i2: vs -> liftPStep (\k -> Frame loc (IntVal k:vs) cn mn (pc+1)) `liftM` (i2 `op` i1)
   _ -> error "Jat.PState.Semantics.execBinIntOp: invalid stack."
 
 
@@ -107,7 +107,7 @@ execISub = execBinIntOp (-.)
 
 execBinBoolOp :: Monad m => (BoolDomain -> BoolDomain -> JatM m (PStep BoolDomain)) -> Frame i -> JatM m (PStep (Frame i))
 execBinBoolOp op (Frame loc stk cn mn pc) = case stk of
-  BoolVal b1 :BoolVal b2 :vs -> liftPStep (\k -> Frame loc (BoolVal k:vs) cn mn (pc+1)) `liftM` (b1 `op` b2)
+  BoolVal b1 :BoolVal b2 :vs -> liftPStep (\k -> Frame loc (BoolVal k:vs) cn mn (pc+1)) `liftM` (b2 `op` b1)
   _ -> error "Jat.PState.Semantics.execBinIntOp: invalid stack."
 
 execBAnd, execBOr :: Monad m => Frame i -> JatM m (PStep (Frame i))
@@ -142,8 +142,8 @@ execCmpEq _ = error "Jat.PState.Semantics.execCmpEq: unexpected case."
 execCmpNeq :: (Monad m, IntDomain i,MemoryModel a) => PState i a -> JatM m (PStep (PState i a))
 execCmpNeq st@(PState hp (Frame loc stk cn mn pc:frms) ann) = case stk of
   Null      :Null      :vs -> return . topEvaluation $ PState hp (Frame loc ((BoolVal $ constant False) : vs) cn mn (pc+1):frms) ann
-  IntVal _  :IntVal _  :_  ->  execBinIntCmp (==.) `applyF` st
-  BoolVal _ :BoolVal _ :_  ->  execBinBoolOp (.==.) `applyF` st
+  IntVal _  :IntVal _  :_  ->  execBinIntCmp (/=.) `applyF` st
+  BoolVal _ :BoolVal _ :_  ->  execBinBoolOp (./=.) `applyF` st
   Unit      :Unit      :_  ->  error "Jat.PState.Semantics.execCmpEq : illegal unit access."
   _ -> nequals st
 execCmpNeq _ = error "Jat.PState.Semantics.execCmpEq: unexpected case."
