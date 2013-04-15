@@ -2,7 +2,7 @@ module Jat.PState.Semantics where
 
 
 import Jat.JatM
-import Jat.PState.AbstrDomain
+import Jat.PState.AbstrDomain as AD
 import Jat.PState.AbstrValue
 import Jat.PState.BoolDomain
 import Jat.PState.Data
@@ -154,7 +154,7 @@ execReturn (PState hp [_] ann) = return . topEvaluation $ PState hp [] ann
 execReturn (PState hp (Frame _ (val:_) _ _ _ :Frame loc2 stk2 cn2 mn2 pc2 :frms) ann) =
   return . topEvaluation $ PState hp (Frame loc2 (val:stk2) cn2 mn2 (pc2+1):frms) ann
 execReturn (PState{}) = error "Jat.PState.Semantcs.execReturn: illegal stack."
-execReturn (EState _)     = error "Jat.PState.Semantics.execRetur: exceptional state."
+execReturn (EState _)     = error "Jat.PState.Semantics.execReturN: exceptional state."
 
 execInvoke :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.MethodId -> Int -> JatM m (PStep (PState i a))
 execInvoke = invoke
@@ -165,7 +165,13 @@ execNew :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> J
 execNew = new
 
 execGetField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
-execGetField = getField 
+execGetField st@(PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) cn fn@(P.FieldId fid) = 
+  if fid == "rand"
+    then do 
+      rand <- IntVal `liftM` (constant 0 `AD.join` constant 999)
+      return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
+    else getField st cn fn
+execGetField _ _ _ = error "Jat.PState.Semantics.execGetField: exceptional state."
 
 execPutField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
 execPutField = putField 
