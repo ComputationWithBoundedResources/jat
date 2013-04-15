@@ -10,9 +10,10 @@ import Jat.Utils.Pretty
 
 class Pretty a => AbstrDomain a b | a -> b where
   --join semi lattice
-  join :: Monad m => a -> a -> JatM m a
-  top  :: Monad m => JatM m a
-  leq  :: a -> a -> Bool
+  join  :: Monad m => a -> a -> JatM m a
+  top   :: Monad m => JatM m a
+  isTop :: a -> Bool
+  leq   :: a -> a -> Bool
 
   --abstract domain
   constant :: b -> a 

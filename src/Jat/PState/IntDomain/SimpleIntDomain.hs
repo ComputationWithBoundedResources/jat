@@ -28,7 +28,11 @@ freshInt = do {i<-freshVarIdx; return $ AbsInteger i}
 instance AbstrDomain SimpleIntDomain Int where
   join (Integer i) (Integer j) | i == j  = return $ Integer i
   join _ _                               = freshInt
-  top                                    = freshInt
+
+  top                  = freshInt
+  isTop (AbsInteger _) = True
+  isTop _              = False
+
   leq (Integer i) (Integer j) | i == j   = True
   leq _ (AbsInteger _)                   = True
   leq _ _                                = False

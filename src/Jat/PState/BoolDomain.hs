@@ -30,7 +30,11 @@ instance Atom BoolDomain where
 instance AbstrDomain BoolDomain Bool where
   join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
   join _ _                               = freshBool
-  top                                    = freshBool
+
+  top                    = freshBool
+  isTop (AbstrBoolean _) = True
+  isTop _                = False
+
   leq (Boolean i) (Boolean j) | i == j   = True
   leq _ (AbstrBoolean _)                 = True
   leq _ _                                = False

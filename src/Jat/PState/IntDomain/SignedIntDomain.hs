@@ -41,7 +41,11 @@ instance AbstrDomain SignedIntDomain Int where
   join (Pos _)  (Pos _)                 = Pos `liftM` freshVarIdx
   join (Neg _)  (Neg _)                 = Neg `liftM` freshVarIdx
   join _ _                              = freshInt
-  top                                   = freshInt
+
+  top                  = freshInt
+  isTop (AbsInteger _) = True
+  isTop _              = False
+
   leq (Integer i) (Integer j) | i == j  = True
   leq (Integer i) (Pos _) | i >= 0  = True
   leq (Integer i) (Neg _) | i <= 0  = True

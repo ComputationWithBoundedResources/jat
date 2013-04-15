@@ -442,6 +442,8 @@ leqUS p st1 st2
         checkValue v1 v2 = case (v1,v2) of
           (BoolVal a, BoolVal b) -> a `AD.leq` b
           (IntVal i, IntVal j)   -> i `AD.leq` j
+          (Unit, IntVal i)       -> isTop i
+          (Unit, BoolVal b)      -> isTop b
           (Unit, Unit)           -> True
           (Unit, Null)           -> True
           (Null, Null)           -> True
