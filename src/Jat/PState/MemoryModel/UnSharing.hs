@@ -462,12 +462,11 @@ leqUS p st1 st2
               (Instance cn _, Instance cn' _)  -> cn == cn'
               _                                -> False
           _ -> False
-
     -- (e)
     checkDistinctness ps | trace ("CD" ++ show ps) False = undefined
     checkDistinctness pths = all distinctIn2 distinctPaths1
       where
-        distinctIn2 (pathx,pathy) | trace ("cd: " ++ show (pathx,pathy)) False = undefined
+        distinctIn2 (pathx,pathy) | trace ("cd: " ++ show (pathx,pathy, cmp (pval2 pathx) (pval2 pathy))) False = undefined
         distinctIn2 (pathx,pathy) = cmp (pval2 pathx) (pval2 pathy)
         distinctPaths1 = do
           pathx <- pths
@@ -475,8 +474,10 @@ leqUS p st1 st2
           guard $ pathx /= pathy
           guard $ cmp (pval1 pathx) (pval1 pathy)
           return (pathx,pathy)
-        cmp (RefVal q) (RefVal r) = q   /= r
-        cmp _ _                   = True
+        cmp (RefVal q) (RefVal r)   = q /= r
+        cmp (IntVal i) (IntVal j)   = i /= j
+        cmp (BoolVal a) (BoolVal b) = a /= b
+        cmp _ _                     = True
     -- (f)
     checkAlias ps | trace ("CA" ++ show ps) False = undefined
     checkAlias pths = all maybeEuqalIn2 equalPaths1

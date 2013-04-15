@@ -97,8 +97,7 @@ mkStep g                                         = tryLoop g |>> mkEval g
 
 
 -- FIXME:
--- use target rather than backjump
--- exclude nod itself
+-- predecessor should not traverse instancelabels
 tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
 tryLoop mg@(MkJGraph g (ctx:_))                      = do
