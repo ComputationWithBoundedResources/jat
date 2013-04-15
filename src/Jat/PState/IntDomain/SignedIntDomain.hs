@@ -28,7 +28,16 @@ freshInt :: Monad m => JatM m SignedIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
 
 instance AbstrDomain SignedIntDomain Int where
-  join (Integer i) (Integer j) | i == j = return $ Integer i
+  join (Integer i) (Integer j) 
+    | i == j           = return $ Integer i
+    | i >= 0 && j >= 0 = Pos `liftM` freshVarIdx
+    | i <= 0 && j <= 0 = Neg `liftM` freshVarIdx
+    | otherwise        = freshInt
+  join (Integer i)  (Pos _) 
+    | i >= 0 = Pos `liftM` freshVarIdx
+  join (Integer i)  (Neg _) 
+    | i <= 0 = Neg `liftM` freshVarIdx
+  join v1 v2@(Integer _) = join v2 v1
   join (Pos _)  (Pos _)                 = Pos `liftM` freshVarIdx
   join (Neg _)  (Neg _)                 = Neg `liftM` freshVarIdx
   join _ _                              = freshInt
@@ -36,6 +45,8 @@ instance AbstrDomain SignedIntDomain Int where
   leq (Integer i) (Integer j) | i == j  = True
   leq (Integer i) (Pos _) | i >= 0  = True
   leq (Integer i) (Neg _) | i <= 0  = True
+  leq (Pos _)     (Pos _)          = True
+  leq (Neg _)     (Neg _)          = True
   leq _ (AbsInteger _)                  = True
   leq _ _                               = False
 
