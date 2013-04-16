@@ -117,9 +117,12 @@ mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
         case correlation q r `M.lookup` unCorr st of
           Just a -> return (st,RefVal a)
           Nothing -> do
-            (st',a) <- joinObject st (lookupH q hp1) (lookupH r hp2)
-            let cors = M.insert (correlation q r) a (unCorr st')
-            return (st'{unCorr=cors},RefVal a)
+            let (a,hp') = insertHA undefined (unHeap st)
+                cors = M.insert (correlation q r) a (unCorr st)
+                st'  = st{unCorr=cors,unHeap = hp'}
+
+            st'' <- joinObject st' a (lookupH q hp1) (lookupH r hp2)
+            return (st'',RefVal a)
       joinVal st Null Null        = return (st,Null)
       joinVal st Unit Null        = return (st,Null)
 
@@ -142,20 +145,20 @@ mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
       joinVal st v Unit           = joinVal st Unit v
       joinVal _ _ _ = error "unexpected case."
 
-      joinObject st (Instance cn ft) (Instance cn' ft') | cn == cn' = do
+      joinObject st a (Instance cn ft) (Instance cn' ft') | cn == cn' = do
         (st',vs) <- joinValM st (M.elems ft) (M.elems ft')
         let ft'' = M.fromList $ zip (M.keys ft) vs
-            (a,heap') = insertHA (Instance cn ft'') (unHeap st')
-        return (st'{unHeap=heap'},a)
-      joinObject st (Instance cn _) (Instance cn' _) = addAbsVar st cn cn'
-      joinObject st (AbsVar cn) (Instance cn' _)      = addAbsVar st cn cn'
-      joinObject st (Instance cn _) (AbsVar cn')       = addAbsVar st cn cn'
-      joinObject st (AbsVar cn) (AbsVar cn')            = addAbsVar st cn cn'
+            hp'  = updateH a (Instance cn ft'') (unHeap st')
+        return st'{unHeap=hp'}
+      joinObject st a (Instance cn _) (Instance cn' _) = addAbsVar st a cn cn'
+      joinObject st a (AbsVar cn) (Instance cn' _)     = addAbsVar st a cn cn'
+      joinObject st a (Instance cn _) (AbsVar cn')     = addAbsVar st a cn cn'
+      joinObject st a (AbsVar cn) (AbsVar cn')         = addAbsVar st a cn cn'
 
-      addAbsVar st cn cn' = do
+      addAbsVar st a cn cn' = do
         let dn = P.theLeastCommonSupClass p cn cn'
-            (a,heap') = insertHA (AbsVar dn) (unHeap st)
-        return (st{unHeap=heap'},a)
+            hp'= updateH a (AbsVar dn) (unHeap st)
+        return st{unHeap=hp'}
         
       --joinValMS st [] []           = return (st,[])
       --joinValMS st (l:ls) (l':ls') = do
