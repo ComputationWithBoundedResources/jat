@@ -102,19 +102,27 @@ tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Mayb
 tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
 tryLoop mg@(MkJGraph g (ctx:_))                      = do
   b <- isTarget' ctx
-  if b then eval candidates else return Nothing
+  if b then eval candidate else return Nothing
   where
-    eval ns | null ns = return Nothing
-    eval ns           = Just `liftM` (tryInstance nctx mg |>> (mkJoin nctx mg >>= mkEval))
-      where nctx = head ns
-    candidates = [ n | Just n <- bfsnWith (condition ctx) (pre' ctx) (grev g)]
-    --candidates = do
-      --Just n <-  bfsnWith (\lctx -> trace (show (ctx,lctx) ++ show (condition ctx lctx)) condition ctx lctx) (suc g $ node' ctx) (grev g)
-      --return n
+    eval Nothing  = return Nothing
+    eval (Just n) = Just `liftM` (tryInstance nctx mg |>> (mkJoin nctx mg >>= mkEval))
+      where nctx = context g n
+    candidate = rbfsnWith (condition ctx) (pre' ctx) g
     condition ctx1 ctx2 =
-      if isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2] then Just ctx2 else Nothing
-
-
+      isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2]
+    
+rbfsnWith :: (JContext i a -> Bool) -> [Node] -> JGraph i a -> Maybe Node
+rbfsnWith _ _      g | isEmpty g = Nothing
+rbfsnWith _ []     _             = Nothing
+rbfsnWith f (v:vs) g             = case match v g of
+  (Just c , g') -> if f c then Just (node' c) else rbfsnWith f (vs ++ predi c) g'
+  (Nothing, g') -> rbfsnWith f vs g'
+  where
+    predi ctx = foldr k [] $ inn' ctx
+    k (u,_,e)  = case e of 
+      InstanceLabel -> id
+      _             -> (u:)
+      
 tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryInstance ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> tryInstance: " ++ show (ctx2,ctx1)) False = undefined
 tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) = do
