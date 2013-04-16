@@ -75,7 +75,7 @@ run opts p cn mn =
     let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)
         evalM = case format opts of
           DOT -> (dot2String . mkJGraph2Dot) `liftM` gM
-          TRS -> (show . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)
+          TRS -> (display . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)
     --let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
         evaluationM = do
           evaluation <- T.timeout timeout $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))

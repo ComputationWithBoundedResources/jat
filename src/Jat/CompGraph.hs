@@ -18,7 +18,6 @@ import Jat.Utils.Dot
 import Jat.Utils.Fun
 import Jat.Constraints
 import Data.Rewriting.Rule (Rule (..))
-import qualified Data.Rewriting.Constraint as RC
 
 import System.IO (hFlush,stdout)
 import Control.Monad.State hiding (join)
@@ -163,9 +162,9 @@ mkEval mg@(MkJGraph _ (ctx:_)) = do
     addNodes :: Monad m => (Constraint -> ELabel) -> [(PState i a, Constraint)] -> MkJGraph i a -> JatM m (MkJGraph i a)
     addNodes label rs (MkJGraph g (origin:ctxs)) = foldM (addNode (node' origin)) (MkJGraph g ctxs) rs
       where 
-      addNode k1 (MkJGraph g1 ctxs1) (st,cons) = do
+      addNode k1 (MkJGraph g1 ctxs1) (st,con) = do
           k2 <- freshKey
-          let edge = (label cons, k1)
+          let edge = (label con, k1)
               ctx2 = ([edge],k2,st,[])
               g2   = ctx2 & g1
           return $ MkJGraph g2 (ctx2:ctxs1)
@@ -212,24 +211,24 @@ mkJGraph2Dot (MkJGraph g ctxs) =
             ]
           }
 
-mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [Rule String String]
+mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule String String, Maybe Constraint)]
 mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p) ledges
   where
     rule _ (k,k',InstanceLabel) = ruleM (ts s k) (ts s k') Nothing
       where s = lookupN k
-    rule _ (k,k',RefinementLabel cons) = ruleM (ts t k) (ts t k') (Just $ translateConstraint cons)
+    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') (mkCon con)
       where t = lookupN k'
-    rule p (k,k',EvaluationLabel cons) = 
+    rule p (k,k',EvaluationLabel con) = 
       case maybePutField p s of
-        Just q  -> ruleM (ts s k) (tsStar q t k') (Just $ translateConstraint cons)
-        Nothing -> ruleM (ts s k) (ts t k') (Just $ translateConstraint cons)
+        Just q  -> ruleM (ts s k) (tsStar q t k') (mkCon con)
+        Nothing -> ruleM (ts s k) (ts t k') (mkCon con)
       where s = lookupN k
             t = lookupN k'
 
-    ruleM ms mt cons = do
+    ruleM ms mt con = do
       s <- ms
       t <- mt
-      return Rule {lhs = s, rhs = t, con = cons}
+      return (Rule {lhs = s, rhs = t}, con)
       
     lnodes = labNodes g
     ledges = labEdges g
@@ -239,26 +238,9 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p)
     ts        = state2TRS Nothing
     tsStar q  = state2TRS (Just q)
 
-  
-    -- refactor
-    translateConstraint :: Constraint -> RC.Constraint String 
-    translateConstraint cons = case cons of
-      CVar i  -> RC.Atom $ RC.V i
-      IConst i -> RC.Atom $ RC.I i
-      BConst b -> RC.Atom $ if b then RC.Top else RC.Bot
-
-      Not c     -> RC.Not (tc c)
-      And c1 c2 -> RC.And (tc c1) (tc c2)
-      Or  c1 c2 -> RC.Or (tc c1) (tc c2)
-
-      Ass c1 c2 -> RC.Ass (tc c1) (tc c2)
-      Eq  c1 c2 -> RC.Eq (tc c1) (tc c2)
-      Neq c1 c2 -> RC.Neq (tc c1) (tc c2)
-      Gte c1 c2 -> RC.Gte (tc c1) (tc c2)
-
-      Add c1 c2 -> RC.Add (tc c1) (tc c2)
-      Sub c1 c2 -> RC.Sub (tc c1) (tc c2)
-      where tc = translateConstraint
+    mkCon con = case con of
+      BConst True -> Nothing
+      _           -> Just con
 
 -- Interactive
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
