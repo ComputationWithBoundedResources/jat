@@ -79,7 +79,7 @@ mkAbsInstance hp adr cn = do
     defaultAbstrValue hp1 (P.IntType)    = do {v <- AD.top; return (hp1,IntVal v)}
     defaultAbstrValue hp1 (P.RefType cn1) = return (hp2, RefVal r)
       where (r, hp2) = insertHA (AbsVar cn1) hp1
-    defaultAbstrValue _ _              = error "Jat.PState.Fun..mkAbsInstance: unexpected type."
+    defaultAbstrValue _ _              = error "Jat.PState.Fun.mkAbsInstance: unexpected type."
 
 data Correlation = C Address Address deriving (Show,Eq,Ord)
 
@@ -90,6 +90,7 @@ data Corre i = Corr {unCorr :: M.Map Correlation Address, unHeap:: Heap i}
 
 -- FXIME: correlation should be added before recursive call
 mergeStates :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a -> PState i a -> a -> JatM m (PState i a)
+mergeStates _ st1 st2 _ | not (isSimilar st1 st2) = error "Jat.PState.Fun.mergeStates: non-similar states."
 mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
   (st,frms3) <- wideningFs Corr{unCorr=M.empty, unHeap=emptyH} frms1 frms2
   return $ PState (unHeap st) frms3 ann
@@ -251,8 +252,9 @@ isSimilar (PState _ frms1 _) (PState _ frms2 _) = isSimilarFS frms1 frms2
     isSimilarFS (f1:fs1) (f2:fs2) = isSimilarF f1 f2 && isSimilarFS fs1 fs2
     isSimilarFS [][]              = True
     isSimilarFS _ _               = False
-    isSimilarF (Frame _ _ cn1 mn1 pc1) (Frame _ _ cn2 mn2 pc2) = 
-      cn1 == cn2 && mn1 == mn2 && pc1 == pc2
+    isSimilarF (Frame loc1 stk1 cn1 mn1 pc1) (Frame loc2 stk2 cn2 mn2 pc2) = 
+      cn1 == cn2 && mn1 == mn2 && pc1 == pc2 
+      && length loc1 == length loc2 && length stk1 == length stk2
 isSimilar _ _ = False
 
 isBackJump :: Monad m => PState i a -> JatM m Bool 

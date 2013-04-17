@@ -475,6 +475,9 @@ leqUS p st1 st2
           guard $ cmp (pval1 pathx) (pval1 pathy)
           return (pathx,pathy)
         cmp (RefVal q) (RefVal r)   = q /= r
+        cmp Null       Null         = False
+        cmp Unit       Null         = False
+        cmp Null       Unit         = False
         cmp (IntVal i) (IntVal j)   = i /= j
         cmp (BoolVal a) (BoolVal b) = a /= b
         cmp _ _                     = True
