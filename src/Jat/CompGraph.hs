@@ -106,21 +106,21 @@ tryLoop mg@(MkJGraph g (ctx:_))                      = do
     eval Nothing  = return Nothing
     eval (Just n) = Just `liftM` (tryInstance nctx mg |>> (mkJoin nctx mg >>= mkEval))
       where nctx = context g n
-    candidate = rbfsnWith (condition ctx) (pre' ctx) g
+    candidate = rdfsnWith (condition ctx) (pre' ctx) g
     condition ctx1 ctx2 =
       isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2]
     
-rbfsnWith :: (JContext i a -> Bool) -> [Node] -> JGraph i a -> Maybe Node
-rbfsnWith _ _      g | isEmpty g = Nothing
-rbfsnWith _ []     _             = Nothing
-rbfsnWith f (v:vs) g             = case match v g of
-  (Just c , g') -> if f c then Just (node' c) else rbfsnWith f (vs ++ predi c) g'
-  (Nothing, g') -> rbfsnWith f vs g'
+rdfsnWith :: (JContext i a -> Bool) -> [Node] -> JGraph i a -> Maybe Node
+rdfsnWith _ _      g | isEmpty g = Nothing
+rdfsnWith _ []     _             = Nothing
+rdfsnWith f (v:vs) g             = case match v g of
+  (Just c , g') -> if f c then Just (node' c) else rdfsnWith f (predi c ++ vs) g'
+  (Nothing, g') -> rdfsnWith f vs g'
   where
-    predi ctx = foldr k [] $ inn' ctx
-    k (u,_,e)  = case e of 
-      InstanceLabel -> id
-      _             -> (u:)
+    predi ctx = [ n | n <- (minNode $ pre' ctx), n < node' ctx]
+      where 
+        minNode [] = []
+        minNode l  = [minimum l]
       
 tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
 tryInstance ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> tryInstance: " ++ show (ctx2,ctx1)) False = undefined

@@ -532,6 +532,7 @@ leqUS p st1 st2
     checkMayShare pths = all maxShareIn2 mayShare1
       where
         maxShareIn2 (pathx,pathy) | trace ("cms: " ++ show (pathx,pathy)) False = undefined
+        maxShareIn2 (pathx,pathy) | isNull (pval2 $ maxPath2 pathx) || isNull (pval2 $ maxPath2 pathy) = False
         maxShareIn2 (pathx,pathy) = 
           let refx = rval2 (maxPath2 pathx)
               refy = rval2 (maxPath2 pathy)
@@ -546,6 +547,7 @@ leqUS p st1 st2
     checkMaybeGraph ps | trace ("CMG" ++ show ps) False = undefined
     checkMaybeGraph pths = all maxGraphIn2 mayGraph1
       where
+        maxGraphIn2 pathx | isNull (pval2 $ maxPath2 pathx) = False
         maxGraphIn2 pathx = 
           NT (rval2 $ maxPath2 pathx) `S.member` mt2
         mayGraph1 = do
