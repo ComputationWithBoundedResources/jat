@@ -1,3 +1,6 @@
+-- | This module provides the JBC-'Program' type and functionality to compute
+-- and set additional information (eg. super classes, fields of a class wrt to
+-- its super classes).
 module Jat.Program.Data 
   (
     Program (..)
@@ -10,8 +13,8 @@ module Jat.Program.Data
   , FieldId (..)
   , ClassId (..)
   , MethodId (..)
-
   , Address
+
   , ClassPool
   , FieldPool
   , MethodPool
@@ -23,23 +26,33 @@ where
 
 import Jat.Utils.Pretty
 
+import Data.Array
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
-import Data.Array
 
--- | A 'Program' is the static representation of a JBC file complemented with
+-- | A 'Program' is the static representation of a JBC file, complemented with
 -- additional useful information.
 data Program = P ClassPool deriving (Eq,Show,Read)
 
+-- | Internal type for storing classes.
 type ClassPool   = M.Map ClassId Class
+-- | Internal type for storing classfields.
 type FieldPool   = M.Map FieldId Field
+-- | Internal type for storing methodfields.
 type MethodPool  = M.Map MethodId Method
 
+-- | Synonym for an address.
 type Address  = Int
+
+-- | Identifier for a classfield.
 data FieldId  = FieldId String deriving (Ord,Eq,Show,Read)
+-- | Identifier for a class.
 data ClassId  = ClassId String deriving (Ord,Eq,Show,Read)
+-- | Identifier for a method.
 data MethodId = MethodId String deriving (Ord,Eq,Show,Read)
 
+-- | The 'Class' record based on the JBC description complemented with
+-- additional information.
 data Class  = Class {
     className  :: ClassId
   , supClass   :: Maybe ClassId
@@ -50,11 +63,13 @@ data Class  = Class {
   , hasFieldz  :: [(FieldId, ClassId, Type)]
   } deriving(Eq,Show,Read)
 
+-- | The 'Field' record based on the JBC description.
 data Field = Field {
     fieldName :: FieldId
   , fieldType :: Type
   } deriving (Eq,Show,Read)
 
+-- | The 'Method' record based on the JBC description.
 data Method  = Method {
     methodName              :: MethodId
   , methodParams            :: [Type]
@@ -64,6 +79,7 @@ data Method  = Method {
   , methodInstructions      :: Array Int Instruction
   } deriving (Eq,Show,Read)
 
+-- | The types of a value in JBc.
 data Type =
     BoolType
   | IntType
@@ -72,6 +88,7 @@ data Type =
   | Void 
   deriving (Eq,Show,Read)
 
+-- | Returns the (common) default value of a type.
 defaultValue :: Type -> Value
 defaultValue BoolType    = BoolVal False
 defaultValue IntType     = IntVal 0
@@ -79,6 +96,7 @@ defaultValue (RefType _) = Null
 defaultValue NullType    = Null
 defaultValue Void        = Unit
 
+-- | A JBC Value.
 data Value = 
     BoolVal Bool 
   | IntVal Int 
@@ -87,6 +105,7 @@ data Value =
   | Unit
   deriving (Eq,Show,Read)
 
+-- | JBC Instruction.
 data Instruction =
     Load Int
   | Store Int
@@ -111,7 +130,7 @@ data Instruction =
   deriving (Eq,Show,Read)
 
 
--- | Computes additional information (e.g. subclasses).
+-- | Computes and sets additional information (e.g. subclasses).
 initP :: Program -> Program
 initP p@(P p') = P $ M.map initClass p'
   where

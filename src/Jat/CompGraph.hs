@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns #-}
+-- | This module provides the type and the rules for building the computation graph.
+-- Refinement and evaluation steps depend on the (abstract) semantics.
+-- Strategies for finding instances are should be implemented here.
 module Jat.CompGraph 
   (
     MkJGraph
@@ -10,27 +12,25 @@ module Jat.CompGraph
 where
 
 
+import Data.Rewriting.Rule (Rule (..))
+import Jat.Constraints
 import Jat.JatM
 import Jat.PState
-import qualified Jat.Program as P
-import Jat.Utils.Pretty
 import Jat.Utils.Dot
 import Jat.Utils.Fun
-import Jat.Constraints
-import Data.Rewriting.Rule (Rule (..))
+import Jat.Utils.Pretty
+import qualified Jat.Program as P
 
-import System.IO (hFlush,stdout)
 import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
+import Data.Maybe (fromMaybe)
+import System.IO (hFlush,stdout)
 import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
-import Data.Maybe (fromMaybe)
 
-
-import Debug.Trace
-
+--import Debug.Trace
 
 -- finding instance/merge nodes for backjumps
 -- assumptions: 
@@ -48,11 +48,13 @@ instance Pretty ELabel where
 type NLabel i a = PState i a
 
 type JGraph i a   = Gr (NLabel i a) ELabel
+-- | A 'JContext' corresponds to a (non-terminal) leaf node.
 type JContext i a = Context (NLabel i a) ELabel
--- 'MkJGraph' consists of a Graph and a list of Contexts ('JContext'). A Context
--- corresponds to a (non-terminal) leaf node.
+
+-- | The type of the compuation graph.
 data MkJGraph i a  = MkJGraph (JGraph i a) [JContext i a]
 
+-- | Builds the computation graph, given class name and method name.
 mkJGraph :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (MkJGraph i a) 
 mkJGraph cn mn = mkInitialNode cn mn >>= mkSteps
 
@@ -65,14 +67,23 @@ mkInitialNode cn mn = do
   return $ MkJGraph g [ctx]
 
 
+mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
+mkSteps mg@(MkJGraph _ [])                        = return mg
+mkSteps mg                                        = mkStep mg >>= mkSteps
+
+-- a single step constitues of
+-- * finding a merge node
+-- * if non can be found make an evaluation step
+mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
+mkStep (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
+mkStep g                                         = tryLoop g |>> mkEval g
+
+
 state' :: JContext i a -> PState i a
 state' = lab'
 
 isTerminal' :: JContext i a -> Bool
 isTerminal' (_,_,st,s) = null s && isTerminal st
-
---isBackJump' :: Monad m => JContext i a -> JatM m Bool
---isBackJump' = isBackJump . state'
 
 isTarget' :: Monad m => JContext i a -> JatM m Bool
 isTarget' = isTarget . state'
@@ -86,20 +97,11 @@ leq' ctx1 ctx2 = getProgram >>= \p -> return $ leq p (state' ctx1) (state' ctx2)
 join' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -> JatM m (PState i a)
 join' ctx1 ctx2 = join (state' ctx1) (state' ctx2)
 
-mkSteps :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
-mkSteps mg@(MkJGraph _ [])                        = return mg
-mkSteps mg                                        = mkStep mg >>= mkSteps
 
-mkStep :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a) 
-mkStep (MkJGraph g (ctx:ctxs)) | isTerminal' ctx = return $ MkJGraph g ctxs
-mkStep g                                         = tryLoop g |>> mkEval g
-
-
--- FIXME:
--- predecessor should not traverse instancelabels
+-- if a similar predecessor can be found then try to make an instance node, if not possible join the nodes
 tryLoop :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
-tryLoop (MkJGraph _ [])                              = error "Jat.CompGraph.tryInstance: empty context."
-tryLoop mg@(MkJGraph g (ctx:_))                      = do
+tryLoop (MkJGraph _ [])          = error "Jat.CompGraph.tryInstance: empty context."
+tryLoop mg@(MkJGraph g (ctx:_))  = do
   b <- isTarget' ctx
   if b then eval candidate else return Nothing
   where
@@ -110,6 +112,9 @@ tryLoop mg@(MkJGraph g (ctx:_))                      = do
     condition ctx1 ctx2 =
       isSimilar' ctx1 ctx2 && null [ undefined | (_,_,RefinementLabel _) <- inn' ctx2]
     
+-- perform a backwards dfs wrt to minimum predecessor
+-- if nodes are not merge nodes they have only one predecessor
+-- if the node is a merge node then we follow the node with minimum key
 rdfsnWith :: (JContext i a -> Bool) -> [Node] -> JGraph i a -> Maybe Node
 rdfsnWith _ _      g | isEmpty g = Nothing
 rdfsnWith _ []     _             = Nothing
@@ -117,16 +122,16 @@ rdfsnWith f (v:vs) g             = case match v g of
   (Just c , g') -> if f c then Just (node' c) else rdfsnWith f (predi c ++ vs) g'
   (Nothing, g') -> rdfsnWith f vs g'
   where
-    predi ctx = [ n | n <- (minNode $ pre' ctx), n < node' ctx]
+    predi ctx = [ n | n <- minNode $ pre' ctx, n < node' ctx]
       where 
         minNode [] = []
         minNode l  = [minimum l]
       
 tryInstance :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (Maybe (MkJGraph i a))
-tryInstance ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> tryInstance: " ++ show (ctx2,ctx1)) False = undefined
+--tryInstance ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> tryInstance: " ++ show (ctx2,ctx1)) False = undefined
 tryInstance ctx2 mg@(MkJGraph _ (ctx1:_)) = do
   b <- leq' ctx1 ctx2
-  if trace("isInstance: " ++ show b) b then Just `liftM` mkInstanceNode ctx2 mg else return Nothing
+  if b then Just `liftM` mkInstanceNode ctx2 mg else return Nothing
 tryInstance _ _ = return Nothing
 
 mkInstanceNode :: Monad m => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
@@ -135,15 +140,17 @@ mkInstanceNode ctx2 (MkJGraph g (ctx1:ctxs)) = return $ MkJGraph g' ctxs
 mkInstanceNode _ _ = error "Jat.CompGraph.mkInstance: empty context."
 
 
+-- make and integrate a join node
+-- nodes and contexts are suitably removed
 mkJoin :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> MkJGraph i a -> JatM m (MkJGraph i a)
-mkJoin ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> mkJoin: \n" ++ show (ctx2,ctx1)) False = undefined
+--mkJoin ctx2 (MkJGraph _ (ctx1:_)) | trace (">>> mkJoin: \n" ++ show (ctx2,ctx1)) False = undefined
 mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
   k   <- freshKey
-  st3 <- join' ctx1 (trace (show ctx2) ctx2)
+  st3 <- join' ctx1 ctx2
   let edge = (InstanceLabel, node' ctx2)
-      ctx3 = trace ("join: \n" ++ show st3) ([edge],k,st3,[])
-      !g1  = delNodes successors g
-      !g2   = ctx3 & g1
+      ctx3 = ([edge],k,st3,[])
+      g1  = delNodes successors g
+      g2   = ctx3 & g1
   return $ MkJGraph g2 (ctx3: filter (\lctx -> node' lctx `notElem` successors) ctxs)
   {-return $ MkJGraph g2 (ctx3: ctxs)-}
   where  successors = filter (/= node' ctx2) $ dfs [node' ctx2] g
@@ -172,6 +179,7 @@ mkEval mg@(MkJGraph _ (ctx:_)) = do
 
 mkEval _ = error "Jat.CompGraph.mkEval: emtpy context."
 
+-- | Returns the Dot representation of a constructed computation graph..
 mkJGraph2Dot :: (Pretty a,IntDomain i) => MkJGraph i a -> DotGraph Int
 mkJGraph2Dot (MkJGraph g ctxs) = 
   DotGraph { 
@@ -211,6 +219,8 @@ mkJGraph2Dot (MkJGraph g ctxs) =
             ]
           }
 
+-- | Returns pairs of rewrite rules and constraints of a constructed
+-- computation graph.
 mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule String String, Maybe Constraint)]
 mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p) ledges
   where
@@ -246,6 +256,8 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p)
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
 
 
+-- | Provides a simple prompt, allowing to analyze the construction of the
+-- computation graph.
 mkJGraphIO :: (IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM IO (MkJGraph i a)
 mkJGraphIO cn mn = do
   liftIO $ putStrLn ":> enter command: (help to see the list of commands)"
@@ -284,6 +296,7 @@ mkNStepsIO n mg                 = mkStep mg >>= mkNStepsIO (n-1)
 
 mkUStepsIO :: (IntDomain i, MemoryModel a) => Int -> MkJGraph i a -> JatM IO (MkJGraph i a)
 mkUStepsIO _ _ = undefined
+
 {-mkUStepsIO _ mg@(MkJGraph _ []) = mkJGraphPrompt mg-}
 {-mkUStepsIO n mg | n ==  (pc .frm . state' . context mg) = mkJGraphPrompt mg-}
 {-mkUStepsIO n mg                                          = mkStep mg >>= mkNStepsIO (n-1)-}

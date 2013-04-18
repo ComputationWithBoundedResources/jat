@@ -1,3 +1,4 @@
+-- | This module exports State related modules.
 module Jat.PState
   (
     module Jat.PState.Data
@@ -17,3 +18,4 @@ import Jat.PState.Semantics
 import Jat.PState.BoolDomain
 import Jat.PState.IntDomain
 import Jat.PState.MemoryModel
+

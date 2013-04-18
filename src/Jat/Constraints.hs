@@ -1,15 +1,17 @@
+-- | This module provides the 'Constraint' type.
 module Jat.Constraints
   (
     Constraint (..)
   , top
   , var
-  , Atom (..)
   , mkcon
+  , Atom (..)
   )
 where 
 
 import Jat.Utils.Pretty
 
+-- | General 'Constraint' type for Boolean and Integer Arithemtic constraints.
 data Constraint =
     CVar String
   | IConst Int
@@ -29,15 +31,20 @@ data Constraint =
 	deriving (Show, Eq, Ord)
 
 
+-- | Top symbol.
 top :: Constraint
 top = BConst True
 
+-- | Variable constructor.
 var :: String -> Constraint
 var = CVar
 
-mkcon :: (Atom a, Atom b, Atom c) => a -> (Constraint -> Constraint -> Constraint) -> b -> c -> Constraint
+-- | Assignment constructor.
+mkcon :: (Atom a, Atom b, Atom c) => 
+  a -> (Constraint -> Constraint -> Constraint) -> b -> c -> Constraint
 mkcon i f j k = atom i `Ass` (atom j `f` atom k)
 
+-- | Class for defining an atom.
 class Atom a where
   atom :: a -> Constraint
 

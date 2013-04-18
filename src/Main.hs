@@ -1,4 +1,5 @@
 module Main (
+    -- | Parse arguments and start the program
     main
 ) where
 
@@ -6,27 +7,25 @@ import Jat.CompGraph
 import Jat.JatM
 import Jat.PState
 import Jat.Program as P
-import Jat.Utils.Args as A
-import Jat.Utils.Pretty
+import Jat.Utils.Args
 import Jat.Utils.Dot
+import Jat.Utils.Pretty
 import Jat.Utils.TRS
 
-import System.IO
-import qualified System.Timeout as T
-import qualified Control.Exception as E
-import Data.Char (toLower)
 import Control.Monad.Identity (runIdentity)
+import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
-
-
+import System.IO
+import qualified Control.Exception as E
+import qualified System.Timeout as T
 
 main ::  IO ()
 main = do
   opts <- parseArgs
   let Options {
-      A.file  = file'
-    , A.cname = cname'
-    , A.mname = mname'
+      file  = file'
+    , cname = cname'
+    , mname = mname'
     } = opts
   pM <- readFile file'
   let p = P.parseProgram pM
@@ -36,8 +35,8 @@ main = do
     
 
 writeOne :: Options -> IO (ClassId,MethodId, Either E.SomeException String) -> IO ()
-writeOne opts run = do
-  (_,_,e) <- run
+writeOne opts therun = do
+  (_,_,e) <- therun 
   case e of
     Left  err -> hPrint stderr (show err)
     Right res -> output opts res
@@ -47,24 +46,24 @@ writeAll opts = mapM_ write'
   where
     write' runM = do
       let Options {
-          A.file   = file
-        , A.format = format
+          file   = file'
+        , format = format'
       } = opts
-      (cn,mn,run) <- runM
-      case run of
+      (cn,mn,therun) <- runM
+      case therun of
         Left  err -> hPrint stderr (show err)
-        Right res -> writeFile (dropExtension file  ++ '-':(show .pretty $ cn) ++ '-':(show . pretty $ mn) ++ '.':lower format) res
+        Right res -> writeFile (dropExtension file'  ++ '-':(show .pretty $ cn) ++ '-':(show . pretty $ mn) ++ '.':lower format') res
     dropExtension = takeWhile ('.' /= )
     lower a       = map toLower (show a)
 
 run :: Options -> Program -> P.ClassId -> P.MethodId -> IO (ClassId, MethodId, Either E.SomeException String)
 run opts p cn mn =
   let Options {
-      A.timeout     = timeout
-    , A.interactive = interactive
+      timeout     = timeout'
+    , interactive = interactive'
     } = opts
   in 
-  if interactive 
+  if interactive'
     then do
       --let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
       let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
@@ -78,8 +77,8 @@ run opts p cn mn =
           TRS -> (display . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)
     --let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
         evaluationM = do
-          evaluation <- T.timeout timeout $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))
-          E.evaluate $ error "timeout" `fromMaybe` evaluation
+          evaluation2 <- T.timeout timeout' $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))
+          E.evaluate $ error "timeout" `fromMaybe` evaluation2
     res <- E.try evaluationM :: IO (Either E.SomeException String)
     return (cn,mn, res)
 

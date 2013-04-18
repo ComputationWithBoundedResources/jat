@@ -69,15 +69,6 @@ options = [
 
 header :: String
 header = "Usage: jat [OPTION...] File [ClassId MethodId]"
-
-{-parseArgs :: IO Options-}
-{-parseArgs = do-}
-  {-args <- getArgs-}
-  {-let (actions, nonops, errors) = getOpt RequireOrder options args-}
-  {-case () of-}
-    {-_ | not (null nonops) -> error $ "unrecognized option:" ++ unwords nonops-}
-      {-| not (null errors) -> error $ concat errors ++ "\n" ++ usageInfo header options-}
-      {-| otherwise         -> foldl (>>=) (return defaultOptions) actions -}
   
 parseArgs :: IO Options
 parseArgs = do

@@ -9,7 +9,7 @@ module Jat.PState.Fun
 
   , isTerminal
   , isSimilar
-  , isBackJump
+  {-, isBackJump-}
   , isTarget
   , maybePutField
 
@@ -258,9 +258,9 @@ isSimilar (PState _ frms1 _) (PState _ frms2 _) = isSimilarFS frms1 frms2
       && length loc1 == length loc2 && length stk1 == length stk2
 isSimilar _ _ = False
 
-isBackJump :: Monad m => PState i a -> JatM m Bool 
-isBackJump (PState _ (Frame _ _ cn mn pc:_) _) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc
-isBackJump _                                   = return False
+{-isBackJump :: Monad m => PState i a -> JatM m Bool -}
+{-isBackJump (PState _ (Frame _ _ cn mn pc:_) _) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc-}
+{-isBackJump _                                   = return False-}
 
 isTarget :: Monad m => PState i a -> JatM m Bool 
 isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do

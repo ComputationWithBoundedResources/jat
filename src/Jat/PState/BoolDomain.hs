@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+-- | This module provides the abstract domain for Booleans.
 module Jat.PState.BoolDomain 
   (
     BoolDomain (..)
@@ -8,7 +9,6 @@ module Jat.PState.BoolDomain
   , (.||.)
   , (.!)
   , freshBool
-  , atom
   , ifFalse 
   )
 where
@@ -20,7 +20,9 @@ import Jat.Constraints hiding (top)
 import qualified Jat.Constraints as C (top)
 import Jat.Utils.Pretty
 
--- | 'BoolDomain' defines a simple Domain with no refinements but constraints
+-- | 'BoolDomain' defines a simple domain with no refinements but constraints
+-- ie. if a (concrete value) can not be inferred by an operation, the operation
+-- returns a (constrained) abstract Boolean.
 data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq)
 
 instance Atom BoolDomain where
@@ -43,6 +45,7 @@ instance AbstrDomain BoolDomain Bool where
   isConstant (Boolean _) = True
   isConstant _           = False
 
+-- | Returns an abstract Boolean with a fresh index.
 freshBool :: Monad m => JatM m BoolDomain
 freshBool = do {i<-freshVarIdx; return $ AbstrBoolean i} 
 
@@ -52,12 +55,14 @@ eval = return . topEvaluation
 evalb,evalb :: Monad m => BoolDomain -> BoolDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
 evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
 
+-- | Comparison Operation.
 (.==.),(./=.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 Boolean a .==. Boolean b = eval $ Boolean (a == b)
 a .==. b                 = evalb a b Eq 
 Boolean a ./=. Boolean b = eval $ Boolean (a /= b)
 a ./=. b                 = evalb a b Neq 
 
+-- | Binary Boolean Operation.
 (.&&.),(.||.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 Boolean a .&&. Boolean b = eval $ Boolean (a && b)
 Boolean False .&&. _     = eval $ Boolean False
@@ -68,6 +73,7 @@ Boolean True .||. _      = eval $ Boolean True
 a .||. b@(Boolean _)     = b .||. a
 a .||. b                 = evalb a b Or 
 
+-- | Not Operation.
 (.!) :: Monad m => BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 (.!) (Boolean a)        = eval $ Boolean (not a)
 (.!) a@(AbstrBoolean _) = do
@@ -77,6 +83,8 @@ a .||. b                 = evalb a b Or
   return $ evaluation b notcon
 
 
+-- | Abstract Semantics for ifFalse instruction.
+-- Returns a refinement if a concrete value can not be inferred.
 ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 ifFalse (Boolean a) = return $ Evaluation (Boolean a, C.top)
 ifFalse a@(AbstrBoolean _) = return $ Refinement [(Boolean False, con False), (Boolean True, con True)]
