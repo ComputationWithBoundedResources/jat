@@ -132,10 +132,12 @@ reachableFrom :: Address -> Heap i -> [Address]
 reachableFrom adr hp = filter (\ladr -> adr `elem` reachable ladr hp) (Gr.nodes . toGraph $ hp)
 
 isCyclic :: Address -> Heap i -> Bool
-isCyclic adr hp = any (adr `elem`) $ filter notTrivial $ Gr.scc (toGraph hp)
+isCyclic adr hp = 
+  let gr = toGraph hp 
+  in  any (adr `elem`) $ filter (notTrivial gr) $ Gr.scc gr
   where
-    notTrivial [_] = False
-    notTrivial _   = True
+    notTrivial gr [n] | n `notElem` Gr.suc gr n = False
+    notTrivial _   _                            = True
 
 hasCommonSuccessor :: Address -> Heap i -> Bool
 hasCommonSuccessor adr hp = anyIntersection $ map (S.fromList . reaches) refs

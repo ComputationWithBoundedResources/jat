@@ -222,8 +222,9 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
       Nothing -> taddr' r
 
     taddr' r | isSpecial r = do
+      key <- freshVarIdx
       let cn = className $ lookupH r hp
-      return . TRS.Var  $ var ((show . pretty) cn ++ "x") r
+      return . TRS.Var  $ var (showcn cn) key
     taddr' r =
       case lookupH r hp of
         AbsVar cn      -> return . TRS.Var $ var (showcn cn) r
