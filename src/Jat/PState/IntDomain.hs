@@ -1,3 +1,4 @@
+-- | This module export the integer domain and its instances.
 module Jat.PState.IntDomain 
   (
     module Jat.PState.IntDomain.Data

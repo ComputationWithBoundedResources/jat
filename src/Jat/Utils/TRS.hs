@@ -1,3 +1,4 @@
+-- | This module provides functionality for constrained Term rewrite systems (cTRS).
 module Jat.Utils.TRS
   (prettyTRS)
 where
@@ -8,6 +9,7 @@ import Data.Rewriting.Rule
 import Data.List (nub)
 
 
+-- | A pretty printer for a list of constrained term rewrite rule.
 prettyTRS :: [(Rule String String, Maybe Constraint)] -> Doc
 prettyTRS crules = 
   lparen <+> text "VARS" <+> prettyvars (allvars rules) <+> rparen

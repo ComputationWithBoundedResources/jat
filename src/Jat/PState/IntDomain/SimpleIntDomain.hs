@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
+-- | This module provides an instance for 'IntDomain'.
 module Jat.PState.IntDomain.SimpleIntDomain 
   (
     SimpleIntDomain
@@ -15,7 +16,7 @@ import Jat.Constraints hiding (top)
 
 import Jat.Utils.Pretty
 
--- |'SimpleIntDomain' defines a simple integer domain with no refinements but constraints
+-- |'SimpleIntDomain' defines a simple integer domain with no refinements but constraints.
 data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq)
 
 instance Atom SimpleIntDomain where

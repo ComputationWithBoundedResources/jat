@@ -1,3 +1,4 @@
+-- | This moduel provides the argument parsing for the command line.
 module Jat.Utils.Args
   (
     Options (..)
@@ -13,8 +14,10 @@ import System.Environment (getArgs)
 import System.Exit
 import System.IO
 
+-- | A computation graph can be returned as Dot graph or as TRSs.
 data Format = DOT | TRS deriving (Show,Read)
 
+-- | The options for the arguments.
 data Options = Options {
     input       :: IO String
   , output      :: String -> IO ()
@@ -70,6 +73,7 @@ options = [
 header :: String
 header = "Usage: jat [OPTION...] File [ClassId MethodId]"
   
+-- | Parses the command line arguments.
 parseArgs :: IO Options
 parseArgs = do
   args <- getArgs

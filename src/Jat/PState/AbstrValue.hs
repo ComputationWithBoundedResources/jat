@@ -1,3 +1,4 @@
+-- | This module provides the abstract value.
 module Jat.PState.AbstrValue
   (
     Address
@@ -14,8 +15,10 @@ import Jat.PState.IntDomain
 import Jat.Utils.Pretty
 import qualified Jat.Program as P
 
+-- | Representation of an address.
 type Address = Int
 
+-- | The abstract variants of a Jinja Value, where i is a suitably 'IntDomain'.
 data AbstrValue i = 
     BoolVal BoolDomain
   | IntVal i
@@ -24,10 +27,13 @@ data AbstrValue i =
   | Unit
   deriving (Show,Eq)
 
+-- | Returns the address of a 'RefVal'.
+-- Returns an error if its not an address.
 theAddress :: AbstrValue i -> Address
 theAddress (RefVal a) = a
 theAddress _ = error "Jat.PState.AbstractValue.theAddress: not an address"
 
+-- | Transforms a value in an abstract value.
 abstract :: (IntDomain i) => P.Value -> AbstrValue i
 abstract val = case val of
   P.BoolVal b -> BoolVal $ constant b
@@ -36,6 +42,7 @@ abstract val = case val of
   P.Unit      -> Unit
   _           -> error "assert: Jat.PState.AbstrValue.abstract: illegal use of address."
 
+-- | Returns the abstracted default value.
 defaultValue :: (IntDomain i) => P.Type -> AbstrValue i
 defaultValue = abstract . P.defaultValue
 

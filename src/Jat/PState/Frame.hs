@@ -30,7 +30,7 @@ import Prelude hiding (lookup, init)
 --import Data.Monoid (mappend)
 
 type PC        = Int
--- | The 'Frame'
+-- | The Frame type.
 data Frame i   = Frame (LocVars i) (Stk i) P.ClassId P.MethodId PC deriving Show
 
 -- | Extracts local variables.
@@ -56,7 +56,7 @@ mapValuesF f (Frame loc stk cn mn pc ) = Frame (map f loc) (map f stk) cn mn pc
 
 type LocVars i = [AbstrValue i]
 
--- | Fill
+-- | Initializes local variable register with unit values.
 initL :: [AbstrValue i] -> Int -> LocVars i
 initL vs n = vs ++ replicate n Unit
 

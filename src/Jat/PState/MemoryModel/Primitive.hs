@@ -1,3 +1,4 @@
+-- | This module provides an instance for 'MemoryModel'
 module Jat.PState.MemoryModel.Primitive 
   (
   Primitive
@@ -18,6 +19,8 @@ import qualified Jat.Program as P
 
 import Control.Monad (zipWithM)
 
+-- | The Primitive type provides an implmentation without heap operations.
+-- Suitably for integer/Boolean only programs and testing.
 data Primitive = Primitive deriving Show
 instance Pretty Primitive where pretty _ = text ""
 

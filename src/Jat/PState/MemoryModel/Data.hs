@@ -1,3 +1,6 @@
+-- | This module provides the interface for the memory model.
+-- The memory model provides the (abstract) semantics for heap related
+-- operations
 module Jat.PState.MemoryModel.Data where
 
 import Jat.JatM
@@ -10,6 +13,7 @@ import qualified Jat.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
 
+-- | Provides the interface for heap related operations.
 class Pretty a => MemoryModel a where
   new       :: (Monad m, IntDomain i) => PState i a -> P.ClassId -> JatM m (PStep(PState i a))
   getField  :: (Monad m, IntDomain i) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep(PState i a))

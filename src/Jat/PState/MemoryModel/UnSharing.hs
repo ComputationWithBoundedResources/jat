@@ -1,5 +1,6 @@
 {-# LANGUAGE MonadComprehensions #-}
 
+-- | This module provides an instance for 'MemoryModel'.
 module Jat.PState.MemoryModel.UnSharing 
   (
   UnSharing
@@ -71,6 +72,8 @@ instance Pretty MayAlias where
 instance Pretty MayGraph where
   pretty (NT q) = text $ '&': show q
 
+-- | The UnSharing type provides an implementation of heap related operations
+-- according to - Terminationgraphs for Java.
 data UnSharing = UnSharing (S.Set MayAlias) (S.Set MayShare) (S.Set MayGraph) deriving (Eq,Ord,Show)
 
 emptyUS :: UnSharing 

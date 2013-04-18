@@ -1,4 +1,11 @@
-module Jat.PState.Semantics where
+-- | This module implements the (abstract) semantics of JBC instructions.
+-- Heap related operations are delegated to the 'MemoryModel'.
+module Jat.PState.Semantics 
+  (
+    mkInitialState
+  , exec
+  )
+where
 
 
 import Jat.JatM
@@ -15,9 +22,11 @@ import Jat.Utils.Pretty hiding (equals)
 
 import Debug.Trace
 
+-- | Constructs the initial state for a given class name and method name.
 mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (PState i a)
 mkInitialState = initMem
 
+-- | Performs a single step.
 exec :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> JatM m (PStep (PState i a))
 exec st@(PState _ (Frame _ _ cn mn pc :_) _) = do
   p <- getProgram

@@ -1,3 +1,4 @@
+-- | This module exports the memory model and its instances.
 module Jat.PState.MemoryModel
   (
     module Jat.PState.MemoryModel.Data

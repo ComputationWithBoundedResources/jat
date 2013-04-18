@@ -1,3 +1,4 @@
+-- | This module provides a parser for Jinja Bytecode.
 module Jat.Program.Parser (
   fromString
   )
@@ -13,6 +14,7 @@ import qualified Data.Map as M
 import qualified Data.Array as A
 import Control.Monad (liftM)
 
+-- | Parses a program from a string.
 fromString :: String -> Program
 fromString input = case parse parseProgram "" input of
   Left err   -> error $ "parse error: " ++ show err

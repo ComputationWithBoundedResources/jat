@@ -1,5 +1,5 @@
+-- | The main module.
 module Main (
-    -- | Parse arguments and start the program
     main
 ) where
 
@@ -19,6 +19,7 @@ import System.IO
 import qualified Control.Exception as E
 import qualified System.Timeout as T
 
+-- | Parse arguments and start the program
 main ::  IO ()
 main = do
   opts <- parseArgs

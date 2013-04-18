@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
+-- | This module provides an instance for 'IntDomain'.
 module Jat.PState.IntDomain.SignedIntDomain
   (
     SignedIntDomain
@@ -15,7 +16,8 @@ import Jat.Constraints hiding (top)
 
 import Jat.Utils.Pretty
 
--- |'SignedIntDomain' defines a signed integer domain. 0 is element of Pos and Neg.
+-- |'SignedIntDomain' defines a signed integer domain. 
+-- 0 is element of Pos and Neg.
 data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving (Show,Eq)
 
 instance Atom SignedIntDomain where

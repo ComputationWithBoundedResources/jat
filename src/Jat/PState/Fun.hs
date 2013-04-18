@@ -1,3 +1,4 @@
+-- | This module provides common functionality for abstract states.
 module Jat.PState.Fun
   (
     mkInstance
@@ -47,6 +48,7 @@ import Data.List (inits)
 import qualified Data.Map as M
 import Debug.Trace
 
+-- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
 mkInstance p cn = Instance cn (mkFt . initfds $ fds)
   where
@@ -55,6 +57,8 @@ mkInstance p cn = Instance cn (mkFt . initfds $ fds)
     mkFt    = foldl (flip $ curry3 updateFT) emptyFT
     curry3 f (a,b,c) = f a b c
 
+-- | Constructs an instance with its field set to be abstract values.
+-- Returns the heap (including) the new instance and the instance itself.
 mkAbsInstance :: (Monad m, IntDomain i) => Heap i -> Address -> P.ClassId -> JatM m  (Heap i, Object i)
 mkAbsInstance hp adr cn = do
   p <- getProgram
@@ -88,7 +92,7 @@ correlation = C
 
 data Corre i = Corr {unCorr :: M.Map Correlation Address, unHeap:: Heap i}
 
--- FXIME: correlation should be added before recursive call
+-- | Given two states, builds a new states with maximal common paths and maximal common aliasing.
 mergeStates :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a -> PState i a -> a -> JatM m (PState i a)
 mergeStates _ st1 st2 _ | not (isSimilar st1 st2) = error "Jat.PState.Fun.mergeStates: non-similar states."
 mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
@@ -177,6 +181,7 @@ mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
 mergeStates _ _ _ _ = error "Jat.PState.Fun.mergeStates: unexpected case."
 
 
+-- | Performs Getfield, assuming it is valid to perform. 
 mkGetField :: (MemoryModel a, IntDomain i) => PState i a -> P.ClassId -> P.FieldId -> PStep (PState i a)
 mkGetField (PState _ (Frame _ (Null:_) _ _ _ :_) _) _ _ =  topEvaluation $ EState NullPointerException
 mkGetField (PState hp (Frame loc (RefVal adr:stk) cn1 mn pc :frms) us) cn2 fn = 
@@ -186,6 +191,7 @@ mkGetField (PState hp (Frame loc (RefVal adr:stk) cn1 mn pc :frms) us) cn2 fn =
                     in topEvaluation (PState hp (Frame loc stk' cn1  mn (pc+1) :frms) us)
 mkGetField _ _ _ = error "Jat.PState.Fun.mkGetField: unexpected case"
 
+-- | Performs Putfield, assuming it is valid to perform.
 mkPutField :: (Monad m, IntDomain i, MemoryModel a) => a -> PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
 mkPutField us2 st@(PState hp (Frame loc fstk fcn mn pc :frms) us1) cn fn = 
   return $ case opstk $ frame st of
@@ -203,6 +209,7 @@ mkPutField us2 st@(PState hp (Frame loc fstk fcn mn pc :frms) us1) cn fn =
         in  PState hp' (Frame loc stk fcn mn (pc+1):frms) uso
 mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
 
+-- | Returns the cTRS representation of a state, given functions for checking cyclicity and joinability.
 pState2TRS :: (Monad m, IntDomain i) => (Address -> Bool) -> (Address -> Address -> Bool) -> Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
 pState2TRS isSpecial isJoinable m (PState hp frms _) k =
   TRS.Fun (var "f" k)  `liftM` mapM tval (concatMap elemsF frms)
@@ -243,10 +250,15 @@ pState2TRS _ _ _ (EState  ex) _ = return $ TRS.Fun (show ex) []
 
 
 
+-- | Checks if current state is a terminal state, ie. a state with an empty
+-- frame list or an exceptional state.
 isTerminal :: PState i a -> Bool
 isTerminal (PState _ frms _) = null frms
 isTerminal (EState _)        = True
 
+-- | Checks if two states are similar.
+-- Two states are similar if the class name, field name and program counter of
+-- its frames correspond.
 isSimilar :: PState i a -> PState i a -> Bool
 isSimilar (PState _ frms1 _) (PState _ frms2 _) = isSimilarFS frms1 frms2
   where
@@ -262,12 +274,14 @@ isSimilar _ _ = False
 {-isBackJump (PState _ (Frame _ _ cn mn pc:_) _) = getProgram >>= \p -> return $ P.isBackJump p cn mn pc-}
 {-isBackJump _                                   = return False-}
 
+-- | Checks if current state is target for a backjump.
 isTarget :: Monad m => PState i a -> JatM m Bool 
 isTarget (PState _ (Frame _ _ cn mn pc:_) _) = do
   p <- getProgram
   return $ pc `elem` [ pc'+i | (pc', P.Goto i) <- A.assocs $ P.instructions p cn mn, i < 0]
 isTarget _                                 = return False
 
+-- | Checks the instruction of the current state is a PutField instruction.
 maybePutField :: P.Program -> PState i a -> Maybe Address
 maybePutField p (PState _ (Frame _ (_:RefVal q:_) cn mn pc:_) _)   = 
   case P.instruction p cn mn pc of
@@ -275,23 +289,33 @@ maybePutField p (PState _ (Frame _ (_:RefVal q:_) cn mn pc:_) _)   =
     _              -> Nothing
 maybePutField _ _ = Nothing
 
+-- | Maps a function over the annotations.
 mapAnnotations :: MemoryModel a => (a -> a) -> PState i a -> PState i a
 mapAnnotations f (PState hp frms ann) = PState hp frms (f ann)
 mapAnnotations _ st                   = st
 
+-- | Maps a value function over the frames.
 mapValuesFS :: (AbstrValue i -> AbstrValue i) -> [Frame i] -> [Frame i]
 mapValuesFS f = map (mapValuesF f) 
 
+-- | Maps a value function over the state.
 mapValues :: (AbstrValue i -> AbstrValue i) -> PState i a -> PState i a
 mapValues f (PState hp frms ann) = PState (mapValuesH f hp) (map (mapValuesF f) frms) ann
 mapValues _ st                   = st
 
+-- | Substitutes a value in a state with another one.
+-- Removes the entry in the heap if it the substituted value was a 'RefVal'.
 substitute :: Eq i => AbstrValue i -> AbstrValue i -> PState i a -> PState i a
 substitute v1@(RefVal adr1) v2 st = 
   let PState hp frms ann = mapValues (\v -> if v == v1 then v2 else v) st
   in  PState (deallocate adr1 hp) frms ann
 substitute v1 v2 st = mapValues (\v -> if v == v1 then v2 else v) st
 
+
+-- paths
+-- TODO: computation should return (value,path) pairs.
+
+-- | Returns rooted paths 'RPath' from a state.
 rpaths :: PState i a -> [RPath]
 rpaths (PState hp frms _) =
   concatMap rpahts' $ zip [0..] frms
@@ -306,6 +330,7 @@ rpaths (PState hp frms _) =
     valpath _          = [[]]
 rpaths (EState _) = []
 
+-- | Computes the value of a 'RPath'.
 rpathValue :: (IntDomain i) => RPath -> PState i a -> AbstrValue i
 rpathValue rpath st = 
   let (val,path) = 
@@ -316,14 +341,17 @@ rpathValue rpath st =
     RefVal q -> pathValue q path (heap st)
     _        -> val
 
+-- | Checks if two 'RPath' has the same root.
 rcommonRoot :: RPath -> RPath -> Bool
 rcommonRoot (RPath r1 _) (RPath r2 _) = r1 == r2
 
+-- | Computes a common prefix of two paths, if it exists, otherwise Nothing.
 rcommonPrefix :: RPath -> RPath -> Maybe RPath
 rcommonPrefix (RPath r1 ls1) (RPath r2 ls2) 
   | r1 == r2  = Just $ RPath r1 (commonPrefix ls1 ls2)
   | otherwise = Nothing
 
+-- | Computes the maximal prefix of a 'RPath' in a list of 'RPath'.
 rmaxPrefix :: RPath -> [RPath] -> RPath
 rmaxPrefix path@(RPath r rls) pths = 
   RPath r (findFirst (reverse $ inits rls) (filterRoot path pths))
@@ -336,82 +364,4 @@ rmaxPrefix path@(RPath r rls) pths =
   
 
 
---elemsFS :: FrameStk i -> [AbstrValue i]
---elemsFS = concatMap elemsF
-
---addressesFS :: FrameStk i -> [Address]
---addressesFS fs = [q | RefVal q <- elemsFS fs]
-
---samePC :: PState i a -> PState i a -> Bool
---samePC (PState _ (Frame(_,_,_,_,pc):_) _) (PState _ (Frame(_,_,_,_,pc'):_) _) = pc == pc'
-
-
---isWTarget :: P.Program -> PState i a -> Bool
---isWTarget p (PState _ (Frame(_,_,cn,mn,pc):_) _) = P.isWTarget p cn mn pc
---isWTarget _ _                                    = error "isWTarget:empty frmstk"
-
---isWBranchOf :: P.Program -> PState i a -> PState i a -> Bool
---isWBranchOf p (PState _ (Frame(_,_,cn,mn,pc):_) _) (PState _ (Frame(_,_,_,_,pc'):_) _) = P.isWBranchOf p cn mn pc pc'
---isWBranchOf _ _ _                                  = error "isWBranch:empty frmstk"
-
---isFalseBranch :: P.Program -> PState i a -> Bool
---isFalseBranch p (PState _ (Frame(_,(BoolVal (Boolean False),_):_,_,_,_):_) _) = True
---isFalseBranch _ _ = False
-
---maybePutField :: P.Program -> PState i a -> Maybe Address
---maybePutField p (PState _ (Frame(_,v:(RefVal q,_):_,cn,mn,pc):_) _) = 
-  --case P.instruction p cn mn pc of
-    --P.PutField _ _ -> Just q
-    --otherwise      -> Nothing
---maybePutField _ _ = Nothing
-
-
--- FIXME:rename
---isReturn :: P.Program -> PState i a -> Bool
---isReturn p (PState _ (frm1:frm2:frms) _ ) = False
---isReturn p (PState _ [Frame(_,_,cn,mn,pc)] _) = 
-  --case P.instruction p cn mn pc of
-    --P.Return  -> True
-    --otherwise -> False
-
--- FIXME:
--- could be a problem if e.g. corresponding object in putfield is abstracted (abstraction<->refinement)
--- TODO:
--- would it be enough to abstract the predecessor of closing node
-{-tryCycleAbstraction :: (IntDomain i) => P.Program -> PState i a -> Jat (Maybe (Step i a))-}
-{-tryCycleAbstraction p s@(PState heap frms _) = -}
-  {-return $ maybe Nothing (Just . cycleAbstraction p s) maybeCycle-}
-  {-where maybeCycle =  anyJust (anyCycle heap) [r | RefVal r <- concatMap elemsF frms]-}
-
-{-cycleAbstraction :: (IntDomain i) => P.Program -> PState i a -> Address -> Step i a-}
-{-cycleAbstraction _ _ q | trace ("cycleabstraction" ++ show q) False = undefined-}
-{-cycleAbstraction p (PState heap frms annot) q = abstraction $ PState (updateH q (AbsVar cn) heap) frms annot-}
-  {-where cn = className (lookupH heap q)-}
-
--- FIXME : move to Utils
---anyJust :: (a -> Maybe b ) -> [a] -> Maybe b
---anyJust f [] = Nothing
---anyJust f (x:xs) = case f x of 
-                     --Just b  -> Just b
-                     --Nothing -> anyJust f xs
-
---isNull :: PState i a -> Bool
---isNull (PState _ (Frame(_,(Null,_):_,_,_,_):_) _) = True
---isNull _                                      = False
-
-
-
---evaluation :: PState i a -> Constraint -> Step i a
---evaluation = curry Evaluation
-
---refinement :: [(PState i a, Constraint)] -> Step i a
---refinement = Refinement
-
---abstraction :: PState i a -> Step i a
---abstraction = Abstraction
- 
---step :: ((PState i a, Constraint) -> b) -> ([(PState i a, Constraint)] -> b) -> (PState i a -> b)  ->  Step i a -> b
---step f g h (Evaluation x)  = f x
---step f g h (Refinement xs) = g xs
---step f g h (Abstraction x) = h x
 
