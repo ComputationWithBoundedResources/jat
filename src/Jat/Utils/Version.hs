@@ -7,4 +7,4 @@ where
 
 -- | The current version.
 version :: String
-version = "0.9.0.0"
+version = "1.0.0"

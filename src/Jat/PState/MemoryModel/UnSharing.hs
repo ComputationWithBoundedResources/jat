@@ -38,12 +38,16 @@ merror msg = error $ mname ++ msg
 
 -- TODO: 
 -- define `safe` member, adding and union functions
--- a :><: a | a == a should never be a member
+-- - a :><: a | a == a should never be a member
 -- take types into account:
--- =? wrt to inheritance relation
--- >< wrt to reachable classes
+-- + =? wrt to inheritance relation
+-- + >< wrt to reachable classes
 -- define path to return (value, path) pairs
 -- add directed sharing check for putfield refinement
+-- improve equality refinement
+-- + take only annotations into account which are common in both
+
+
 
 data MayShare = Int :><: Int deriving Show
 data MayAlias = Int :=?: Int deriving Show
@@ -711,7 +715,5 @@ state2TRSUS m st@(PState hp _ (UnSharing _ ms mt)) = pState2TRS isSpecial isJoin
     isJoinable adr1 adr2 = (adr1:><:adr2) `S.member` ms
 state2TRSUS m st = pState2TRS undefined undefined m st
   
-
-
 
 
