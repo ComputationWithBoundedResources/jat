@@ -46,7 +46,7 @@ import Data.Char (toLower)
 import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
-import Debug.Trace
+--import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
@@ -108,10 +108,10 @@ mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
       wideningFs st (f1:fs1) (f2:fs2) = do
         (st1,f3)  <- wideningF st f1 f2
         (st2,fs3) <- wideningFs st1 fs1 fs2
-        return $ trace ("frm" ++ (show . vsep $ map pretty (elemsF f3))) (st2,f3:fs3)
+        return (st2,f3:fs3)
       wideningFs _ _ _              = error "unexpected case"
 
-      joinVal _ i j | trace (show (pretty i<> pretty j)) False = undefined
+      --joinVal _ i j | trace (show (pretty i<> pretty j)) False = undefined
       joinVal st (IntVal i) (IntVal j)   = do
         k <- i `AD.join` j
         return (st, IntVal k)

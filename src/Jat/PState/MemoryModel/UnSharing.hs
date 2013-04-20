@@ -28,7 +28,7 @@ import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
 import Control.Monad (guard)
 import Data.Maybe (isJust,fromJust)
-import Debug.Trace
+--import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.UnSharing"
@@ -284,7 +284,7 @@ initMemUS cn mn = do
   (hp1,_)      <- mkAbsInstance emptyH 0 cn
   (hp2,params) <- foldM defaultAbstrValue (hp1,[]) (P.methodParams m)
   let loc = initL (RefVal 0:params) $ P.maxLoc m
-  return $ PState (trace (show $ pretty hp2) hp2) [Frame loc [] cn mn 0] emptyUS
+  return $ PState hp2 [Frame loc [] cn mn 0] emptyUS
   where
     defaultAbstrValue (hp,params) ty = case ty of
       P.BoolType    -> AD.top >>= \b -> return (hp, params++[BoolVal b])
@@ -374,7 +374,7 @@ tryEqualityRefinementWithInstance st r =
 anyEqualityRefinementWithInstance :: (IntDomain i) => US i -> Address -> Maybe MayAlias
 anyEqualityRefinementWithInstance (PState hp _ ann) q = anyq aliases
   where
-    aliases = let qs = q `mayAliasWith` ann in trace ("ALIASES:" ++ show (q,qs)) qs
+    aliases = q `mayAliasWith` ann
     anyq (r:rs)     = 
       case lookupH r hp of 
         Instance _ _ -> Just (q:=?:r)
@@ -395,33 +395,29 @@ equalityRefinement _ _ = merror ".equalityRefinement: unexpected case."
 
 
 leqUS :: IntDomain i => P.Program -> PState i UnSharing -> PState i UnSharing -> Bool
-leqUS _ st1 st2 | trace ("LEQ:\n" ++ show st1 ++ "\n" ++ show st2) False = undefined
+--leqUS _ st1 st2 | trace ("LEQ:\n" ++ show st1 ++ "\n" ++ show st2) False = undefined
 leqUS _ st1 st2 | not $ isSimilar st1 st2 = False
 leqUS p st1 st2 
   | not $ all (`elem` paths1) paths2 = False
-  | otherwise  = let b =
-                            [checkValues paths2
-                            ,checkDistinctness paths2
-                            ,checkAlias refpaths2
-                            ,checkMayAlias refpaths2 
-                            ,propagateShare refpaths1
-                            ,checkMayShare refpaths1
-                            ,checkMaybeGraph refpaths1
-                            ,propagateGraph refpaths1
-                            ]
-                in trace (show b) (and b)
+  | otherwise  = and
+                  [checkValues paths2
+                  ,checkDistinctness paths2
+                  ,checkAlias refpaths2
+                  ,checkMayAlias refpaths2 
+                  ,propagateShare refpaths1
+                  ,checkMayShare refpaths1
+                  ,checkMaybeGraph refpaths1
+                  ,propagateGraph refpaths1
+                  ]
   where
-    paths1 = trace ("RPATHS1: " ++ show (rpaths st1)) rpaths st1
-    paths2 = trace ("RPATHS2: " ++ show (rpaths st2)) rpaths st2
-    {-paths1 = rpaths st1-}
-    {-paths2 = rpaths st2-}
+    paths1 = rpaths st1
+    paths2 = rpaths st2
 
     refpaths1 = [ path | path <- paths1, RefVal _ <- [pval1 path]]
     refpaths2 = [ path | path <- paths2, RefVal _ <- [pval2 path]]
 
-    -- TODO: shoold be a lookup table
-    pval1 path = let v = rpathValue path st1 in trace ("valOf1: " ++ show path) v
-    pval2 path = let v = rpathValue path st2 in trace ("valOf2: " ++ show path) v
+    pval1 path = rpathValue path st1
+    pval2 path = rpathValue path st2
     rval1 path = theAddress $ pval1 path
     rval2 path = theAddress $ pval2 path
 
@@ -430,17 +426,17 @@ leqUS p st1 st2
     (ma1,ms1,mt1) = case annotations st1 of UnSharing ma ms mt -> (ma,ms,mt)
     (ma2,ms2,mt2) = case annotations st2 of UnSharing ma ms mt -> (ma,ms,mt)
 
-    maxPath2 path = let mp = rmaxPrefix path refpaths2 in trace ("maxPath" ++ show (mp,path,refpaths2)) mp
+    maxPath2 path = rmaxPrefix path refpaths2
 
     isNull Null = True
     isNull Unit = True
     isNull _    = False
 
     -- (a-d)
-    checkValues ps | trace ("CV" ++ show ps) False = undefined
+    --checkValues ps | trace ("CV" ++ show ps) False = undefined
     checkValues pths = all checkPath pths
       where
-        checkPath path   | trace ("cv: " ++ show path) False = undefined
+        --checkPath path   | trace ("cv: " ++ show path) False = undefined
         checkPath path   = checkValue (pval1 path) (pval2 path)
         checkValue v1 v2 = case (v1,v2) of
           (BoolVal a, BoolVal b) -> a `AD.leq` b
@@ -466,10 +462,10 @@ leqUS p st1 st2
               _                                -> False
           _ -> False
     -- (e)
-    checkDistinctness ps | trace ("CD" ++ show ps) False = undefined
+    --checkDistinctness ps | trace ("CD" ++ show ps) False = undefined
     checkDistinctness pths = all distinctIn2 distinctPaths1
       where
-        distinctIn2 (pathx,pathy) | trace ("cd: " ++ show (pathx,pathy, cmp (pval2 pathx) (pval2 pathy))) False = undefined
+        --distinctIn2 (pathx,pathy) | trace ("cd: " ++ show (pathx,pathy, cmp (pval2 pathx) (pval2 pathy))) False = undefined
         distinctIn2 (pathx,pathy) = cmp (pval2 pathx) (pval2 pathy)
         distinctPaths1 = do
           pathx <- pths
@@ -486,10 +482,10 @@ leqUS p st1 st2
         cmp (BoolVal a) (BoolVal b) = a /= b
         cmp _ _                     = True
     -- (f)
-    checkAlias ps | trace ("CA" ++ show ps) False = undefined
+    --checkAlias ps | trace ("CA" ++ show ps) False = undefined
     checkAlias pths = all maybeEuqalIn2 equalPaths1
       where
-        maybeEuqalIn2 (pathx,pathy) | trace ("meq" ++ show (pathx,pathy)) False = undefined
+        --maybeEuqalIn2 (pathx,pathy) | trace ("meq" ++ show (pathx,pathy)) False = undefined
         maybeEuqalIn2 (pathx,pathy) = 
           let r1 = rval2 pathx 
               r2 = rval2 pathy
@@ -502,7 +498,7 @@ leqUS p st1 st2
           guard $ rval1 pathx == rval1 pathy
           return (pathx,pathy)
     -- (g)
-    checkMayAlias ps | trace ("CMA" ++ show ps) False = undefined
+    --checkMayAlias ps | trace ("CMA" ++ show ps) False = undefined
     checkMayAlias pths = all mayAliasIn2 mayAliasIn1
       where
         mayAliasIn2 (pathx,pathy) = rval2 pathx:=?:rval2 pathy `S.member` ma2
@@ -514,7 +510,7 @@ leqUS p st1 st2
           guard $ rval1 pathx:=?: rval1 pathy `S.member` ma1
           return (pathx,pathy)
     -- (h)
-    propagateShare ps | trace ("PRS" ++ show ps) False = undefined
+    --propagateShare ps | trace ("PRS" ++ show ps) False = undefined
     propagateShare pths = all maxPrefixIn2 mayEqualIn1
       where
         maxPrefixIn2 (pathx,pathy) = 
@@ -532,10 +528,10 @@ leqUS p st1 st2
           guard $ r1 == r2 || (r1:=?:r2 `S.member` ma1)
           return (pathx,pathy)
     -- (i) 
-    checkMayShare ps | trace ("CMS" ++ show ps) False = undefined
+    --checkMayShare ps | trace ("CMS" ++ show ps) False = undefined
     checkMayShare pths = all maxShareIn2 mayShare1
       where
-        maxShareIn2 (pathx,pathy) | trace ("cms: " ++ show (pathx,pathy)) False = undefined
+        --maxShareIn2 (pathx,pathy) | trace ("cms: " ++ show (pathx,pathy)) False = undefined
         maxShareIn2 (pathx,pathy) | isNull (pval2 $ maxPath2 pathx) || isNull (pval2 $ maxPath2 pathy) = False
         maxShareIn2 (pathx,pathy) = 
           let refx = rval2 (maxPath2 pathx)
@@ -548,7 +544,7 @@ leqUS p st1 st2
           guard $ r1:><:r2 `S.member` ms1
           return (pathx,pathy)
     -- (j)
-    checkMaybeGraph ps | trace ("CMG" ++ show ps) False = undefined
+    --checkMaybeGraph ps | trace ("CMG" ++ show ps) False = undefined
     checkMaybeGraph pths = all maxGraphIn2 mayGraph1
       where
         maxGraphIn2 pathx | isNull (pval2 $ maxPath2 pathx) = False
@@ -560,10 +556,10 @@ leqUS p st1 st2
           guard $ NT r1 `S.member` mt1
           return pathx
     -- (k)
-    propagateGraph ps | trace ("PRG" ++ show ps) False = undefined
+    --propagateGraph ps | trace ("PRG" ++ show ps) False = undefined
     propagateGraph pths = all maxGraphIn2 graphIn2
       where
-        maxGraphIn2 (pathx,pathy,prefix) | trace ("prg: " ++ show (pathx,pathy,prefix)) False = undefined
+        --maxGraphIn2 (pathx,pathy,prefix) | trace ("prg: " ++ show (pathx,pathy,prefix)) False = undefined
         maxGraphIn2 (pathx,pathy,prefix) = 
           if not (pathx `elem` refpaths2 && pathy `elem` refpaths2)
              || rval2 pathx:=?:rval2 pathy `S.member` ma2
@@ -621,7 +617,7 @@ updateAnnotations st1 st2 st3 =
     updateAlias (PState _ _ (UnSharing ma' _ _),refpaths',rval') (refpaths3,rval3) = 
       foldr addAlias S.empty differentPaths'
       where
-        addAlias (pathx,pathy) ma | trace ("addAlias: " ++ show (pathx,pathy,ma)) False = undefined
+        --addAlias (pathx,pathy) ma | trace ("addAlias: " ++ show (pathx,pathy,ma)) False = undefined
         addAlias (pathx,pathy) ma = 
           if pathx `elem` refpaths3 && pathy `elem` refpaths3 && rval3 pathx /= rval3 pathy
             then rval3 pathx :=?: rval3 pathy `S.insert` ma
@@ -648,7 +644,7 @@ updateAnnotations st1 st2 st3 =
       where
         addSharing (pathx,pathy) ms = 
           if not $ pathx `elem` refpaths3 && pathy `elem` refpaths3
-            then let (mpx,mpy) = (maxRef3 pathx,maxRef3 pathy) in trace ("ADDSHARING:" ++ show (mpx,mpy)) $ mpx:><:mpy `S.insert` ms
+            then let (mpx,mpy) = (maxRef3 pathx,maxRef3 pathy) in mpx:><:mpy `S.insert` ms
             else ms
         propagateSharing (pathx,pathy) ms = maxRef3 pathx :><: maxRef3 pathy `S.insert` ms
 
@@ -675,11 +671,11 @@ updateAnnotations st1 st2 st3 =
       foldr propagateGraph S.empty graphPaths `S.union` foldr addGraph S.empty cyclicPaths
       where
         propagateGraph pathx mt = NT (rval3 $ maxPath3 pathx) `S.insert` mt
-        addGraph pth _ |trace ("addGraph: " ++ show (pth,pth `elem` refpaths3)) False = undefined
+        --addGraph pth _ |trace ("addGraph: " ++ show (pth,pth `elem` refpaths3)) False = undefined
         addGraph pathx mt = 
           if pathx `elem` refpaths3 && isNotTreeShaped (rval3 pathx) (heap st3')
             then mt
-            else trace ("NT: " ++ show pathx) $ NT (rval3 $ maxPath3 pathx) `S.insert` mt
+            else NT (rval3 $ maxPath3 pathx) `S.insert` mt
 
         graphPaths = do
           pathx <- refpaths'
