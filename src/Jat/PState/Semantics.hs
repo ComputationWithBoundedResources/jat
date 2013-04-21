@@ -18,8 +18,8 @@ import Jat.PState.IntDomain
 import Jat.PState.MemoryModel
 import Jat.PState.Step
 import qualified Jat.Program as P
-import Jat.Utils.Pretty hiding (equals)
 
+--import Jat.Utils.Pretty hiding (equals)
 --import Debug.Trace
 
 -- | Constructs the initial state for a given class name and method name.

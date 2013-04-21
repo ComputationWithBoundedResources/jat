@@ -153,8 +153,19 @@ mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
       g2   = ctx3 & g1
   return $ MkJGraph g2 (ctx3: filter (\lctx -> node' lctx `notElem` successors) ctxs)
   {-return $ MkJGraph g2 (ctx3: ctxs)-}
-  where  successors = filter (/= node' ctx2) $ dfs [node' ctx2] g
+  where 
+    ctxn = node' ctx2
+    successors = dfsUntil ((<= ctxn) .  node') (suc' ctx2) g
+    
 mkJoin _ _ = error "Jat.CompGraph.mkInstance: empty context."
+
+dfsUntil :: (JContext i a -> Bool) -> [Node] -> JGraph i a -> [Node]
+dfsUntil _ _      g | isEmpty g = []
+dfsUntil _ []     _             = []
+dfsUntil f (v:vs) g             = case match v g of
+  (Just c , g') -> if f c then dfsUntil f vs g' else node' c : dfsUntil f (suc' c ++ vs) g'
+  (Nothing, g') -> dfsUntil f vs g'
+
 
 mkEval :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkEval mg@(MkJGraph _ (ctx:_)) = do
