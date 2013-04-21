@@ -1,0 +1,166 @@
+Class:
+ Name: A
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: A getSuperType
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      1
+     MaxVars: 
+      0
+     Bytecode: 
+      0: Push null
+      1: Return
+   Method: boolean hasSuperType
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      1
+     MaxVars: 
+      0
+     Bytecode: 
+      0: Push false
+      1: Return
+
+
+Class:
+ Name: B
+ Classbody:
+  Superclass: A
+  Fields:
+   
+  Methods:
+   Method: A getSuperType
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      1
+     MaxVars: 
+      1
+     Bytecode: 
+      0: New A
+      1: Store 1
+      2: Push unit
+      3: Pop
+      4: Load 1
+      5: Return
+   Method: boolean hasSuperType
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      1
+     MaxVars: 
+      0
+     Bytecode: 
+      0: Push true
+      1: Return
+
+
+Class:
+ Name: C
+ Classbody:
+  Superclass: B
+  Fields:
+   
+  Methods:
+   Method: A getSuperType
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      1
+     MaxVars: 
+      1
+     Bytecode: 
+      0: New B
+      1: Store 1
+      2: Push unit
+      3: Pop
+      4: Load 1
+      5: Return
+
+
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+
+
+Class:
+ Name: TypeSwitch
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: void main
+    Parameters:
+     int argslength
+    Methodbody: 
+     MaxStack: 
+      4
+     MaxVars: 
+      1
+     Bytecode: 
+      0: Push null
+      1: Store 2
+      2: Push unit
+      3: Pop
+      4: Load 1
+      5: Push 0
+      6: CmpGeq
+      7: Load 1
+      8: Push 2
+      9: CmpNeq
+      10: Load 1
+      11: Push 2
+      12: CmpGeq
+      13: CmpNeq
+      14: BAnd
+      15: IfFalse 21
+      16: Load 1
+      17: Push 0
+      18: CmpEq
+      19: IfFalse 5
+      20: New A
+      21: Store 2
+      22: Push unit
+      23: Goto 12
+      24: Load 1
+      25: Push 1
+      26: CmpEq
+      27: IfFalse 5
+      28: New B
+      29: Store 2
+      30: Push unit
+      31: Goto 4
+      32: New C
+      33: Store 2
+      34: Push unit
+      35: Goto 2
+      36: Push unit
+      37: Pop
+      38: Load 2
+      39: Invoke hasSuperType 0
+      40: IfFalse 7
+      41: Load 2
+      42: Invoke getSuperType 0
+      43: Store 2
+      44: Push unit
+      45: Pop
+      46: Goto -8
+      47: Push unit
+      48: Return
+

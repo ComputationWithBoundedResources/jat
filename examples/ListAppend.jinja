@@ -1,0 +1,20 @@
+class List extends Object {
+    List next;
+    int val;
+
+    // type-check successful
+    void append(List ys) {
+        {
+            List cur = this;
+            while ((cur.next != null)) {
+                cur = cur.next;
+            };
+            cur.next = ys;
+        };
+    }
+}
+
+class Object {
+}
+
+

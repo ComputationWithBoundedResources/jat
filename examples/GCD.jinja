@@ -1,0 +1,46 @@
+class A extends Object {
+
+    // type-check successful
+    int mod(int a , int b) {
+        if (((((a != 0) != (a >= 0)) || ((b != 0) != (b >= 0))) || (a == b))) {
+            0;
+        } else {
+            while (((a != b) && (a >= b))) {
+                a = (a - b);
+            };
+            a;
+        };
+    }
+}
+
+class GCD extends Object {
+
+    // type-check successful
+    int gcd(int a , int b) {
+        {
+            A ax = new A();
+            {
+                int tmp;
+                while ((b != 0)) {
+                    tmp = b;
+                    b = ax.mod(a , b);
+                    a = tmp;
+                };
+                a;
+            };
+        };
+    }
+
+    // type-check successful
+    void main(int x, int y) {
+        {
+            new GCD().gcd(x , y);
+            unit;
+        };
+    }
+}
+
+class Object {
+}
+
+

@@ -1,0 +1,70 @@
+class A extends Object {
+
+    // type-check successful
+    A getSuperType() {
+        null;
+    }
+
+    // type-check successful
+    boolean hasSuperType() {
+        false;
+    }
+}
+
+class B extends A {
+
+    // type-check successful
+    A getSuperType() {
+        {
+            A a = new A();
+            a;
+        };
+    }
+
+    // type-check successful
+    boolean hasSuperType() {
+        true;
+    }
+}
+
+class C extends B {
+
+    // type-check successful
+    A getSuperType() {
+        {
+            B b = new B();
+            b;
+        };
+    }
+}
+
+class Object {
+}
+
+class TypeSwitch extends Object {
+
+    // type-check successful
+    void main(int argslength) {
+        {
+            A x = null;
+            if (((argslength >= 0) && ((argslength != 2) != (argslength >= 2)))) {
+                if ((argslength == 0)) {
+                    x = new A();
+                } else {
+                    if ((argslength == 1)) {
+                        x = new B();
+                    } else {
+                        x = new C();
+                    };
+                };
+            } else {
+                unit;
+            };
+            while (x.hasSuperType()) {
+                x = x.getSuperType();
+            };
+        };
+    }
+}
+
+

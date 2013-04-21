@@ -1,0 +1,88 @@
+Class:
+ Name: Exp
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: int exp
+    Parameters:
+     int x
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      2
+     Bytecode: 
+      0: Push 1
+      1: Store 3
+      2: Push unit
+      3: Pop
+      4: Load 1
+      5: Push 0
+      6: CmpGeq
+      7: IfFalse 35
+      8: Load 3
+      9: Store 2
+      10: Push unit
+      11: Pop
+      12: Push 0
+      13: Store 3
+      14: Push unit
+      15: Pop
+      16: Load 2
+      17: Push 0
+      18: CmpGeq
+      19: IfFalse 14
+      20: Load 3
+      21: Push 2
+      22: IAdd
+      23: Store 3
+      24: Push unit
+      25: Pop
+      26: Load 2
+      27: Push 1
+      28: ISub
+      29: Store 2
+      30: Push unit
+      31: Pop
+      32: Goto -16
+      33: Push unit
+      34: Pop
+      35: Load 1
+      36: Push 1
+      37: ISub
+      38: Store 1
+      39: Push unit
+      40: Pop
+      41: Goto -37
+      42: Push unit
+      43: Pop
+      44: Load 3
+      45: Return
+   Method: void main
+    Parameters:
+
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      1
+     Bytecode: 
+      0: Load 0
+      1: Push 3
+      2: Invoke exp 1
+      3: Store 2
+      4: Push unit
+      5: Return
+
+
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+

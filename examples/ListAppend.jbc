@@ -1,0 +1,50 @@
+Class:
+ Name: List
+ Classbody:
+  Superclass: Object
+  Fields:
+   List next
+   int val
+  Methods:
+   Method: void append
+    Parameters:
+     List ys
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      1
+     Bytecode: 
+      0: Load 0
+      1: Store 2
+      2: Push unit
+      3: Pop
+      4: Load 2
+      5: Getfield next List
+      6: Push null
+      7: CmpNeq
+      8: IfFalse 7
+      9: Load 2
+      10: Getfield next List
+      11: Store 2
+      12: Push unit
+      13: Pop
+      14: Goto -10
+      15: Push unit
+      16: Pop
+      17: Load 2
+      18: Load 1
+      19: Putfield next List
+      20: Push unit
+      21: Return
+
+
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+

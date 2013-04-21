@@ -1,0 +1,146 @@
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+
+
+Class:
+ Name: WhileI
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: int conditionedLoop
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      2
+     Bytecode: 
+      0: Push 0
+      1: Store 1
+      2: Push unit
+      3: Pop
+      4: Push 0
+      5: Store 2
+      6: Push unit
+      7: Pop
+      8: Load 1
+      9: Push 100
+      10: CmpGeq
+      11: BNot
+      12: IfFalse 23
+      13: Load 2
+      14: Push 100
+      15: CmpGeq
+      16: BNot
+      17: IfFalse 7
+      18: Load 2
+      19: Push 1
+      20: IAdd
+      21: Store 2
+      22: Push unit
+      23: Goto 10
+      24: Load 1
+      25: Push 1
+      26: IAdd
+      27: Store 1
+      28: Push unit
+      29: Pop
+      30: Push 0
+      31: Store 2
+      32: Push unit
+      33: Pop
+      34: Goto -26
+      35: Push unit
+      36: Pop
+      37: Load 1
+      38: Return
+   Method: int loop
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      1
+     Bytecode: 
+      0: Push 0
+      1: Store 1
+      2: Push unit
+      3: Pop
+      4: Load 1
+      5: Push 100
+      6: CmpGeq
+      7: BNot
+      8: IfFalse 8
+      9: Load 1
+      10: Push 1
+      11: IAdd
+      12: Store 1
+      13: Push unit
+      14: Pop
+      15: Goto -11
+      16: Push unit
+      17: Pop
+      18: Load 1
+      19: Return
+   Method: int nestedLoop
+    Parameters:
+     
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      2
+     Bytecode: 
+      0: Push 0
+      1: Store 1
+      2: Push unit
+      3: Pop
+      4: Push 0
+      5: Store 2
+      6: Push unit
+      7: Pop
+      8: Load 1
+      9: Push 100
+      10: CmpGeq
+      11: BNot
+      12: IfFalse 26
+      13: Load 1
+      14: Push 1
+      15: IAdd
+      16: Store 1
+      17: Push unit
+      18: Pop
+      19: Load 2
+      20: Push 100
+      21: CmpGeq
+      22: BNot
+      23: IfFalse 8
+      24: Load 2
+      25: Push 1
+      26: IAdd
+      27: Store 2
+      28: Push unit
+      29: Pop
+      30: Goto -11
+      31: Push unit
+      32: Pop
+      33: Push 0
+      34: Store 2
+      35: Push unit
+      36: Pop
+      37: Goto -29
+      38: Push unit
+      39: Pop
+      40: Load 1
+      41: Return
+

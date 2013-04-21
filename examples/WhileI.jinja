@@ -1,0 +1,38 @@
+class WhileI{
+
+    int loop(){
+      int i = 0;
+      while(i<100){
+        i = i+1;
+      }
+      return i;
+    }
+
+    int nestedLoop(){
+      int i = 0;
+      int j = 0;
+      while(i<100){
+        i = i+1;
+        while(j<100){
+          j = j+1;
+        }
+        j=0;
+      }
+      return i;
+    }
+
+    int conditionedLoop(){
+      int i = 0;
+      int j = 0;
+      while(i<100){
+        if(j<100){
+          j = j+1;
+        } else {
+          i = i+1;
+          j = 0;
+        }
+      }
+      return i;
+    }
+
+}

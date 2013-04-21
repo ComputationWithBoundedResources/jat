@@ -1,0 +1,51 @@
+class IntList extends Object {
+    IntList next;
+    int value;
+}
+
+class Tree extends Object {
+    Tree left;
+    Tree right;
+    int value;
+}
+
+class TreeList extends Object {
+    TreeList next;
+    Tree value;
+}
+
+class Flatten extends Object {
+
+    IntList flatten(TreeList list) {
+        {
+            TreeList cur = list;
+            {
+                IntList result = null;
+                while ((cur != null)) {
+                    {
+                        Tree tree = cur.value;
+                        if ((tree != null)) {
+                            {
+                                IntList oldIntList = result;
+                                result = new IntList();
+                                result.value = tree.value;
+                                result.next = oldIntList;
+                                {
+                                    TreeList oldCur = cur;
+                                    cur = new TreeList();
+                                    cur.value = tree.left;
+                                    cur.next = oldCur;
+                                    oldCur.value = tree.right;
+                                };
+                            };
+                        } else {
+                            cur = cur.next;
+                        };
+                    };
+                };
+                result;
+            };
+        };
+    }
+}
+

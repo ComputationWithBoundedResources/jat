@@ -1,0 +1,133 @@
+Class:
+ Name: A
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: int mod
+    Parameters:
+     int a
+     int b
+    Methodbody: 
+     MaxStack: 
+      5
+     MaxVars: 
+      0
+     Bytecode: 
+      0: Load 1
+      1: Push 0
+      2: CmpNeq
+      3: Load 1
+      4: Push 0
+      5: CmpGeq
+      6: CmpNeq
+      7: Load 2
+      8: Push 0
+      9: CmpNeq
+      10: Load 2
+      11: Push 0
+      12: CmpGeq
+      13: CmpNeq
+      14: BOr
+      15: Load 1
+      16: Load 2
+      17: CmpEq
+      18: BOr
+      19: IfFalse 3
+      20: Push 0
+      21: Goto 19
+      22: Load 1
+      23: Load 2
+      24: CmpNeq
+      25: Load 1
+      26: Load 2
+      27: CmpGeq
+      28: BAnd
+      29: IfFalse 8
+      30: Load 1
+      31: Load 2
+      32: ISub
+      33: Store 1
+      34: Push unit
+      35: Pop
+      36: Goto -14
+      37: Push unit
+      38: Pop
+      39: Load 1
+      40: Return
+
+
+Class:
+ Name: GCD
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: int gcd
+    Parameters:
+     int a
+     int b
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      2
+     Bytecode: 
+      0: New A
+      1: Store 3
+      2: Push unit
+      3: Pop
+      4: Load 2
+      5: Push 0
+      6: CmpNeq
+      7: IfFalse 17
+      8: Load 2
+      9: Store 4
+      10: Push unit
+      11: Pop
+      12: Load 3
+      13: Load 1
+      14: Load 2
+      15: Invoke mod 2
+      16: Store 2
+      17: Push unit
+      18: Pop
+      19: Load 4
+      20: Store 1
+      21: Push unit
+      22: Pop
+      23: Goto -19
+      24: Push unit
+      25: Pop
+      26: Load 1
+      27: Return
+   Method: void main
+    Parameters:
+     int x
+     int y
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      0
+     Bytecode: 
+      0: New GCD
+      1: Load 1
+      2: Load 2
+      3: Invoke gcd 2
+      4: Pop
+      5: Push unit
+      6: Return
+
+
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+

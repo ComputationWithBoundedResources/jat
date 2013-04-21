@@ -1,0 +1,136 @@
+Class:
+ Name: Flatten
+ Classbody:
+  Superclass: Object
+  Fields:
+   
+  Methods:
+   Method: IntList flatten
+    Parameters:
+     TreeList list
+    Methodbody: 
+     MaxStack: 
+      2
+     MaxVars: 
+      5
+     Bytecode: 
+      0: Load 1
+      1: Store 2
+      2: Push unit
+      3: Pop
+      4: Push null
+      5: Store 3
+      6: Push unit
+      7: Pop
+      8: Load 2
+      9: Push null
+      10: CmpNeq
+      11: IfFalse 60
+      12: Load 2
+      13: Getfield value TreeList
+      14: Store 4
+      15: Push unit
+      16: Pop
+      17: Load 4
+      18: Push null
+      19: CmpNeq
+      20: IfFalse 45
+      21: Load 3
+      22: Store 5
+      23: Push unit
+      24: Pop
+      25: New IntList
+      26: Store 3
+      27: Push unit
+      28: Pop
+      29: Load 3
+      30: Load 4
+      31: Getfield value Tree
+      32: Putfield value IntList
+      33: Push unit
+      34: Pop
+      35: Load 3
+      36: Load 5
+      37: Putfield next IntList
+      38: Push unit
+      39: Pop
+      40: Load 2
+      41: Store 6
+      42: Push unit
+      43: Pop
+      44: New TreeList
+      45: Store 2
+      46: Push unit
+      47: Pop
+      48: Load 2
+      49: Load 4
+      50: Getfield left Tree
+      51: Putfield value TreeList
+      52: Push unit
+      53: Pop
+      54: Load 2
+      55: Load 6
+      56: Putfield next TreeList
+      57: Push unit
+      58: Pop
+      59: Load 6
+      60: Load 4
+      61: Getfield right Tree
+      62: Putfield value TreeList
+      63: Push unit
+      64: Goto 5
+      65: Load 2
+      66: Getfield next TreeList
+      67: Store 2
+      68: Push unit
+      69: Pop
+      70: Goto -62
+      71: Push unit
+      72: Pop
+      73: Load 3
+      74: Return
+
+
+Class:
+ Name: IntList
+ Classbody:
+  Superclass: Object
+  Fields:
+   IntList next
+   int value
+  Methods:
+   
+
+
+Class:
+ Name: Object
+ Classbody:
+  Superclass: <None>
+  Fields:
+   
+  Methods:
+   
+
+
+Class:
+ Name: Tree
+ Classbody:
+  Superclass: Object
+  Fields:
+   Tree left
+   Tree right
+   int value
+  Methods:
+   
+
+
+Class:
+ Name: TreeList
+ Classbody:
+  Superclass: Object
+  Fields:
+   TreeList next
+   Tree value
+  Methods:
+   
+
