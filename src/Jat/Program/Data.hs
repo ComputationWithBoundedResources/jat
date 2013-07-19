@@ -20,6 +20,7 @@ module Jat.Program.Data
   , MethodPool
 
   , initP
+  , typeOf
   , defaultValue
   )
 where
@@ -86,7 +87,7 @@ data Type =
   | RefType ClassId
   | NullType
   | Void 
-  deriving (Eq,Show,Read)
+  deriving (Eq,Ord,Show,Read)
 
 -- | Returns the (common) default value of a type.
 defaultValue :: Type -> Value
@@ -95,6 +96,15 @@ defaultValue IntType     = IntVal 0
 defaultValue (RefType _) = Null
 defaultValue NullType    = Null
 defaultValue Void        = Unit
+
+-- | Returns the type of the value.
+-- Returns Nothing for RefVal.
+typeOf :: Value -> Maybe Type
+typeOf (BoolVal _) = Just BoolType
+typeOf (IntVal _)  = Just IntType
+typeOf (RefVal _)  = Nothing
+typeOf Null        = Just NullType
+typeOf Unit        = Just Void
 
 -- | A JBC Value.
 data Value = 

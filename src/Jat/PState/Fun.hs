@@ -23,6 +23,10 @@ module Jat.PState.Fun
   , rpathValue  
   , rcommonPrefix
   , rmaxPrefix
+
+  , Var (..)
+  , valueFS
+  , reachableFS
   )
 where
 
@@ -40,7 +44,6 @@ import qualified Jat.Program as P
 import Jat.Utils.Pretty
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
-
 
 import Data.Char (toLower)
 import qualified Data.Array as A
@@ -363,7 +366,17 @@ rmaxPrefix path@(RPath r rls) pths =
       | l `elem` lss = l
       | otherwise    = findFirst ls lss
     findFirst [] _ = []
-  
 
+data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq, Ord)
 
-
+-- | Returns the value from a given Frame index.
+valueFS :: Var -> PState i a -> AbstrValue i
+valueFS (StkVar i j) (PState _ frms _) = opstk  (frms !! i) !! j
+valueFS (LocVar i j) (PState _ frms _) = locals (frms !! i) !! j
+ 
+-- | Computes reachable Addresses from a given a Frame index.
+reachableFS :: Var -> PState i a -> [Address]
+reachableFS var st = case valueFS var st of
+  RefVal r -> reachable r (heap st)
+  _        -> []
+      

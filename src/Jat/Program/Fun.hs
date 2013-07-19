@@ -9,15 +9,26 @@ module Jat.Program.Fun
   , supClassesOf
   , subClassesOf
   , isSuper
+  , isSuber
   , theMethod
+  , isMethodCall
+  , isReturn
+  , isRefType
+  , isPrimitiveType
   , seesMethodIn
   , instructions
   , instruction
+  , successors
   , hasFields
+  , field
   , theLeastCommonSupClass
   , leastCommonSupClass
   , properReachableClasses
   , reachableClasses
+
+  , isCyclicalType
+  , isTreeShapedType
+  , areSharingTypes
   )
 where
 
@@ -63,11 +74,29 @@ subClassesOf p = subClasses . theClass p
 isSuper :: Program -> ClassId -> ClassId -> Bool
 isSuper p cn cn' =  cn `elem` supClassesOf p cn'
 
+isSuber :: Program -> ClassId -> ClassId -> Bool
+isSuber p cn cn' =  cn `elem` subClassesOf p cn'
+
 -- | Returns the 'Method' of a given Id.
 -- Returns an error if the id does not exist.
 theMethod :: Program -> ClassId -> MethodId -> Method
 theMethod p cn mn = errmsg `fromMaybe` (M.lookup mn . methodPool $ theClass p cn)
   where errmsg = error $ "Jat.Program.Op.theMethod: method not found: " ++ show (cn,mn)
+
+isMethodCall :: Instruction -> Bool
+isMethodCall (Invoke _ _) = True
+isMethodCall _            = False
+
+isReturn :: Instruction -> Bool
+isReturn Return = True
+isReturn _      = False
+
+isRefType :: Type -> Bool
+isRefType (RefType _) = True
+isRefType _           = False
+
+isPrimitiveType :: Type -> Bool
+isPrimitiveType = not . isRefType
 
 -- | This implements dynamic invoke and returns the first method defined wrt to
 -- the type hierarchy going upwards starting from the given class id.
@@ -89,10 +118,21 @@ instructions p cn mn = methodInstructions $ theMethod p cn mn
 instruction :: Program -> ClassId -> MethodId -> Int -> Instruction
 instruction p cn mn i = (A.!i) $ instructions p cn mn
 
+-- | Returns the successors for a labeled instruction.
+-- TODO take nulltype into account ?
+successors :: Instruction -> Int -> [Int]
+successors (IfFalse j) pc = [pc+1, pc+j]
+successors (Goto j)    pc = [pc+j]
+successors Return      _  = []
+successors _           pc = [pc+1]
+
 -- | Returns all fields (including fields of superclasses) of a class.
 hasFields :: Program -> ClassId -> [(FieldId, ClassId, Type)]
 hasFields p = hasFieldz . theClass p
 
+field :: Program -> ClassId -> FieldId -> Maybe (ClassId, Type)
+field p cn fn = lookup fn $ map (\(f,c,t) -> (f,(c,t))) fields
+  where fields = hasFields p cn
 -- | Extracts the least common super class.
 theLeastCommonSupClass :: Program -> ClassId -> ClassId -> ClassId
 theLeastCommonSupClass p cn cn' = errmsg `fromMaybe` leastCommonSupClass p cn cn'
@@ -133,4 +173,32 @@ reachableClasses' p acc new =
     subs cn   = S.fromList $ subClassesOf p cn
     fds cn    = S.fromList [tp | (_,_,RefType tp) <- hasFields p cn]
     fix s1 s2 = S.size s1 == S.size s2
+
+
+isCyclicalType :: Program -> Type -> Bool
+isCyclicalType p (RefType cn) = cn `elem` properReachableClasses p cn
+isCyclicalType _ _            = False
+
+isTreeShapedType :: Program -> Type -> Bool
+isTreeShapedType p ty | isCyclicalType p ty = False
+isTreeShapedType p (RefType cn) = isTreeShaped' cn
+  where
+    isTreeShaped' cn' = treeShaped cn' && all isTreeShaped' (clazzes cn')
+    clazzes cn'       = subClassesOf p cn' ++ hasRefFields cn'
+    hasRefFields cn'  = [ tp | (_,_,RefType tp) <- hasFields p cn']
+    treeShaped cn'    = case reaches of
+      []     -> True
+      (x:xs) -> foldl S.intersection x xs == S.empty
+      where reaches = map (S.fromList . reachableClasses p) (hasRefFields cn')
+isTreeShapedType _ _ = False
+
+areSharingTypes :: Program -> Type -> Type -> Bool
+areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2
+  where 
+    tys1 = S.fromList $ reachableClasses p cn1
+    tys2 = S.fromList $ reachableClasses p cn2
+areSharingTypes _ _ _                         = False
+
+
+
 

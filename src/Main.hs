@@ -67,12 +67,14 @@ run opts p cn mn =
   if interactive'
     then do
       --let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
-      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
+      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain Sharing)
+      {-let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)-}
           evaluationM = (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p) 
       res <- E.try evaluationM :: IO (Either E.SomeException String)
       return (cn,mn, res)
     else do
-    let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)
+    {-let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)-}
+    let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing)
         evalM = case format opts of
           DOT -> (dot2String . mkJGraph2Dot) `liftM` gM
           TRS -> (display . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)

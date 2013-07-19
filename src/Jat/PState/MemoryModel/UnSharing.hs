@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MonadComprehensions #-}
 
 -- | This module provides an instance for 'MemoryModel'.
