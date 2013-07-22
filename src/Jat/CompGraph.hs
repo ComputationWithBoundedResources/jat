@@ -7,12 +7,12 @@ module Jat.CompGraph
   , mkJGraph
   , mkJGraph2Dot
   , mkJGraph2TRS
+  , mkJGraph2ITRS
   , mkJGraphIO
   )
 where
 
 
-import Data.Rewriting.Rule (Rule (..))
 import Jat.Constraints
 import Jat.JatM
 import Jat.PState
@@ -20,6 +20,10 @@ import Jat.Utils.Dot
 import Jat.Utils.Fun
 import Jat.Utils.Pretty
 import qualified Jat.Program as P
+
+import Data.Rewriting.Rule (Rule (..))
+import Data.Rewriting.Term as TR hiding (map)
+import qualified Data.Rewriting.Term as TR
 
 import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
@@ -262,6 +266,31 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> reverse `liftM` mapM (rule p)
     mkCon con = case con of
       BConst True -> Nothing
       _           -> Just con
+
+mkJGraph2ITRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [Rule String String]
+mkJGraph2ITRS g = map mapRule `liftM` mkJGraph2TRS g
+  where
+    mapRule (Rule{lhs=l,rhs=r},Just c)  = Rule (mapTerm l c) (mapTerm r c)
+    mapRule (r,_)                       = r
+
+    mapTerm :: TR.Term String String -> Constraint -> TR.Term String String
+    {-mapTerm t c = TR.fold (assignment c) Fun t-}
+    mapTerm t c = TR.fold (assignment c) Fun t
+
+    assignment (Ass (CVar v1) c) v2 
+      | v1 == v2  = op c
+      | otherwise = Var v2
+    op (Not c) = Fun "not" [el c] 
+    op (And c d) = Fun "and" [el c,el d]
+    op (Or  c d) = Fun "or"  [el c,el d]
+    op (Eq  c d) = Fun "eq"  [el c,el d]
+    op (Neq c d) = Fun "neq" [el c,el d]
+    op (Gte c d) = Fun "gte" [el c,el d]
+    op (Add c d) = Fun "add" [el c,el d]
+    op (Sub c d) = Fun "sub" [el c,el d]
+    el (CVar v) = Var v
+    el (IConst i) = Fun (show i) []
+    el (BConst b) = Fun (show b) []
 
 -- Interactive
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
