@@ -101,7 +101,7 @@ execIfFalse :: Monad m => Int -> Frame i -> JatM m (PStep (Frame i))
 execIfFalse i (Frame loc stk cn mn pc) = case stk of
   BoolVal b1:vs -> liftStep eval refine `liftM` ifFalse b1
     where
-      eval   b = Frame loc vs cn mn (if b == constant True  then pc+1 else pc+i)
+      eval   b = Frame loc vs cn mn (pc + if b == constant True  then 1 else i)
       refine b = Frame loc (BoolVal b:vs) cn mn pc
   _            -> error "Jat.PState.Semantics.execIfFalse: invalid stack."
 
@@ -176,12 +176,13 @@ execNew :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> J
 execNew = new
 
 execGetField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
-execGetField st@(PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) cn fn@(P.FieldId fid) = 
-  if fid == "rand"
-    then do 
-      rand <- IntVal `liftM` (constant 0 `AD.join` constant 999)
-      return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
-    else getField st cn fn
+execGetField (PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) _ (P.FieldId "randI") = do
+  rand <- IntVal `liftM` (constant 0 `AD.join` constant 666)
+  return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
+execGetField (PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) _ (P.FieldId "randB") = do
+  rand <- BoolVal `liftM` (constant True `AD.join` constant False)
+  return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
+execGetField st cn fn = getField st cn fn
 execGetField _ _ _ = error "Jat.PState.Semantics.execGetField: exceptional state."
 
 execPutField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))

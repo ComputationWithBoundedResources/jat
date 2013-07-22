@@ -79,7 +79,7 @@ a .||. b                 = evalb a b Or
 (.!) a@(AbstrBoolean _) = do
   j <- freshVarIdx
   let b = AbstrBoolean j
-      notcon = atom b `Eq` (Not $ atom a)
+      notcon = atom b `Ass` (Not $ atom a)
   return $ evaluation b notcon
 
 
@@ -88,9 +88,10 @@ a .||. b                 = evalb a b Or
 ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 ifFalse (Boolean a) = return $ Evaluation (Boolean a, C.top)
 ifFalse a@(AbstrBoolean _) = return $ Refinement [(Boolean False, con False), (Boolean True, con True)]
-  where con b = atom a `Eq` BConst b
+  where con b = atom a `Ass` BConst b
 
 instance Pretty BoolDomain where
-  pretty (Boolean b) = text $ show b
-  pretty (AbstrBoolean i) = string "b_" <> int i
+  pretty (Boolean True)   = text "TRUE"
+  pretty (Boolean False)  = text "FALSE"
+  pretty (AbstrBoolean i) = string "b" <> int i
 

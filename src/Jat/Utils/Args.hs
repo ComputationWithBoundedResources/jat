@@ -15,7 +15,7 @@ import System.Exit
 import System.IO
 
 -- | A computation graph can be returned as Dot graph or as TRSs.
-data Format = DOT | TRS deriving (Show,Read)
+data Format = DOT | TRS | ITRS deriving (Show,Read)
 
 -- | The options for the arguments.
 data Options = Options {

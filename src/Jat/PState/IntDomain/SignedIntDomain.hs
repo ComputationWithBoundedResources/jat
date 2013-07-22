@@ -79,9 +79,9 @@ instance IntDomain SignedIntDomain where
 
 instance Pretty SignedIntDomain where
   pretty (Integer i)    = int i
-  pretty (AbsInteger i) = string "i_"<> int i
-  pretty (Pos i)        = string "+i_"<> int i
-  pretty (Neg i)        = string "-i_"<> int i
+  pretty (AbsInteger i) = string "i"<> int i
+  pretty (Pos i)        = string "k"<> int i
+  pretty (Neg i)        = string "n"<> int i
 
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
