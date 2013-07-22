@@ -29,6 +29,7 @@ module Jat.Program.Fun
   , isCyclicalType
   , isTreeShapedType
   , areSharingTypes
+  , areRelatedTypes
   )
 where
 
@@ -175,6 +176,7 @@ reachableClasses' p acc new =
     fix s1 s2 = S.size s1 == S.size s2
 
 
+
 isCyclicalType :: Program -> Type -> Bool
 isCyclicalType p (RefType cn) = cn `elem` properReachableClasses p cn
 isCyclicalType _ _            = False
@@ -198,6 +200,14 @@ areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersect
     tys1 = S.fromList $ reachableClasses p cn1
     tys2 = S.fromList $ reachableClasses p cn2
 areSharingTypes _ _ _                         = False
+
+areRelatedTypes :: Program -> Type -> Type -> Bool
+areRelatedTypes _ BoolType BoolType           = True
+areRelatedTypes _ IntType IntType             = True
+areRelatedTypes _ Void Void                   = True
+areRelatedTypes p (RefType cn1) (RefType cn2) =
+  isSuper p cn1 cn2 || isSuber p cn1 cn2
+areRelatedTypes _ _ _                          = False
 
 
 

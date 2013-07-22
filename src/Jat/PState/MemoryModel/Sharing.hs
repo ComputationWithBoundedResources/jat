@@ -41,54 +41,85 @@ instance Show Var where
   show v = show $ pretty v
 
 type NShares = PS.PairSet Address
-type MShares = PS.PairSet Address
-type TreeShs = S.Set Address
+type MShares = PS.PairSet Var
+type TreeShs = S.Set Var
 
-data Sharing = Sh (PS.PairSet Address) (PS.PairSet Var) (S.Set Var)
+data Sharing = Sh !Int !Int NShares MShares TreeShs 
 
-data Annot = Address :/=: Address | Address :><: Address |  TS Address
+data Annot = Address :/=: Address | Var :><: Var |  TS Var
 
 instance Pretty Annot where
   pretty (q:/=:r) = int q <> text "/=" <> int r
-  pretty (q:><:r) = int q <> text "><" <> int r
-  pretty (TS q)   = char '^' <> int q
+  pretty (q:><:r) = pretty q <> text "><" <> pretty r
+  pretty (TS q)   = char '^' <> pretty q
 
-nShares :: Sharing -> [Annot]
-nShares (Sh ns _ _) = (:/=:) `map` PS.elems ns
+nShares :: Sharing -> NShares
+nShares (Sh _ _ ns _ _) = ns
 
-mShares :: Sharing -> [Annot]
-mShares (Sh _ ms _) = (:><:) `map` PS.elems ms
+mShares :: Sharing -> MShares
+mShares (Sh _ _ _ ms _) = ms
 
 treeShs :: Sharing -> TreeShs
-treeShs (Sh _ _ ts) = TS `map` S.elems ts 
+treeShs (Sh _ _ _ _ ts) = ts
 
-liftNS :: (a -> b) -> Sharing -> Sharing
-liftNS f (Sh ns ms ts) = Sh (f ns) ms ts
+nShares' :: Sharing -> [Annot]
+nShares' (Sh _ _ ns _ _) = uncurry (:/=:) `map` PS.elems ns
 
-liftMS :: (a -> b) -> Sharing -> Sharing
-liftMS f (Sh ns ms ts) = Sh ns (f ms) ts
+mShares' :: Sharing -> [Annot]
+mShares' (Sh _ _ _ ms _) = uncurry (:><:) `map` PS.elems ms
 
-liftTS :: (a -> b) -> Sharing -> Sharing
-liftTS f (Sh ns ms ts) = Sh ns ms (f ts)
+treeShs' :: Sharing -> [Annot]
+treeShs' (Sh _ _ _ _ ts) = TS `map` S.elems ts 
+
+liftNS :: (NShares -> NShares) -> Sharing -> Sharing
+liftNS f (Sh i j ns ms ts) = Sh i j (f ns) ms ts
+
+liftMS :: (MShares -> MShares) -> Sharing -> Sharing
+liftMS f (Sh i j ns ms ts) = Sh i j ns (f ms) ts
+
+liftTS :: (TreeShs -> TreeShs) -> Sharing -> Sharing
+liftTS f (Sh i j ns ms ts) = Sh i j ns ms (f ts)
 
 insertSh :: Annot -> Sharing -> Sharing
 insertSh (q:/=:r) = liftNS (PS.insert (q,r))
 insertSh (q:><:r) = liftMS (PS.insert (q,r))
-insertSh (TS q)   = liftTS (S.insert  q)
+insertSh (TS q)   = liftTS (S.insert q)
+
+insertsSh :: [Annot] -> Sharing -> Sharing
+insertsSh = flip (foldr insertSh)
+
+deleteSh :: Annot -> Sharing -> Sharing
+deleteSh (q:/=:r) = liftNS (PS.delete (q,r))
+deleteSh (q:><:r) = liftMS (PS.delete (q,r))
+deleteSh (TS q)   = liftTS (S.delete q)
+
+unionMS :: Sharing -> Sharing -> Sharing
+unionMS sh1 sh2 = (mShares sh1 `PS.union`) `liftMS` sh2
+
+unionTS :: Sharing -> Sharing -> Sharing
+unionTS sh1 sh2 = (treeShs sh1 `S.union`) `liftTS` sh2
+
+unionSh :: Sharing -> Sharing -> Sharing
+unionSh (Sh i j ns1 ms1 ts1) (Sh _ _ ns2 ms2 ts2) = Sh i j ns3 ms3 ts3
+  where
+    ns3 = ns1 `PS.union` ns2
+    ms3 = ms1 `PS.union` ms2
+    ts3 = ts1 `S.union`  ts2
 
 memberSh :: Annot -> Sharing -> Bool
-memberSh (q:/=:r) = PS.member (q,r) . nShares
-memberSh (q:><:r) = PS.member (q,r) . mShares
-memberSh (TS q)   = S.member q . treeShs
+memberSh a (Sh _ _ ns ms ts) = case a of
+  (q:/=:r) -> PS.member (q,r) ns
+  (q:><:r) -> PS.member (q,r) ms
+  (TS q)   -> S.member q ts
 
-emptySh :: Sharing
-emptySh = (Sh PS.empty PS.empty S.empty)
+emptySh :: Int -> Int -> Sharing
+emptySh i j = Sh i j PS.empty PS.empty S.empty
 
 instance Pretty Sharing where
   pretty sh =
-    (hsep . map pretty $ nShares sh)
-    <$> (hsep . map pretty $ mShares sh)
-    <$> (hsep . map pretty $ treeShs sh)
+    (hsep . map pretty $ nShares' sh)
+    <$> (hsep . map pretty $ mShares' sh)
+    <$> (hsep . map pretty $ treeShs' sh)
 
 type Sh i = PState i Sharing
 
@@ -99,57 +130,65 @@ tyOf :: P.Program -> Sh i -> Address -> P.Type
 tyOf p st q = P.RefType . className $ lookupH q (heap st)
 
 maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeShares p st q r = P.areSharingTypes p (tyOf p st q)  && maybeSharesSh p st q r
+maybeShares p st q r = 
+  P.areSharingTypes p (tyOf p st q) (tyOf p st r) && 
+  maybeSharesSh p st q r
 
 maybeSharesSh :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeSharesSh p st q r = any shares (mShares $ sharing st)
-  where shares (v:/=:w) = 
-          (q `elem` vreaches && r `elem` wreaches) || 
-          (q `elem` wreaches && r `elem` vreaches)
+maybeSharesSh p st q r = any shares (mShares' $ sharing st)
+  where 
+    shares (v:><:w) = 
+      (q `elem` vReaches && r `elem` wReaches) || 
+      (q `elem` wReaches && r `elem` vReaches)
       where
         vReaches = reachableFS v st
         wReaches = reachableFS w st
 
 treeShapedSh :: P.Program -> Sh i -> Address -> Bool
-treeShapedSh p st q = any k (treeShs $ sharing st)
-  where k (T v) = q `elem` reachableFS v st
+treeShapedSh p st q = any k (treeShs' $ sharing st)
+  where k (TS v) = q `elem` reachableFS v st
 
 treeShaped :: P.Program -> Sh i -> Address -> Bool
 treeShaped p st q = 
   P.isTreeShapedType p (tyOf p st q) ||
-  treeShapedSh st q
+  treeShapedSh p st q
   
+unShare :: P.Program -> [Address] -> [Address] -> Sh i -> Sh i
+unShare p qs rs st@(PState hp frms sh) = 
+  PState hp frms (insertsSh elems sh)
+  where 
+    elems       = [ q:/=:r | q <- qs, r <- rs, q /= r, related q r ]
+    ty          = tyOf p st
+    related q r = P.areRelatedTypes p (ty q) (ty r)
+
+nullify = undefined
+substituteSh = undefined
+
+assignSh :: Var -> Var -> Sharing -> Sharing
+assignSh v w = assignTS v w .assignMS v w
+
+assignMS :: Var -> Var -> Sharing -> Sharing
+assignMS v w sh
+  | w:><:w `memberSh` sh =  (v:><:w `insertSh` sh') `unionMS` (PS.rename [(v,w)] `liftMS` sh')
+  | otherwise            = sh'
+  where sh' = PS.delete' v `liftMS` sh
+
+assignTS :: Var -> Var -> Sharing -> Sharing
+assignTS v w sh
+  | TS w `memberSh` sh = TS v `insertSh` sh
+  | otherwise          = TS v `deleteSh` sh
 
 
-maybeCyclic :: P.Program -> Sh i -> Address -> Bool
-maybeCyclic p st q = cyclicalType && not treeShaped
-  where
-    cyclicalType = P.isCyclicalType p (tyOf p st q)
-    treeShaped = any (TreeShs $ sharing st)
-
-maybeNotTreeShaped :: P.Program -> Sh i -> Address -> Bool
-maybeNotTreeShaped p st q = not $ P.isTreeShapedType p (tyOf p st q)
 
 
-mergeSh :: Sharing -> Sharing -> Sharing
-mergeSh _ _ = Sh S.empty
+{-nullify :: Address -> Sharing -> Sharing-}
+{-nullify q (Sh ns) = Sh $ S.filter k ns-}
+  {-where k (r1:/=:r2) = q /= r1 && q /= r2-}
 
-unShare :: [Address] -> [Address] -> Sharing -> Sharing
-unShare qs rs (Sh ns) = Sh $ foldl (flip S.insert) ns elems
-  {-where elems = [ q:/=:r | q <- qs, r <- rs, q/=r ]-}
-  where elems = []
-
-memberSh :: NotShare -> Sharing -> Bool
-memberSh ns (Sh sh) = ns `S.member` sh
-
-nullify :: Address -> Sharing -> Sharing
-nullify q (Sh ns) = Sh $ S.filter k ns
-  where k (r1:/=:r2) = q /= r1 && q /= r2
-
-substituteSh :: Eq i => AbstrValue i -> AbstrValue i -> Sh i -> Sh i
-substituteSh v1 v2 st = case v1 of
-  RefVal q -> mapAnnotations (nullify q) $ substitute v1 v2 st
-  _        -> substitute v1 v2 st
+{-substituteSh :: Eq i => AbstrValue i -> AbstrValue i -> Sh i -> Sh i-}
+{-substituteSh v1 v2 st = case v1 of-}
+  {-RefVal q -> mapAnnotations (nullify q) $ substitute v1 v2 st-}
+  {-_        -> substitute v1 v2 st-}
 
 mname :: String
 mname = "Jat.PState.MemoryModel.Sharing"
@@ -157,9 +196,6 @@ mname = "Jat.PState.MemoryModel.Sharing"
 merror :: String -> a
 merror msg = error $ mname ++ msg
 
-
-instance Pretty Sharing where 
-  pretty (Sh ns) = hsep . map pretty $ S.elems ns
 
 shares :: Address -> Address -> Sh i -> Bool
 shares q r = not . sharesNot q r
@@ -171,6 +207,58 @@ sharesNot q r = undefined
 -- others share per assumption if types share
 -- extension in the anlysis is not easy
   
+liftSh :: (Sharing -> Sharing) -> Sh i -> Sh i
+liftSh f (PState hp frms sh) = PState hp frms (f sh)
+
+pushSh :: Sharing -> Sharing
+pushSh (Sh i j ns ms ts) = Sh i (j+1) ns ms ts
+
+putSh :: Sharing -> Sharing
+putSh (Sh i j ns ms ts) = Sh i (j+1) ns ms (StkVar i (j+1) `S.insert` ts)
+
+popSh :: Sharing -> Sharing
+popSh (Sh i j ns ms ts) = Sh i (j-1) ns ms ts
+
+purgeSh :: Sharing -> Sharing
+purgeSh (Sh i j ns ms ts) = Sh i (j-1) ns ms' ts'
+  where
+    ms' = StkVar i j `PS.delete'` ms
+    ts' = StkVar i j `S.delete` ts
+
+stkSh :: Sharing -> Var
+stkSh (Sh i j _ _ _) = StkVar i j
+
+stkSh' :: Sharing -> Var
+stkSh' (Sh i j _ _ _) = StkVar i j
+
+locSh :: Sharing -> Int -> Var
+locSh (Sh i _ _ _ _) = LocVar i
+
+updateSh :: P.Instruction -> Sh i -> Sh i
+updateSh ins st = updateSh' ins `liftSh` st
+  where
+    updateSh' ins sh = case ins of
+      P.Push v         -> putSh sh
+      P.Pop            -> purgeSh sh
+      P.Load n         -> pushSh $ (stkSh' sh `assignSh` locSh sh n) sh
+      P.Store n        -> purgeSh $ (locSh sh n `assignSh` stkSh sh) sh
+      P.Goto i         -> sh 
+      P.IfFalse n      -> popSh sh
+      P.IAdd           -> popSh sh
+      P.ISub           -> popSh sh
+      P.BAnd           -> popSh sh
+      P.BOr            -> popSh sh
+      P.CheckCast _    -> purgeSh sh 
+      P.BNot           -> popSh sh
+      P.ICmpGeq        -> popSh sh 
+      P.Return         -> undefined 
+      P.Invoke mn n    -> undefined 
+      P.CmpEq          -> popSh sh 
+      P.CmpNeq         -> popSh sh 
+      P.New cn         -> putSh  (v:><:v `insertSh` sh)
+        where v = stkSh' sh
+      P.GetField fn cn -> undefined 
+      P.PutField fn cn -> undefined 
 
 instance MemoryModel Sharing where
   new       = undefined
@@ -188,7 +276,7 @@ instance MemoryModel Sharing where
 
   normalize = undefined
   state2TRS = undefined
-
+  update    = updateSh
   {-new       = newSh-}
   {-getField  = getFieldSh-}
   {-putField  = putFieldSh-}

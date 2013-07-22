@@ -371,7 +371,7 @@ data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq, Ord)
 
 -- | Returns the value from a given Frame index.
 valueFS :: Var -> PState i a -> AbstrValue i
-valueFS (StkVar i j) (PState _ frms _) = opstk  (frms !! i) !! j
+valueFS (StkVar i j) (PState _ frms _) = (reverse . opstk)  (frms !! i) !! j
 valueFS (LocVar i j) (PState _ frms _) = locals (frms !! i) !! j
  
 -- | Computes reachable Addresses from a given a Frame index.
