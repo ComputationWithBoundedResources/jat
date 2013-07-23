@@ -183,7 +183,6 @@ execGetField (PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) _ (P.FieldId "r
   rand <- BoolVal `liftM` (constant True `AD.join` constant False)
   return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
 execGetField st cn fn = getField st cn fn
-execGetField _ _ _ = error "Jat.PState.Semantics.execGetField: exceptional state."
 
 execPutField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
 execPutField = putField 

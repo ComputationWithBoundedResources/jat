@@ -14,6 +14,8 @@ import Data.Rewriting.Rule
 import Data.Rewriting.Term (fold) 
 import Data.List (nub)
 
+import Debug.Trace
+
 header :: [Rule String String] -> Doc
 header rules = 
   lparen <> text "VAR" <+> prettyvars (allvars rules) <> rparen
@@ -63,15 +65,17 @@ prettyITRS rules =
       where args = encloseSep lparen rparen comma [prettyT ti | ti <- ts]
       
 toITRS :: [(Rule String String, Maybe Constraint)] -> [Rule String String]
-toITRS = map mapRule
+{-toITRS rules = let r = map mapRule rules in trace (show . prettyTRS $ zip r (cycle [Nothing])) r-}
+toITRS rules = map mapRule rules
   where
     mapRule (Rule{lhs=l,rhs=r},Just c)  = Rule (mapTerm l c) (mapTerm r c)
     mapRule (r,_)                       = r
     mapTerm t c                         = fold (assignment c) Fun t
 
+    assignment c v | trace (show (c,v)) False = undefined
     assignment (Ass (CVar v1) c) v2 
-      | v1 == v2  = op c
-      | otherwise = Var v2
+      | v1 == v2  = trace (show (v1,v2,v1==v2)) $ op c
+      | otherwise = trace "NOP" $ Var v2
     op (Not c)    = Fun "$not" [el c]
     op (And c d)  = Fun "$and" [el c,el d]
     op (Or  c d)  = Fun "$or"  [el c,el d]

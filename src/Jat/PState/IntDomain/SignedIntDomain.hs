@@ -22,9 +22,9 @@ data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving
 
 instance Atom SignedIntDomain where
   atom (Integer i)    = IConst i
-  atom (AbsInteger i) = CVar ("i_"++show i)
-  atom (Pos i)        = CVar ("i_"++show i)
-  atom (Neg i)        = CVar ("i_"++show i)
+  atom (AbsInteger i) = CVar ('i':show i)
+  atom (Pos i)        = CVar ('k':show i)
+  atom (Neg i)        = CVar ('n':show i)
 
 freshInt :: Monad m => JatM m SignedIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
@@ -79,9 +79,9 @@ instance IntDomain SignedIntDomain where
 
 instance Pretty SignedIntDomain where
   pretty (Integer i)    = int i
-  pretty (AbsInteger i) = string "i"<> int i
-  pretty (Pos i)        = string "k"<> int i
-  pretty (Neg i)        = string "n"<> int i
+  pretty (AbsInteger i) = char 'i'<> int i
+  pretty (Pos i)        = char 'k'<> int i
+  pretty (Neg i)        = char 'n'<> int i
 
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation

@@ -21,7 +21,7 @@ data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq)
 
 instance Atom SimpleIntDomain where
   atom (Integer i)    = IConst i
-  atom (AbsInteger i) = CVar ("i_"++show i)
+  atom (AbsInteger i) = CVar ('i':show i)
 
 freshInt :: Monad m => JatM m SimpleIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
@@ -57,7 +57,7 @@ instance IntDomain SimpleIntDomain where
 
 instance Pretty SimpleIntDomain where
   pretty (Integer i)    = int i
-  pretty (AbsInteger i) = string "i_"<> int i
+  pretty (AbsInteger i) = char 'i' <> int i
 
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation

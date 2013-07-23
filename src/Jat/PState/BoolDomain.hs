@@ -27,7 +27,7 @@ data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq)
 
 instance Atom BoolDomain where
   atom (Boolean b)      = BConst b 
-  atom (AbstrBoolean i) = CVar ("b_"++show i)
+  atom (AbstrBoolean i) = CVar ('b':show i)
 
 instance AbstrDomain BoolDomain Bool where
   join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
@@ -93,5 +93,5 @@ ifFalse a@(AbstrBoolean _) = return $ Refinement [(Boolean False, con False), (B
 instance Pretty BoolDomain where
   pretty (Boolean True)   = text "TRUE"
   pretty (Boolean False)  = text "FALSE"
-  pretty (AbstrBoolean i) = string "b" <> int i
+  pretty (AbstrBoolean i) = char 'b' <> int i
 
