@@ -8,6 +8,7 @@ module Jat.PState.Fun
   , mkPutField
   , pState2TRS
 
+  , instruction
   , isTerminal
   , isSimilar
   {-, isBackJump-}
@@ -220,7 +221,7 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
   TRS.Fun (var "f" k)  `liftM` mapM tval (concatMap elemsF frms)
   where
     nullterm = TRS.Fun "null" []
-    var cn key = map toLower cn ++ '_':show key
+    var cn key = map toLower cn ++ show key
     
     tval Null        = return nullterm
     tval Unit        = return nullterm
@@ -246,7 +247,7 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
     taddrStar q r | isJoinable q r = do
                           key <- freshVarIdx
                           let cn = className $ lookupH r hp
-                          return . TRS.Var  $ var (showcn cn) key
+                          return . TRS.Var  $ var ('x':showcn cn) key
                   | otherwise = taddr' r
     showcn = show . pretty
 
@@ -254,6 +255,9 @@ pState2TRS _ _ _ (EState  ex) _ = return $ TRS.Fun (show ex) []
   
 
 
+-- | Returns current instruction.
+instruction :: P.Program -> PState i a -> P.Instruction
+instruction p (PState _ (Frame _ _ cn mn pc :_) _) = P.instruction p cn mn pc
 
 -- | Checks if current state is a terminal state, ie. a state with an empty
 -- frame list or an exceptional state.

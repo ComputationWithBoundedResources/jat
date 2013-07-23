@@ -43,11 +43,16 @@ import qualified Data.Text.Lazy as T
 --   then predecessor is defined by wrt. to the transivity relation
 -- finding a candidate reduces to (predc) topsort if we do not allow merging of nodes stemming from different back jump points
 
-data ELabel     = EvaluationLabel Constraint | InstanceLabel | RefinementLabel Constraint deriving Show
+data ELabel = 
+    EvaluationLabel Constraint P.Instruction
+  | InstanceLabel 
+  | RefinementLabel Constraint 
+  deriving Show
+
 instance Pretty ELabel where
-  pretty (EvaluationLabel fm) = pretty fm
-  pretty (RefinementLabel fm) = pretty fm
-  pretty l                    = text $ show l
+  pretty (EvaluationLabel fm ins) = pretty fm <> colon <> pretty ins
+  pretty (RefinementLabel fm)     = pretty fm
+  pretty l                        = text $ show l
 type NLabel i a = PState i a
 
 type JGraph i a   = Gr (NLabel i a) ELabel
@@ -84,6 +89,9 @@ mkStep g                                         = tryLoop g |>> mkEval g
 
 state' :: JContext i a -> PState i a
 state' = lab'
+
+instruction' :: P.Program -> JContext i a -> P.Instruction
+instruction' p = instruction p . state'
 
 isTerminal' :: JContext i a -> Bool
 isTerminal' (_,_,st,s) = null s && isTerminal st
@@ -172,10 +180,12 @@ dfsUntil f (v:vs) g             = case match v g of
 
 mkEval :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m (MkJGraph i a)
 mkEval mg@(MkJGraph _ (ctx:_)) = do
-  let st = state' ctx 
+  p <- getProgram
+  let st  = state' ctx
+      ins = instruction' p ctx
   step <- exec st
   case step of
-    Evaluation  e -> addNodes EvaluationLabel [e] mg
+    Evaluation  e -> addNodes (flip EvaluationLabel ins) [e] mg
     Refinement rs -> addNodes RefinementLabel rs mg
     Abstraction a -> addNodes (const InstanceLabel) [a] mg
 
@@ -242,7 +252,7 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
       where s = lookupN k
     rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') (mkCon con)
       where t = lookupN k'
-    rule p (k,k',EvaluationLabel con) = 
+    rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of
         Just q  -> ruleM (ts s k) (tsStar q t k') (mkCon con)
         Nothing -> ruleM (ts s k) (ts t k') (mkCon con)
