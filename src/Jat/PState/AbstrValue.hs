@@ -3,6 +3,7 @@ module Jat.PState.AbstrValue
   (
     Address
   , AbstrValue (..)
+  , typeOf
   , theAddress
   , abstract
   , defaultValue
@@ -26,6 +27,13 @@ data AbstrValue i =
   | Null
   | Unit
   deriving (Show,Eq)
+
+typeOf :: AbstrValue i -> Maybe P.Type
+typeOf (BoolVal _) = Just P.BoolType
+typeOf (IntVal _)  = Just P.IntType
+typeOf (RefVal _)  = Nothing
+typeOf Null        = Just P.NullType
+typeOf Unit        = Just P.Void
 
 -- | Returns the address of a 'RefVal'.
 -- Returns an error if its not an address.

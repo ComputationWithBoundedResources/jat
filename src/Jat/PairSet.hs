@@ -1,115 +1,137 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+
 module Jat.PairSet 
   (
-    PairSet
+    Pair
+  , unview
+  , view
+  , PairSet
 
   , map
+  , rename
+  , renameWithLookup
   , fold
   , filter
   , elems
   , fromList
 
+  , member
+  , notMember
   , empty
+  , singleton
   , insert
   , insert'
-  , inserts
-  , member
+  {-, inserts-}
   , delete
   , delete'
-  , deletes'
+  {-, deletes'-}
   , union
-  , restrict
-  , rename
+  , difference
+  , intersection
+  , isSubsetOf
+  {-, restrict-}
+  {-, rename-}
+  , pairsWith
   , closure
   )
 where
 
 
 import Prelude hiding (map,filter)
+import qualified Data.List as L (map)
 import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
 
-newtype Pair a = Pair (a,a) deriving (Eq,Ord)
+newtype PairSet e = Set (S.Set (e,e)) deriving (Eq,Ord)
 
-instance Show a => Show (Pair a) where
-  show (Pair(a,b)) = '<' :show a ++ ',' :show b ++ ">"
+class Ord e => Pair p e | p -> e where
+  unview :: p -> (e,e)
+  view   :: (e,e)  -> p
 
 order :: Ord a => (a,a) -> (a,a)
 order (a,b)
   | a <= b    = (a,b)
   | otherwise = (b,a)
 
-mkPair :: Ord a => (a,a) -> Pair a
-mkPair a = Pair $ order a
+mkPair :: Pair p e => p -> (e,e)
+mkPair = order . unview
 
-newtype PairSet a = Set (S.Set (Pair a)) deriving (Eq,Ord)
+-- only correct if f does not take ordering into account
+map :: Pair p e => (p -> p) -> PairSet e -> PairSet e
+map f (Set es) =  Set $ k `S.map` es
+  where k = unview . f . view
 
-instance Show a => Show (PairSet a) where
-  show (Set ps) = show ps
+fold :: Pair p e => (p -> b -> b) -> b -> PairSet e -> b
+fold f b (Set es) = S.fold (f . view) b es
 
-map :: (Ord a, Ord b) => (a -> b) -> PairSet a -> PairSet b
-map f (Set ps) = Set $ S.map k ps
-  where k (Pair (a,b)) = mkPair (f a, f b)
+filter :: Pair p e => (p -> Bool) -> PairSet e -> PairSet e
+filter f (Set es) = Set $ S.filter (f . view) es
 
-fold :: (a -> Pair b -> a) -> a -> PairSet b -> a
-fold f a (Set ps) = S.foldl f a ps
+rename :: Ord e => (e -> e) -> PairSet e -> PairSet e
+rename f (Set es) = Set $ k `S.map` es
+  where k (e1,e2) = order (f e1, f e2)
 
-filter :: Ord a => ((a,a) -> Bool) -> PairSet a -> PairSet a
-filter f (Set ps) = Set $ S.filter (\(Pair a)-> f a) ps
+renameWithLookup :: Ord e => (e -> Maybe e) -> PairSet e -> PairSet e
+renameWithLookup f (Set es) = Set $ k `S.map` es
+  where 
+    k (e1,e2) = order (g e1, g e2)
+    g e       = e `fromMaybe` f e
 
-empty :: PairSet a
-empty = Set S.empty 
+member :: Pair p e => p -> PairSet e -> Bool
+member p (Set es) = mkPair p `S.member` es
 
-fromList :: Ord a => [(a,a)] -> PairSet a
-fromList = Set . foldl (\s p -> mkPair p `S.insert` s) S.empty
+notMember :: Pair p e => p -> PairSet e -> Bool
+notMember p = not . member p
 
-elems :: PairSet a -> [(a,a)]
-elems (Set ps) = S.foldr (\(Pair p) -> (p:)) [] ps
+empty :: PairSet e
+empty = Set S.empty
 
-insert :: Ord a => (a,a) -> PairSet a -> PairSet a
-insert p (Set ps) = Set $ mkPair p `S.insert` ps
+singleton :: Pair p e => p -> PairSet e
+singleton = Set . S.singleton . mkPair
 
-insert' :: Ord a => a -> PairSet a -> PairSet a
-insert' a = insert (a,a)
+insert :: Pair p e => p -> PairSet e -> PairSet e
+insert p (Set es) = Set $ mkPair p `S.insert` es
 
-inserts :: Ord a => [(a,a)] -> PairSet a -> PairSet a
-inserts ns ps = foldl (flip insert) ps ns
+insert' :: Ord e => e -> PairSet e -> PairSet e
+insert' e (Set es) = Set $ (e,e) `S.insert` es
 
-union :: Ord a => PairSet a -> PairSet a -> PairSet a
-union (Set ps1) (Set ps2) = Set $ ps1 `S.union` ps2
+delete :: Pair p e => p -> PairSet e -> PairSet e
+delete p (Set es) = Set $ mkPair p `S.insert` es
 
-member :: Ord a => (a,a) -> PairSet a -> Bool
-member p (Set ps) = mkPair p `S.member` ps
+delete' :: Ord e => e -> PairSet e -> PairSet e
+delete' e (Set es) = Set $ S.filter k es
+  where k (e1,e2) = e /= e1 && e /= e2
 
-delete :: Ord a => (a,a) -> PairSet a -> PairSet a
-delete p (Set ps) = Set $ mkPair p `S.delete` ps
+union :: Ord e => PairSet e -> PairSet e -> PairSet e
+union (Set es1) (Set es2) = Set $ es1 `S.union` es2
 
-delete' :: Ord a => a -> PairSet a -> PairSet a
-delete' a (Set ps) = Set $ S.filter (\(Pair(b,c)) -> a /= b && a /= c) ps
+difference :: Ord e => PairSet e -> PairSet e -> PairSet e
+difference (Set es1) (Set es2) = Set $ es1 `S.difference` es2
 
-deletes' :: Ord a => [a] -> PairSet a -> PairSet a
-deletes' as ps = foldl (flip delete') ps as
+intersection :: Ord e => PairSet e -> PairSet e -> PairSet e
+intersection (Set es1) (Set es2) = Set $ es1 `S.intersection` es2
 
-pairsWith :: Ord a => a -> PairSet a -> [a]
-pairsWith a (Set ps) = S.elems . S.fromList $ S.foldl k [] ps
+isSubsetOf :: Ord e => PairSet e -> PairSet e -> Bool
+isSubsetOf (Set es1) (Set es2) = es1 `S.isSubsetOf` es2
+
+elems :: Pair p e => PairSet e -> [p]
+elems (Set es) = L.map view (S.elems es)
+
+fromList :: Pair p e => [p] -> PairSet e
+fromList = Set . S.fromList . L.map mkPair
+
+pairsWith :: Ord e => e -> PairSet e -> [e]
+pairsWith e (Set es) = S.elems . S.fromList $ S.foldl k [] es
   where
-    k as (Pair(c,d))
-      | a == c = d:as
-      | a == d = c:as
+    k as (c,d)
+      | e == c = d:as
+      | e == d = c:as
       | otherwise = as
 
-closure :: Ord a => [a] -> PairSet a -> PairSet a
+closure :: Ord e => [e] -> PairSet e -> PairSet e
 closure as ps = ps `union` closure'
   where 
     vs       = concatMap (`pairsWith` ps) as
-    closure' = Set $ S.fromList [ mkPair (v1,v2) | v1 <- vs, v2 <- vs]
-
-restrict :: Ord a => [a] -> PairSet a -> PairSet a
-restrict as (Set ps) = Set $ S.filter k ps
-  where k (Pair (b,c)) = b `elem` as || c `elem` as
-
-rename :: Ord a => [(a,a)] -> PairSet a -> PairSet a
-rename as ps = renameElem `map` ps
-  where renameElem b = b `fromMaybe` lookup b as
-
-
+    closure' = Set $ S.fromList [ order (v1,v2) | v1 <- vs, v2 <- vs]
 

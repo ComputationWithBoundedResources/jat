@@ -25,9 +25,9 @@ module Jat.PState.Fun
   , rcommonPrefix
   , rmaxPrefix
 
-  , Var (..)
-  , valueFS
-  , reachableFS
+  , valueV
+  , typeV
+  , reachableV
   )
 where
 
@@ -50,6 +50,7 @@ import Data.Char (toLower)
 import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
+import Data.Maybe (fromJust)
 --import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
@@ -371,16 +372,20 @@ rmaxPrefix path@(RPath r rls) pths =
       | otherwise    = findFirst ls lss
     findFirst [] _ = []
 
-data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq, Ord)
-
 -- | Returns the value from a given Frame index.
-valueFS :: Var -> PState i a -> AbstrValue i
-valueFS (StkVar i j) (PState _ frms _) = (reverse . opstk)  (frms !! i) !! j
-valueFS (LocVar i j) (PState _ frms _) = locals (frms !! i) !! j
+valueV :: Var -> PState i a -> AbstrValue i
+valueV (StkVar i j) (PState _ frms _) = (reverse . opstk)  (frms !! i) !! j
+valueV (LocVar i j) (PState _ frms _) = locals (frms !! i) !! j
+
+-- | Returns the type from a given Frame index.
+typeV :: Var -> PState i a -> P.Type
+typeV v st@(PState hp _ _) = case valueV v st of
+  RefVal q -> P.RefType . className $ lookupH q hp
+  w        -> fromJust $ typeOf w
  
 -- | Computes reachable Addresses from a given a Frame index.
-reachableFS :: Var -> PState i a -> [Address]
-reachableFS var st = case valueFS var st of
+reachableV :: Var -> PState i a -> [Address]
+reachableV var st = case valueV var st of
   RefVal r -> reachable r (heap st)
   _        -> []
-      
+     

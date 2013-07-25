@@ -39,8 +39,9 @@ exec (PState _ [] _) = error "Jat.PState.Semantics.exec: empty stk."
 exec (EState _)      = error "Jat.PState.Semantics.exec: exceptional state."
 
 execInstruction :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.Instruction -> JatM m (PStep (PState i a))
-execInstruction st@(PState{}) ins = 
-  liftPStep (update ins) `liftM` case ins of
+execInstruction st@(PState{}) ins = do
+  p <- getProgram
+  step <- case ins of
     -- frame operations
     P.Push v         -> execPush v    `applyF` st
     P.Pop            -> execPop       `applyF` st
@@ -64,6 +65,9 @@ execInstruction st@(PState{}) ins =
     P.New cn         -> execNew st cn 
     P.GetField fn cn -> execGetField st cn fn
     P.PutField fn cn -> execPutField st cn fn
+  return $ case step of
+    Evaluation (st2,con) -> Evaluation (update p ins st2, con)
+    s                    -> s
 execInstruction (EState _) _ = error "Jat.PState.Semantics.exec: exceptional state."
 
 

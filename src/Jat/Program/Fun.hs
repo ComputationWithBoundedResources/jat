@@ -131,9 +131,25 @@ successors _           pc = [pc+1]
 hasFields :: Program -> ClassId -> [(FieldId, ClassId, Type)]
 hasFields p = hasFieldz . theClass p
 
-field :: Program -> ClassId -> FieldId -> Maybe (ClassId, Type)
-field p cn fn = lookup fn $ map (\(f,c,t) -> (f,(c,t))) fields
-  where fields = hasFields p cn
+theField :: Program -> ClassId -> FieldId -> Field
+theField p cn fn = errmsg `fromMaybe` M.lookup fn fp
+  where 
+    fp = fieldPool $ theClass p cn
+    errmsg = error "Jat.Program.Fun.theField: unexpected field query." 
+
+field :: Program -> ClassId -> FieldId -> (FieldId, Type)
+field p cn fn = (fn, fieldType $ theField p cn fn)
+
+{-field :: Program -> ClassId -> FieldId -> (FieldId, Type)-}
+{-field p cn fn = errmsg `fromMaybe` (fld >>=  (fn, fieldType fld))-}
+  {-where -}
+    {-fld    = M.lookup fn (fieldPool $ theClass p cn)-}
+    {-errmsg = "Jat.Program.Fun.field: unexpected field query"-}
+
+{-field :: Program -> ClassId -> FieldId -> Maybe (ClassId, Type)-}
+{-field p cn fn = lookup fn $ map (\(f,c,t) -> (f,(c,t))) fields-}
+  {-where fields = hasFields p cn-}
+
 -- | Extracts the least common super class.
 theLeastCommonSupClass :: Program -> ClassId -> ClassId -> ClassId
 theLeastCommonSupClass p cn cn' = errmsg `fromMaybe` leastCommonSupClass p cn cn'

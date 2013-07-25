@@ -21,8 +21,6 @@ import Jat.Utils.Pretty
 import qualified Jat.Program as P
 
 import Data.Rewriting.Rule (Rule (..))
-import Data.Rewriting.Term as TR hiding (map)
-import qualified Data.Rewriting.Term as TR
 
 import Control.Monad.State hiding (join)
 import Data.Graph.Inductive as Gr
@@ -284,7 +282,7 @@ data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
 -- computation graph.
 mkJGraphIO :: (IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM IO (MkJGraph i a)
 mkJGraphIO cn mn = do
-  liftIO $ putStrLn ":> enter command: (help to see the list of commands)"
+  liftIO $ putStrLn ":> enter command: (Help to see the list of commands)"
   mkInitialNode cn mn >>= mkJGraphPrompt
 
 mkJGraphPrompt :: (IntDomain i, MemoryModel a) => MkJGraph i a -> JatM IO (MkJGraph i a)

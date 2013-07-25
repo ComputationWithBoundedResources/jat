@@ -231,7 +231,7 @@ instance Pretty Instruction where
   pretty (GetField fn cn) = text "GetField" <+> pretty fn <+> pretty cn
   pretty (PutField fn cn) = text "PutField" <+> pretty fn <+> pretty cn
   pretty (CheckCast cn)   = text "CheckCast" <+> pretty cn
-  pretty (Invoke mn i)    = text "GetField" <+> pretty mn <+> int i
+  pretty (Invoke mn i)    = text "Invoke" <+> pretty mn <+> int i
   pretty Return           = text "Return"
   pretty Pop              = text "Pop"
   pretty IAdd             = text "IAdd"

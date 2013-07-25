@@ -3,6 +3,8 @@ module Jat.PState.Data
   (
     PState (..)
   , PException (..)
+  , Var (..)
+
   , frames
   , frame
   , heap 
@@ -25,6 +27,15 @@ data PState i a  =
   | EState PException 
 -- | The program exception.
 data PException  = NullPointerException deriving Show
+
+data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq, Ord)
+
+instance Pretty Var where
+  pretty (LocVar i j) = int i <> char 'l' <> int j
+  pretty (StkVar i j) = int i <> char 's'   <> int j
+
+instance Show Var where
+  show v = show $ pretty v
 
 
 -- | Returns the list of frames.
