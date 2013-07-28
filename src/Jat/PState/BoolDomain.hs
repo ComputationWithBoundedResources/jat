@@ -23,7 +23,7 @@ import Jat.Utils.Pretty
 -- | 'BoolDomain' defines a simple domain with no refinements but constraints
 -- ie. if a (concrete value) can not be inferred by an operation, the operation
 -- returns a (constrained) abstract Boolean.
-data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq)
+data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq,Ord)
 
 instance Atom BoolDomain where
   atom (Boolean b)      = BConst b 

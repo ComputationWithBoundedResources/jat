@@ -29,6 +29,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad.State
+import Control.Monad (liftM)
 import Data.List (find)
 
 import Debug.Trace
@@ -510,73 +511,75 @@ initMemSH cn mn = do
       P.RefType cn' ->                  return (hp',params++[RefVal r])
         where (r, hp') = insertHA (AbsVar cn') hp
 
-newtype M = M {  
-    unMorph      :: M.Map Address Address
+newtype M i = M {  
+    unMorph      :: M.Map (AbstrValue i) (AbstrValue i)
   }
-type Morph = State M
+type Morph i = State (M i)
 
-emptyMorph :: M
+emptyMorph :: M i
 emptyMorph = M{unMorph=M.empty}
 
 {-withMorph :: (M.Map Address Address -> M.Map Address Address) -> Morph a -> Morph a-}
 {-withMorph f = withState (\x -> x{unMorph=f(unMorph x)})-}
 
-modifyMorph :: (M.Map Address Address -> M.Map Address Address) -> Morph ()
+modifyMorph :: (M.Map (AbstrValue i) (AbstrValue i) -> M.Map (AbstrValue i) (AbstrValue i)) -> Morph i ()
 modifyMorph f = modify $ \x -> x{unMorph=f(unMorph x)}
 
-leqSh1 :: (Address -> Maybe Address) -> Sharing -> Sharing -> Bool
+leqSh1 :: (AbstrValue i -> Maybe (AbstrValue i)) -> Sharing -> Sharing -> Bool
 leqSh1 lookup' (Sh i1 j1 ns1 ms1 ts1) (Sh i2 j2 ns2 ms2 ts2) | i1 == i2 && j1 == j2 =
   ns2' `PS.isSubsetOf` ns1 && 
   ms1  `PS.isSubsetOf` ms2 && 
   ts2  `S.isSubsetOf`  ts1
   where
     ns2' = PS.fold k PS.empty ns2
-    k (q:/=:r) = case (lookup' q, lookup' r) of
-      (Just q', Just r') -> PS.insert (q':/=:r') 
+    k (q:/=:r) = case (lookup' (RefVal q), lookup' (RefVal r)) of
+      (Just (RefVal q'), Just (RefVal r')) -> PS.insert (q':/=:r') 
       _                  -> id
 leqSh1 _ (Sh i1 j1 _ _ _) (Sh i2 j2 _ _ _) = error $ "leqSh1" ++ show (i1,j1,i2,j2)
     
 
+-- leqSH tries to find a mapping from addresses/variables to values, performing a 'parallel' preorder traversal, respecting the instance relation
+-- difference to definition 5.4:
+-- all null values have distinct implicit references in 5.4
+-- nevertheless it's fine if (references of) class variables are mapped to multiple null values
+-- ie t(cn_1,cn_1) [c_1 -> null] = t(null,null) as desired
 leqSH :: IntDomain i => P.Program -> Sh i -> Sh i -> Bool
 leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
   let (leqFrms,morph) = runState runFrms emptyMorph in
   let b1 = leqFrms
       b2 = leqSh1 (flip M.lookup $ unMorph morph) sh1 sh2
-  {-in trace ("leq" ++ show (pcounter $ head frms1,b1,b2)) b1 && b2-}
   in b1 && b2
   where
-    {-runFrms = and `liftM` zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)-}
-    runFrms = do
-      bs <- zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)
-      return $ and bs
-      {-return $ trace (show bs) and bs-}
+    runFrms = and `liftM` zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)
 
-    leqValM :: IntDomain i => AbstrValue i -> AbstrValue i -> Morph Bool
-    {-leqValM v1 v2 | trace (show (v1,v2)) False = undefined-}
-    leqValM (RefVal q) (RefVal r)  = do
-      mapping <- gets unMorph
-      -- mapping from st2 to st1
-      case M.lookup r mapping of
-        Just q' -> return $ q==q'
-        Nothing -> do
-          modifyMorph (M.insert r q)
-          leqObjM (lookupH q hp1) (lookupH r hp2)
-
-    leqValM (BoolVal a) (BoolVal b) = return $ a `AD.leq` b
-    leqValM (IntVal i)  (IntVal j)  = return $ i `AD.leq` j
+    {-leqValM :: AbstrValue i -> AbstrValue i -> Morph i Bool-}
     leqValM Unit _                  = return True
     leqValM Null Null               = return True
-    leqValM Null (RefVal r)
-      | not (isInstance (lookupH r hp2)) = return True
-    leqValM _ _                     = return False
+    leqValM (BoolVal a) (BoolVal b) | isConstant b = return $ a == b
+    leqValM (IntVal i)  (IntVal j)  | isConstant j = return $ i == j
 
-    leqObjM :: IntDomain i => Object i -> Object i -> Morph Bool
+    leqValM Null v2@(RefVal r)
+      | not (isInstance (lookupH r hp2)) = fromMaybe True `liftM` validMapping v2 Null
+    leqValM v1@(RefVal q) v2@(RefVal r)  =
+      liftM2 fromMaybe (leqObjM (lookupH q hp1) (lookupH r hp2)) (validMapping v2 v1)
+    leqValM v1@(BoolVal a) v2@(BoolVal b) = fromMaybe (a `AD.leq` b) `liftM` validMapping v2 v1
+    leqValM v1@(IntVal i)  v2@(IntVal j)  = fromMaybe (i `AD.leq` j) `liftM` validMapping v2 v1
+    leqValM _ _                           = return False
+
+    {-validMapping :: AbstrValue i -> AbstrValue i -> Morph i (Maybe Bool)-}
+    validMapping v2 v1 = do
+      mapping <- gets unMorph
+      case M.lookup v2 mapping of
+        Just v1'-> return $ Just (v1 == v1')
+        Nothing -> modifyMorph (M.insert v2 v1) >> return Nothing
+
+    {-leqObjM :: Object i -> Object i -> Morph i Bool-}
     leqObjM (Instance cn ft) (Instance cn' ft') = (cn == cn' &&) `liftM`  leqFtM ft ft'
     leqObjM (Instance cn _) (AbsVar cn')        = return $ P.isSuber p cn cn'
     leqObjM (AbsVar cn) (AbsVar cn')            = return $ P.isSuber p cn cn'
     leqObjM _ _                                 = return False
 
-    leqFtM :: IntDomain i => FieldTable i -> FieldTable i -> Morph Bool
+    {-leqFtM :: FieldTable i -> FieldTable i -> Morph i Bool-}
     leqFtM ft ft' = and `liftM` zipWithM leqValM (elemsFT ft) (elemsFT ft')
 
 -- Todo: take correlation into account

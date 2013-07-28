@@ -13,7 +13,7 @@ import Jat.Utils.Pretty
 
 
 -- | Provides the interface for int operations.
-class (Eq a, Pretty a, AbstrDomain a Int) => IntDomain a where
+class (Eq a, Ord a, Pretty a, AbstrDomain a Int) => IntDomain a where
   (+.)  :: Monad m => a -> a -> JatM m (Step a a)
   (-.)  :: Monad m => a -> a -> JatM m (Step a a)
 

@@ -26,7 +26,7 @@ data AbstrValue i =
   | RefVal Address
   | Null
   | Unit
-  deriving (Show,Eq)
+  deriving (Show,Eq,Ord)
 
 typeOf :: AbstrValue i -> Maybe P.Type
 typeOf (BoolVal _) = Just P.BoolType

@@ -17,7 +17,7 @@ import Jat.Constraints hiding (top)
 import Jat.Utils.Pretty
 
 -- |'SimpleIntDomain' defines a simple integer domain with no refinements but constraints.
-data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq)
+data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq,Ord)
 
 instance Atom SimpleIntDomain where
   atom (Integer i)    = IConst i

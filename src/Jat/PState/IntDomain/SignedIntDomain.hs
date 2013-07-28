@@ -18,7 +18,7 @@ import Jat.Utils.Pretty
 
 -- |'SignedIntDomain' defines a signed integer domain. 
 -- 0 is element of Pos and Neg.
-data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving (Show,Eq)
+data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving (Show,Eq,Ord)
 
 instance Atom SignedIntDomain where
   atom (Integer i)    = IConst i
