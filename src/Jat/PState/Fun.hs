@@ -51,7 +51,8 @@ import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
---import Debug.Trace
+
+import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
@@ -374,8 +375,15 @@ rmaxPrefix path@(RPath r rls) pths =
 
 -- | Returns the value from a given Frame index.
 valueV :: Var -> PState i a -> AbstrValue i
-valueV (StkVar i j) (PState _ frms _) = (reverse . opstk)  (frms !! i) !! j
-valueV (LocVar i j) (PState _ frms _) = locals (frms !! i) !! j
+valueV  v st | trace ("valueV" ++ show v) False = undefined
+valueV (StkVar i j) (PState _ frms _) = (reverse . opstk)  (reverse frms !! i) !! j
+valueV (LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
+{-valueV (LocVar i j) (PState _ frms _) = case lookup i $ zip [0..] frms of-}
+  {-Nothing -> error $ "frms" ++ show (i, length frms)-}
+  {-Just frm -> case lookup j $ zip [0..] (locals frm) of-}
+    {-Nothing -> error $ "locals" ++ show (j,length (locals frm))-}
+    {-Just v -> v-}
+
 
 -- | Returns the type from a given Frame index.
 typeV :: Var -> PState i a -> P.Type

@@ -73,12 +73,13 @@ run opts p cn mn =
       res <- E.try evaluationM :: IO (Either E.SomeException String)
       return (cn,mn, res)
     else do
-    {-let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)-}
-    let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing)
+    let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)
+    {-let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing)-}
         evalM = case format opts of
           DOT  -> (dot2String . mkJGraph2Dot) `liftM` gM
           TRS  -> (display . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)
           ITRS -> (display . prettyITRS . toITRS) `liftM` (gM >>= mkJGraph2TRS)
+          PRG  -> return (display $ pretty p)
     --let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
         evaluationM = do
           evaluation2 <- T.timeout timeout' $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))

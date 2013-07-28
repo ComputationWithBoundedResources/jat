@@ -60,14 +60,27 @@ instance AbstrDomain SignedIntDomain Int where
   isConstant (Integer _) = True
   isConstant _           = False
 
+isPositive :: SignedIntDomain -> Bool
+isPositive (Integer i) = i >= 0
+isPositive (Pos _)     = True
+isPositive _           = False
+
+isNegative :: SignedIntDomain -> Bool
+isNegative (Integer i) = i <= 0
+isNegative (Neg _)     = True
+isNegative _           = False
+
 instance IntDomain SignedIntDomain where
   Integer i +. Integer j = eval $ Integer (i+j)
-  i@(Pos _) +. j@(Pos _) = evali Pos i j Add
-  i@(Neg _) +. j@(Neg _) = evali Neg i j Add
-  i +. j                 = evali AbsInteger i j Add
+  i +. j 
+    | isPositive i && isPositive j = evali Pos i j Add
+    | isNegative i && isNegative j = evali Neg i j Add
+    | otherwise                    = evali AbsInteger i j Add
   Integer i -. Integer j = eval $ Integer (i-j)
-  i@(Neg _) -. j@(Pos _) = evali Neg i j Sub
-  i -. j                 = evali AbsInteger i j Sub
+  i -. j 
+    | isNegative i && isPositive j = evali Neg i j Sub
+    | isPositive i && isNegative j = evali Pos i j Sub
+    | otherwise                    = evali AbsInteger i j Sub
 
   Integer i ==. Integer j = eval $ Boolean (i == j)
   i ==. j                 = evalb i j Eq

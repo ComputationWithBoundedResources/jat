@@ -15,7 +15,7 @@ import System.Exit
 import System.IO
 
 -- | A computation graph can be returned as Dot graph or as TRSs.
-data Format = DOT | TRS | ITRS deriving (Show,Read)
+data Format = DOT | TRS | ITRS | P | PRG deriving (Show,Read)
 
 -- | The options for the arguments.
 data Options = Options {
@@ -50,7 +50,7 @@ options = [
       (ReqArg (\arg opt -> return opt {output = writeFile arg}) "FILE")  
       "output file"
   , Option "f" ["format"]
-      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS")
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|PRG")
       "output format"
   , Option "t" ["timeout"]
       (ReqArg (\arg opt -> return opt {timeout = 10000000 * (read arg :: Int)}) "sec")

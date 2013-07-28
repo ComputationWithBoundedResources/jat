@@ -146,6 +146,7 @@ tyOf :: Sh i -> Address -> P.Type
 tyOf st q = P.RefType . className $ lookupH q (heap st)
 
 maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
+maybeShares p st q r | trace ("maybeShares " ++ show (q,r)) False = undefined
 maybeShares p st q r = 
   P.areSharingTypes p (tyOf st q) (tyOf st r) && 
   maybeSharesSh st q r
@@ -167,6 +168,7 @@ treeShapedSh st q = any k (treeShs' $ sharing st)
   where k (TS x) = q `elem` reachableV x st
 
 treeShaped :: P.Program -> Sh i -> Address -> Bool
+treeShaped p st q | trace ("treeShaped " ++ show q) False = undefined
 treeShaped p st q = 
   treeShapedSh st q ||
   P.isTreeShapedType p (tyOf st q)
@@ -241,7 +243,7 @@ locSh (Sh i _ _ _ _) = LocVar i
 updateSH :: P.Program -> P.Instruction -> Sh i -> Sh i
 updateSH p ins st = updateSh' `liftSh` st
   where
-    updateSh' (Sh i j _ _ _) | trace (show (i,j,ins)) False = undefined
+    {-updateSh' (Sh i j _ _ _) | trace (show (i,j,ins)) False = undefined-}
     updateSh' sh = case ins of
       P.Push _         -> putTS sh
       P.Pop            -> purgeSh sh
@@ -279,10 +281,10 @@ returnSh (PState _ (frm1:_) (Sh i _ ns ms ts)) =
 returnSh (PState _ [] _) = emptySh 0 0
 
 invokeSh :: Int -> Sh i -> Sharing
-invokeSh n (PState _ _ (Sh i j ns ms ts)) = let t = (renameMS $ renameTS sh1) in trace (show t) t 
+invokeSh n (PState _ _ (Sh i j ns ms ts)) = renameMS $ renameTS sh1
   where
     sh1 = Sh (i+1) (-1) ns ms ts
-    renamer v = v `fromMaybe` lookup v ( let t = (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [n,n-1..0]]) in trace (show (j,n,t)) t )
+    renamer v = v `fromMaybe` lookup v (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [n,n-1..0]])
     renameMS = (PS.rename renamer `liftMS`)
     renamerTS v = v `fromMaybe` lookup v (zip [ TS (StkVar i k) | k <- [j,j-1..]] [ TS (LocVar (i+1) k) | k <- [n,n-1..0]])
     renameTS = (S.map renamerTS `liftTS`)
@@ -540,12 +542,14 @@ leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
   let (leqFrms,morph) = runState runFrms emptyMorph in
   let b1 = leqFrms
       b2 = leqSh1 (flip M.lookup $ unMorph morph) sh1 sh2
-  in trace ("leq" ++ show (pcounter $ head frms1,b1,b2)) b1 && b2
+  {-in trace ("leq" ++ show (pcounter $ head frms1,b1,b2)) b1 && b2-}
+  in b1 && b2
   where
     {-runFrms = and `liftM` zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)-}
     runFrms = do
       bs <- zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)
-      return $ trace (show bs) and bs
+      return $ and bs
+      {-return $ trace (show bs) and bs-}
 
     leqValM :: IntDomain i => AbstrValue i -> AbstrValue i -> Morph Bool
     {-leqValM v1 v2 | trace (show (v1,v2)) False = undefined-}
@@ -597,6 +601,7 @@ joinSH st1@(PState _ _ sh1@(Sh i j _ _ _)) st2@(PState _ _ sh2) = do
 {-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
 
 state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Int -> JatM m (TRS.Term String String)
+state2TRSSH m st@PState{} n | trace ("2TRS " ++ show n) False = undefined
 state2TRSSH m st@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st) m st n
   where
     isSpecial p adr = not (treeShaped p st adr)

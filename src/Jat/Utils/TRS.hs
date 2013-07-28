@@ -51,11 +51,11 @@ prettyITRS rules =
   <$> footer
   where
     prettyR (Rule l r) = hang 2 $ prettyT l <+> text "->" </> prettyT r
-    prettyT (Fun "$not" [t])     = char '!' <> prettyT t
+    prettyT (Fun "$not" [t])     = char '!' <+> prettyT t
     prettyT (Fun "$and" [t1,t2]) = prettyT t1 <+> text "&&" <+> prettyT t2
     prettyT (Fun "$or"  [t1,t2]) = prettyT t1 <+> text "||" <+> prettyT t2
     prettyT (Fun "$eq"  [t1,t2]) = prettyT t1 <+> text "=" <+> prettyT t2
-    prettyT (Fun "$neq" [t1,t2]) = char '!' <> lparen <> prettyT t1 <+> text "=" <+> prettyT t2 <> rparen
+    prettyT (Fun "$neq" [t1,t2]) = prettyT t1 <+> text "!=" <+> prettyT t2
     prettyT (Fun "$gte" [t1,t2]) = prettyT t1 <+> text ">=" <+> prettyT t2
     prettyT (Fun "$add" [t1,t2]) = prettyT t1 <+> text "+" <+> prettyT t2
     prettyT (Fun "$sub" [t1,t2]) = prettyT t1 <+> text "-" <+> prettyT t2
@@ -66,13 +66,13 @@ prettyITRS rules =
       
 toITRS :: [(Rule String String, Maybe Constraint)] -> [Rule String String]
 {-toITRS rules = let r = map mapRule rules in trace (show . prettyTRS $ zip r (cycle [Nothing])) r-}
-toITRS rules = map mapRule rules
+toITRS = map mapRule
   where
     mapRule (Rule{lhs=l,rhs=r},Just c)  = Rule (mapTerm l c) (mapTerm r c)
     mapRule (r,_)                       = r
     mapTerm t c                         = fold (assignment c) Fun t
 
-    assignment c v | trace (show (c,v)) False = undefined
+    {-assignment c v | trace (show (c,v)) False = undefined-}
     assignment (Ass (CVar v1) c) v2 
       | v1 == v2  = trace (show (v1,v2,v1==v2)) $ op c
       | otherwise = trace "NOP" $ Var v2
