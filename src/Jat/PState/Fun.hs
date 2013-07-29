@@ -375,7 +375,7 @@ rmaxPrefix path@(RPath r rls) pths =
 
 -- | Returns the value from a given Frame index.
 valueV :: Var -> PState i a -> AbstrValue i
-valueV  v st | trace ("valueV" ++ show v) False = undefined
+{-valueV  v st | trace ("valueV" ++ show v) False = undefined-}
 valueV (StkVar i j) (PState _ frms _) = (reverse . opstk)  (reverse frms !! i) !! j
 valueV (LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
 {-valueV (LocVar i j) (PState _ frms _) = case lookup i $ zip [0..] frms of-}

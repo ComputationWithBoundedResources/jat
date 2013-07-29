@@ -26,7 +26,7 @@ data PState i a  =
     PState (Heap i) [Frame i] a
   | EState PException 
 -- | The program exception.
-data PException  = NullPointerException deriving Show
+data PException  = NullPointerException | IllegalStateException deriving Show
 
 data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq, Ord)
 

@@ -41,6 +41,8 @@ import qualified Data.Array as A
 import qualified Data.Map as M
 import qualified Data.Set as S
 
+import Debug.Trace
+
 -- | Parses and initializes a 'Program'.
 parseProgram :: String -> Program
 parseProgram = initP . fromString
@@ -198,10 +200,15 @@ isCyclicalType p (RefType cn) = cn `elem` properReachableClasses p cn
 isCyclicalType _ _            = False
 
 isTreeShapedType :: Program -> Type -> Bool
+isTreeShapedType p ty | trace ("isTreeShaped" ++ show ty) False = undefined
 isTreeShapedType p ty | isCyclicalType p ty = False
-isTreeShapedType p (RefType cn) = isTreeShaped' cn
+isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]
   where
-    isTreeShaped' cn' = treeShaped cn' && all isTreeShaped' (clazzes cn')
+    isTreeShaped' _ [] = True
+    isTreeShaped' visited (cn':cns) | cn' `S.member` visited = isTreeShaped' visited cns
+    isTreeShaped' visited (cn':cns) = treeShaped cn' && isTreeShaped' visited' (clazzes cn' ++ cns)
+      where visited' = cn' `S.insert` visited
+
     clazzes cn'       = subClassesOf p cn' ++ hasRefFields cn'
     hasRefFields cn'  = [ tp | (_,_,RefType tp) <- hasFields p cn']
     treeShaped cn'    = case reaches of
