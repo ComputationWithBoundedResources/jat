@@ -29,10 +29,9 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad.State
-import Control.Monad (liftM)
 import Data.List (find)
 
-import Debug.Trace
+--import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.Sharing"
@@ -78,7 +77,7 @@ instance Show Sharing where show = show . pretty
 
 liftSh :: (Sharing -> Sharing) -> Sh i -> Sh i
 liftSh f (PState hp frms sh) = PState hp frms (f sh)
-liftSh f st                  = st
+liftSh _ st                  = st
 
 nShares :: Sharing -> NShares
 nShares (Sh _ _ ns _ _) = ns
@@ -147,14 +146,13 @@ tyOf :: Sh i -> Address -> P.Type
 tyOf st q = P.RefType . className $ lookupH q (heap st)
 
 maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeShares p st q r | trace ("maybeShares " ++ show (q,r)) False = undefined
 maybeShares p st q r = 
-  let b = P.areSharingTypes p (tyOf st q) (tyOf st r) && maybeSharesSh st q r in trace (show b) b
+  P.areSharingTypes p (tyOf st q) (tyOf st r) && 
+  maybeSharesSh st q r
 
 -- ? more exact if we require that (x:><:y) share if x reaches q and y reaches w
 -- provide a reversed hp, ie return indices from given address
 maybeSharesSh :: Sh i -> Address -> Address -> Bool
-maybeSharesSh st q r | trace ("maybeShares " ++ show (q,r)) False = undefined
 maybeSharesSh st q r = any pairShares (mShares' $ sharing st)
   where
     pairShares (x:><:y) =
@@ -169,19 +167,16 @@ treeShapedSh st q = any k (treeShs' $ sharing st)
   where k (TS x) = q `elem` reachableV x st
 
 treeShaped :: P.Program -> Sh i -> Address -> Bool
-treeShaped p st q | trace ("treeShaped " ++ show q) False = undefined
 treeShaped p st q = 
   treeShapedSh st q ||
   P.isTreeShapedType p (tyOf st q)
 
 isValidStateTS :: Sh i -> Bool
-isValidStateTS (PState _ _ (Sh i j _ _ _)) | trace ("isValidTS" ++ show (i,j)) False = undefined
-isValidStateTS st@(PState hp _ sh) = let b = not $ any (treeShapedSh st) nonts in trace ("validTS " ++ show (nonts,b)) b
-  where nonts = (\r -> isNotTreeShaped r hp) `filter` addresses hp
+isValidStateTS st@(PState hp _ _) = not $ any (treeShapedSh st) nonts
+  where nonts = (`isNotTreeShaped` hp) `filter` addresses hp
 isValidStateTS _ = True
 
 maybeSharesV :: P.Program -> Sh i -> Var -> Var -> Bool
-maybeSharesV p st x y | trace ("maybeSharesV" ++ show (x,y)) False = undefined
 maybeSharesV p st x y =
   P.areSharingTypes p (typeV x st) (typeV y st) &&
   PS.member (x:><:y) `liftMS'` sharing st
@@ -249,7 +244,6 @@ locSh :: Sharing -> Int -> Var
 locSh (Sh i _ _ _ _) = LocVar i
 
 updateSH :: P.Program -> P.Instruction -> Sh i -> Sh i
-updateSH p ins st | trace ("updateSH" ++ show ins) False = undefined
 updateSH p ins st = updateSh' `liftSh` st
   where
     {-updateSh' (Sh i j _ _ _) | trace (show (i,j,ins)) False = undefined-}
@@ -349,7 +343,6 @@ newSH (PState hp (Frame loc stk cn mn pc :frms) sh) newcn = do
 newSH _ _ = merror ".new: unexpected case."
 
 getFieldSH :: (Monad m, IntDomain i) => Sh i -> P.ClassId -> P.FieldId -> JatM m (PStep(Sh i))
-{-getFieldSH _  cn _  | trace (show cn) False = undefined-}
 getFieldSH st cn fn = case opstk $ frame st of
   Null :_         -> return $ topEvaluation (EState NullPointerException)
   RefVal adr : _  -> tryInstanceRefinement st adr |>> return (mkGetField st cn fn)
@@ -357,7 +350,6 @@ getFieldSH st cn fn = case opstk $ frame st of
 
 
 putFieldSH :: (Monad m, IntDomain i) => Sh i -> P.ClassId -> P.FieldId -> JatM m (PStep(Sh i))
-putFieldSH st cn fn | trace ("putField " ++ show (cn,fn)) False = undefined
 putFieldSH st@PState{} cn fn = case opstk $ frame st of
   _ : Null       : _ -> return $ topEvaluation (EState NullPointerException)
   _ : RefVal adr : _ -> tryInstanceRefinement st adr
@@ -377,7 +369,6 @@ putFieldSH st@PState{} cn fn = case opstk $ frame st of
 
 
 putFieldSh :: P.Program -> P.ClassId -> P.FieldId -> Sh i -> Sharing
-putFieldSh p cn fn st | trace ("putFieldSh" ++ show (cn,fn)) False = undefined
 putFieldSh p cn fn st = case sharing st of
   Sh i j ns _ _ -> purgeSh . purgeSh $ Sh i j ns ms ts
   where
@@ -446,7 +437,6 @@ instanceRefinement p st@(PState hp frms sh) adr = do
     substituteSh st1 = liftNS (PS.delete' adr) `liftSh` substitute (RefVal adr) Null st1
 
 tryEqualityRefinement :: (Monad m, IntDomain i) => Sh i -> Address -> JatM m (Maybe(PStep(Sh i)))
-tryEqualityRefinement st q | trace ("tryEquality: " ++ show q) False = undefined
 tryEqualityRefinement st@(PState hp _ _) q = do
   p <- getProgram
   case find (maybeEqual p st q) (addresses hp) of
@@ -455,13 +445,12 @@ tryEqualityRefinement st@(PState hp _ _) q = do
 
 -- rename also TreeShaped q
 equalityRefinement :: (Monad m, IntDomain i) => Sh i -> Address -> Address -> JatM m (PStep(Sh i))
-equalityRefinement st q r | trace ("doEquality: " ++ show (r,q)) False = undefined
 equalityRefinement st@(PState hp frms sh) q r = do
   p <- getProgram
   return . topRefinement $ if isValidStateTS mkEqual && leqSH p mkEqual st then [mkEqual, mkNequal] else [mkNequal]
   where
-    mkEqual  = trace "mkEqual" $ liftNS (PS.renameWithLookup (`lookup` [(r,q)]))`liftSh` substitute (RefVal r) (RefVal q) st
-    mkNequal = trace "mkNequal" $ PState hp frms (PS.insert (r:/=:q) `liftNS` sh)
+    mkEqual  = liftNS (PS.renameWithLookup (`lookup` [(r,q)]))`liftSh` substitute (RefVal r) (RefVal q) st
+    mkNequal = PState hp frms (PS.insert (r:/=:q) `liftNS` sh)
 
 maybeEqual :: IntDomain i => P.Program -> Sh i -> Address -> Address -> Bool
 maybeEqual p st q r = 
@@ -542,7 +531,6 @@ modifyMorph :: (M.Map (AbstrValue i) (AbstrValue i) -> M.Map (AbstrValue i) (Abs
 modifyMorph f = modify $ \x -> x{unMorph=f(unMorph x)}
 
 leqSh1 :: (AbstrValue i -> Maybe (AbstrValue i)) -> Sharing -> Sharing -> Bool
-leqSh1 _ (Sh i1 j1 _ _ _) _ | trace ("leqSh1" ++ show (i1,j1)) False = undefined
 leqSh1 lookup' (Sh i1 j1 ns1 ms1 ts1) (Sh i2 j2 ns2 ms2 ts2) | i1 == i2 && j1 == j2 =
   ns2' `PS.isSubsetOf` ns1 && 
   ms1  `PS.isSubsetOf` ms2 && 
@@ -561,12 +549,11 @@ leqSh1 _ (Sh i1 j1 _ _ _) (Sh i2 j2 _ _ _) = error $ "leqSh1" ++ show (i1,j1,i2,
 -- nevertheless it's fine if (references of) class variables are mapped to multiple null values
 -- ie t(cn_1,cn_1) [c_1 -> null] = t(null,null) as desired
 leqSH :: IntDomain i => P.Program -> Sh i -> Sh i -> Bool
-leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) | trace (">>> leqSH") False = undefined
 leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
   let (leqFrms,morph) = runState runFrms emptyMorph in
   let b1 = leqFrms
       b2 = leqSh1 (flip M.lookup $ unMorph morph) sh1 sh2
-  in let b = b1 && b2 in trace ("leqSH " ++ show b) b
+  in  b1 && b2
   where
     runFrms = and `liftM` zipWithM leqValM (concatMap elemsF frms1) (concatMap elemsF frms2)
 
@@ -579,14 +566,12 @@ leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
     leqValM Null v2@(RefVal r)
       | not (isInstance (lookupH r hp2)) = fromMaybe True `liftM` validMapping v2 Null
 
-    leqValM v1@(RefVal q) v2@(RefVal r) | trace ("leqValM " ++ show (q,r)) False = undefined
-
     -- liftM2 is strict in the first component !
     leqValM v1@(RefVal q) v2@(RefVal r) = do 
       bM <- validMapping v2 v1
       case bM of
         Just b  -> return b
-        Nothing -> (leqObjM (lookupH q hp1) (lookupH r hp2))
+        Nothing -> leqObjM (lookupH q hp1) (lookupH r hp2)
 
     leqValM v1@(BoolVal a) v2@(BoolVal b) = fromMaybe (a `AD.leq` b) `liftM` validMapping v2 v1
     leqValM v1@(IntVal i)  v2@(IntVal j)  = fromMaybe (i `AD.leq` j) `liftM` validMapping v2 v1
@@ -630,12 +615,11 @@ joinSH st1@(PState _ _ sh1@(Sh i j _ _ _)) st2@(PState _ _ sh2) = do
 {-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
 
 state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Int -> JatM m (TRS.Term String String)
-state2TRSSH m st@PState{} n | trace ("2TRS " ++ show n) False = undefined
-state2TRSSH m st@(PState hp _ _) n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st) m st n
+state2TRSSH m st@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st) m st n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}
     isSpecial p adr = not (treeShaped p st adr)
-    isJoinable = maybeShares
+    isJoinable      = maybeShares
 state2TRSSH m st n = pState2TRS undefined undefined m st n
 
 normalizeSH :: Sh i -> Sh i

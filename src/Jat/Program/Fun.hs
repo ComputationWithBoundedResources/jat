@@ -41,7 +41,7 @@ import qualified Data.Array as A
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Debug.Trace
+--import Debug.Trace
 
 -- | Parses and initializes a 'Program'.
 parseProgram :: String -> Program
@@ -200,7 +200,6 @@ isCyclicalType p (RefType cn) = cn `elem` properReachableClasses p cn
 isCyclicalType _ _            = False
 
 isTreeShapedType :: Program -> Type -> Bool
-isTreeShapedType p ty | trace ("isTreeShaped" ++ show ty) False = undefined
 isTreeShapedType p ty | isCyclicalType p ty = False
 isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]
   where

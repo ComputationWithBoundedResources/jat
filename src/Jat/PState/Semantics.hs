@@ -20,7 +20,7 @@ import Jat.PState.Step
 import qualified Jat.Program as P
 
 --import Jat.Utils.Pretty hiding (equals)
-import Debug.Trace
+--import Debug.Trace
 
 -- | Constructs the initial state for a given class name and method name.
 mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (PState i a)
@@ -39,7 +39,6 @@ exec (PState _ [] _) = error "Jat.PState.Semantics.exec: empty stk."
 exec (EState _)      = error "Jat.PState.Semantics.exec: exceptional state."
 
 execInstruction :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.Instruction -> JatM m (PStep (PState i a))
-execInstruction st@(PState{}) ins | trace (">>> execInstruction: " ++ show ins) False = undefined
 execInstruction st@(PState{}) ins = do
   p <- getProgram
   step <- case ins of

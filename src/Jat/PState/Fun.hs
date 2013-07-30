@@ -52,7 +52,7 @@ import Data.List (inits)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import Debug.Trace
+--import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
