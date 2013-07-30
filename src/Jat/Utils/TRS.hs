@@ -14,7 +14,7 @@ import Data.Rewriting.Rule
 import Data.Rewriting.Term (fold) 
 import Data.List (nub)
 
-import Debug.Trace
+--import Debug.Trace
 
 header :: [Rule String String] -> Doc
 header rules = 
@@ -64,28 +64,30 @@ prettyITRS rules =
     prettyT (Fun f ts) = text f <> args
       where args = encloseSep lparen rparen comma [prettyT ti | ti <- ts]
       
+-- | Transforms a (restricted) constrained TRS to an integer TRS.
 toITRS :: [(Rule String String, Maybe Constraint)] -> [Rule String String]
-{-toITRS rules = let r = map mapRule rules in trace (show . prettyTRS $ zip r (cycle [Nothing])) r-}
 toITRS = map mapRule
   where
     mapRule (Rule{lhs=l,rhs=r},Just c)  = Rule (mapTerm l c) (mapTerm r c)
     mapRule (r,_)                       = r
     mapTerm t c                         = fold (assignment c) Fun t
 
-    {-assignment c v | trace (show (c,v)) False = undefined-}
     assignment (Ass (CVar v1) c) v2 
-      | v1 == v2  = trace (show (v1,v2,v1==v2)) $ op c
-      | otherwise = trace "NOP" $ Var v2
-    op (Not c)    = Fun "$not" [el c]
-    op (And c d)  = Fun "$and" [el c,el d]
-    op (Or  c d)  = Fun "$or"  [el c,el d]
-    op (Eq  c d)  = Fun "$eq"  [el c,el d]
-    op (Neq c d)  = Fun "$neq" [el c,el d]
-    op (Gte c d)  = Fun "$gte" [el c,el d]
-    op (Add c d)  = Fun "$add" [el c,el d]
-    op (Sub c d)  = Fun "$sub" [el c,el d]
-    el (CVar v)   = Var v
-    el (IConst i) = Fun (show i) []
-    el (BConst b) = Fun (show b) []
+      | v1 == v2  =  op c
+      | otherwise =  Var v2
+    op (Not c)       = Fun "$not" [el c]
+    op (And c d)     = Fun "$and" [el c,el d]
+    op (Or  c d)     = Fun "$or"  [el c,el d]
+    op (Eq  c d)     = Fun "$eq"  [el c,el d]
+    op (Neq c d)     = Fun "$neq" [el c,el d]
+    op (Gte c d)     = Fun "$gte" [el c,el d]
+    op (Add c d)     = Fun "$add" [el c,el d]
+    op (Sub c d)     = Fun "$sub" [el c,el d]
+    op e@(BConst _) = el e
+    op _             = error "Jat.Utils.TRS.toITRS: invalid format."
+    el (CVar v)      = Var v
+    el (IConst i)    = Fun (show i) []
+    el (BConst b)    = Fun (show b) []
+    el _             = error "Jat.Utils.TRS.toITRS: invalid format."
 
 

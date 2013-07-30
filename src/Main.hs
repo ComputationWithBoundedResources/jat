@@ -66,26 +66,32 @@ run opts p cn mn =
   in 
   if interactive'
     then do
-      --let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SimpleIntDomain Primitive)
-      let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain Sharing)
-      {-let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)-}
-          evaluationM = (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p) 
+      let 
+        evaluationM = case domain opts of
+          Sharing   -> let gM =  mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain Sharing)
+                      in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p)
+          UnSharing -> let gM = mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
+                      in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p) 
       res <- E.try evaluationM :: IO (Either E.SomeException String)
       return (cn,mn, res)
     else do
-    {-let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing)-}
-    let gM = mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing)
-        evalM = case format opts of
-          DOT  -> (dot2String . mkJGraph2Dot) `liftM` gM
-          TRS  -> (display . prettyTRS) `liftM` (gM >>= mkJGraph2TRS)
-          ITRS -> (display . prettyITRS . toITRS) `liftM` (gM >>= mkJGraph2TRS)
-          PRG  -> return (display $ pretty p)
-    --let gM = mkJGraph cn mn :: Jat (MkJGraph SimpleIntDomain Primitive)
-        evaluationM = do
-          evaluation2 <- T.timeout timeout' $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))
-          E.evaluate $ error "timeout" `fromMaybe` evaluation2
+    let 
+      evalM = case domain opts of
+        Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing))
+        UnSharing -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing))
+      evaluationM = do
+        evaluation2 <- T.timeout timeout' $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))
+        E.evaluate $ error "timeout" `fromMaybe` evaluation2
     res <- E.try evaluationM :: IO (Either E.SomeException String)
     return (cn,mn, res)
+
+theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> JatM m (MkJGraph i a) -> JatM m String 
+theOutput opts p gM =
+  case format opts of
+    DOT  -> (dot2String . mkJGraph2Dot)     `liftM` gM
+    TRS  -> (display . prettyTRS)           `liftM` (gM >>= mkJGraph2TRS)
+    ITRS -> (display . prettyITRS . toITRS) `liftM` (gM >>= mkJGraph2TRS)
+    PRG  -> return (display $ pretty p)
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]
 runAll opts p = map (uncurry $ run opts p) (methods p) 

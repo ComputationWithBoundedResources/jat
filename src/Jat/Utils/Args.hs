@@ -3,6 +3,7 @@ module Jat.Utils.Args
   (
     Options (..)
   , Format (..)
+  , Domain (..)
   , parseArgs
   )
 where
@@ -16,6 +17,7 @@ import System.IO
 
 -- | A computation graph can be returned as Dot graph or as TRSs.
 data Format = DOT | TRS | ITRS | P | PRG deriving (Show,Read)
+data Domain = Sharing | UnSharing deriving (Show,Read)
 
 -- | The options for the arguments.
 data Options = Options {
@@ -26,6 +28,7 @@ data Options = Options {
   , mname       :: Maybe String
   , timeout     :: Int
   , format      :: Format
+  , domain      :: Domain
   , interactive :: Bool
   }
 
@@ -38,6 +41,7 @@ defaultOptions = Options {
   , mname       = Nothing
   , timeout     = 10 * 1000000
   , format      = DOT
+  , domain      = Sharing
   , interactive = False
   }
 
@@ -52,6 +56,9 @@ options = [
   , Option "f" ["format"]
       (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|PRG")
       "output format"
+  , Option "d" ["format"]
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "Sharing|UnSharing")
+      "heap domain"
   , Option "t" ["timeout"]
       (ReqArg (\arg opt -> return opt {timeout = 10000000 * (read arg :: Int)}) "sec")
       "timeout in seconds"
