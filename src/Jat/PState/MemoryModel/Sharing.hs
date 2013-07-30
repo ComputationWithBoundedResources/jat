@@ -68,7 +68,7 @@ data Sharing = Sh !Int !Int NShares MShares TreeShs
 type Sh i = PState i Sharing
 
 instance Pretty Sharing where 
-  pretty sh@(Sh i j _ _ _) = text (show (i,j)) <+>
+  pretty sh =
     (hsep . map pretty $ nShares' sh) <$>
     (hsep . map pretty $ mShares' sh) <$>
     (hsep . map pretty $ treeShs' sh)

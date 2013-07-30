@@ -237,7 +237,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
             fromNode       = k1
           , toNode         = k2
           , edgeAttributes = [
-              GV.Label (GV.StrLabel $ T.pack $ display $ pretty l)
+              GV.Label (GV.StrLabel . T.pack . display $ pretty l)
             ]
           }
 

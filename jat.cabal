@@ -1,5 +1,5 @@
 name:          jat
-version:       1.0.0
+version:       1.1.0
 stability:     experimental
 author:        Michael Schaper <michael.schaper@uibk.ac.at>
 maintainer:    Michael Schaper <michael.schaper@uibk.ac.at>
@@ -33,6 +33,8 @@ executable jat
     set-monad == 0.1.*,
     text == 0.11.*
 
---  ghc-options:
+  ghc-options:
+    -O -funbox-strict-fields -threaded
+    
 
 
