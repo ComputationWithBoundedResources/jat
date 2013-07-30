@@ -56,8 +56,8 @@ options = [
   , Option "f" ["format"]
       (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|PRG")
       "output format"
-  , Option "d" ["format"]
-      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "Sharing|UnSharing")
+  , Option "d" ["domain"]
+      (ReqArg (\arg opt -> return opt {domain = read arg :: Domain}) "Sharing|UnSharing")
       "heap domain"
   , Option "t" ["timeout"]
       (ReqArg (\arg opt -> return opt {timeout = 10000000 * (read arg :: Int)}) "sec")
