@@ -33,13 +33,13 @@ exec st@(PState _ (Frame _ _ cn mn pc :_) _) = do
   let ins = P.instruction p cn mn pc
   --st2 <- execInstruction st (trace (">>> exec: " ++ show ins) ins)
   --return $ trace ("<<< exec" ++ show (liftPStep (show . pretty) st2)) st2
-  execInstruction st ins
+  execInstruction st pc ins
   
 exec (PState _ [] _) = error "Jat.PState.Semantics.exec: empty stk."
 exec (EState _)      = error "Jat.PState.Semantics.exec: exceptional state."
 
-execInstruction :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.Instruction -> JatM m (PStep (PState i a))
-execInstruction st@(PState{}) ins = do
+execInstruction :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.PC -> P.Instruction -> JatM m (PStep (PState i a))
+execInstruction st@(PState{}) pc ins = do
   p <- getProgram
   step <- case ins of
     -- frame operations
@@ -66,9 +66,9 @@ execInstruction st@(PState{}) ins = do
     P.GetField fn cn -> execGetField st cn fn
     P.PutField fn cn -> execPutField st cn fn
   return $ case step of
-    Evaluation (st2,con) -> Evaluation (update p ins st2, con)
+    Evaluation (st2,con) -> Evaluation (update p pc ins st2, con)
     s                    -> s
-execInstruction (EState _) _ = error "Jat.PState.Semantics.exec: exceptional state."
+execInstruction (EState _) _ _ = error "Jat.PState.Semantics.exec: exceptional state."
 
 
 -- frame operations

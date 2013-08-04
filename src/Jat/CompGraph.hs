@@ -8,6 +8,8 @@ module Jat.CompGraph
   , mkJGraph2Dot
   , mkJGraph2TRS
   , mkJGraphIO
+
+  , simplifySCC
   )
 where
 
@@ -30,7 +32,7 @@ import System.IO (hFlush,stdout)
 import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
-
+import Data.List ((\\))
 --import Debug.Trace
 
 -- finding instance/merge nodes for backjumps
@@ -241,6 +243,14 @@ mkJGraph2Dot (MkJGraph g ctxs) =
             ]
           }
 
+simplifySCC :: (IntDomain i, MemoryModel a) => MkJGraph i a -> MkJGraph i a
+simplifySCC (MkJGraph gr ctx) = MkJGraph (Gr.delNodes (allnodes \\ sccnodes) gr) ctx
+  where
+    allnodes = Gr.nodes gr
+    sccnodes = concat . filter (not . trivial) $ Gr.scc gr
+    trivial [_] = True
+    trivial _   = False
+
 -- | Returns pairs of rewrite rules and constraints of a constructed
 -- computation graph.
 mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule String String, Maybe Constraint)]
@@ -248,7 +258,7 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
   where
     rule _ (k,k',InstanceLabel) = ruleM (ts s k) (ts s k') Nothing
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') (mkCon con)
+    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') Nothing
       where t = lookupN k'
     rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of

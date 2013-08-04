@@ -4,6 +4,7 @@ module Jat.Utils.Args
     Options (..)
   , Format (..)
   , Domain (..)
+  , Simplify (..)
   , parseArgs
   )
 where
@@ -15,9 +16,12 @@ import System.Environment (getArgs)
 import System.Exit
 import System.IO
 
+-- TODO: should define funcitons if common interface
+                                    --
 -- | A computation graph can be returned as Dot graph or as TRSs.
 data Format = DOT | TRS | ITRS | P | PRG deriving (Show,Read)
 data Domain = Sharing | UnSharing deriving (Show,Read)
+data Simplify = WithNarrowing | WithNone deriving (Show,Read)
 
 -- | The options for the arguments.
 data Options = Options {
@@ -28,6 +32,7 @@ data Options = Options {
   , mname       :: Maybe String
   , timeout     :: Int
   , format      :: Format
+  , simplify    :: Simplify
   , domain      :: Domain
   , interactive :: Bool
   }
@@ -41,6 +46,7 @@ defaultOptions = Options {
   , mname       = Nothing
   , timeout     = 10 * 1000000
   , format      = DOT
+  , simplify    = WithNone
   , domain      = Sharing
   , interactive = False
   }
@@ -56,6 +62,9 @@ options = [
   , Option "f" ["format"]
       (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|PRG")
       "output format"
+  , Option "s" ["simplify"]
+      (ReqArg (\arg opt -> return opt {simplify = read arg :: Simplify}) "WithNarrowing|WithNone")
+      "output simplify"
   , Option "d" ["domain"]
       (ReqArg (\arg opt -> return opt {domain = read arg :: Domain}) "Sharing|UnSharing")
       "heap domain"

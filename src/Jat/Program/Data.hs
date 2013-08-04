@@ -9,6 +9,8 @@ module Jat.Program.Data
   , Method (..)
   , Type (..)
   , Value (..)
+  , PC
+  , Var (..)
   , Instruction (..)
   , FieldId (..)
   , ClassId (..)
@@ -88,6 +90,18 @@ data Type =
   | NullType
   | Void 
   deriving (Eq,Ord,Show,Read)
+
+type PC = Int
+
+data Var = LocVar !Int !Int | StkVar !Int !Int deriving (Eq,Ord)
+
+instance Pretty Var where
+  pretty (LocVar i j) = char 'l' <> int i <> int j
+  pretty (StkVar i j) = char 's' <> int i <> int j
+
+instance Show Var where
+  show = show . pretty
+
 
 -- | Returns the (common) default value of a type.
 defaultValue :: Type -> Value
