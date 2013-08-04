@@ -21,6 +21,7 @@ import Jat.PState.Object
 import Jat.PState.Step
 import Jat.Utils.Pretty
 import Jat.Utils.Fun
+import Jat.Program (Var (..))
 import qualified Jat.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
@@ -243,8 +244,8 @@ stkSh (Sh i j _ _ _) = StkVar i j
 locSh :: Sharing -> Int -> Var
 locSh (Sh i _ _ _ _) = LocVar i
 
-updateSH :: P.Program -> P.Instruction -> Sh i -> Sh i
-updateSH p ins st = updateSh' `liftSh` st
+updateSH :: P.Program -> P.PC -> P.Instruction -> Sh i -> Sh i
+updateSH p _ ins st = updateSh' `liftSh` st
   where
     {-updateSh' (Sh i j _ _ _) | trace (show (i,j,ins)) False = undefined-}
     updateSh' sh = case ins of

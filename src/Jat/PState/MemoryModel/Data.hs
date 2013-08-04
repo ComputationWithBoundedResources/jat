@@ -33,6 +33,10 @@ class Pretty a => MemoryModel a where
   normalize :: PState i a -> PState i a
   state2TRS :: (Monad m, IntDomain i) => Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
 
-  update :: P.Program -> P.Instruction -> PState i a ->  PState i a
-  update _ = const id
+  update :: P.Program -> P.PC -> P.Instruction -> PState i a ->  PState i a
+  update _ _ = const id
+
+  preprocess :: P.Program -> P.PC -> P.Instruction -> PState i a ->  PState i a
+  preprocess _ _ = const id
+
 

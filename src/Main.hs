@@ -68,7 +68,7 @@ run opts p cn mn =
     then do
       let 
         evaluationM = case domain opts of
-          Sharing   -> let gM =  mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain Sharing)
+          Sharing   -> let gM =  mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain PairSharing)
                       in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p)
           UnSharing -> let gM = mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
                       in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p) 
@@ -77,7 +77,8 @@ run opts p cn mn =
     else do
     let 
       evalM = case domain opts of
-        Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain Sharing))
+        {-Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain PairSharing))-}
+        Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain PairSharing))
         UnSharing -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing))
       evaluationM = do
         evaluation2 <- T.timeout timeout' $! (E.evaluate . runIdentity $ evalJat evalM ( initJat p))
@@ -87,10 +88,15 @@ run opts p cn mn =
 
 theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> JatM m (MkJGraph i a) -> JatM m String 
 theOutput opts p gM =
+  let (simpGr,simpTRS) = 
+          case simplify opts of
+            WithNarrowing -> (simplifySCC, simplifyRHS)
+            _             -> (id, id)
+  in
   case format opts of
-    DOT  -> (dot2String . mkJGraph2Dot)     `liftM` gM
-    TRS  -> (display . prettyTRS)           `liftM` (gM >>= mkJGraph2TRS)
-    ITRS -> (display . prettyITRS . toITRS) `liftM` (gM >>= mkJGraph2TRS)
+    DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
+    TRS  -> (display . prettyTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
+    ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     PRG  -> return (display $ pretty p)
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]

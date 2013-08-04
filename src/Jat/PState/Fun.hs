@@ -239,7 +239,7 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
     taddr' r | isSpecial r = do
       key <- freshVarIdx
       let cn = className $ lookupH r hp
-      return . TRS.Var  $ var (showcn cn) key
+      return . TRS.Var  $ var ('c':showcn cn) key
     taddr' r =
       case lookupH r hp of
         AbsVar cn      -> return . TRS.Var $ var (showcn cn) r
@@ -374,10 +374,10 @@ rmaxPrefix path@(RPath r rls) pths =
     findFirst [] _ = []
 
 -- | Returns the value from a given Frame index.
-valueV :: Var -> PState i a -> AbstrValue i
+valueV :: P.Var -> PState i a -> AbstrValue i
 {-valueV  v st | trace ("valueV" ++ show v) False = undefined-}
-valueV (StkVar i j) (PState _ frms _) = (reverse . opstk)  (reverse frms !! i) !! j
-valueV (LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
+valueV (P.StkVar i j) (PState _ frms _) = (reverse . opstk)  (reverse frms !! i) !! j
+valueV (P.LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
 {-valueV (LocVar i j) (PState _ frms _) = case lookup i $ zip [0..] frms of-}
   {-Nothing -> error $ "frms" ++ show (i, length frms)-}
   {-Just frm -> case lookup j $ zip [0..] (locals frm) of-}
@@ -386,13 +386,13 @@ valueV (LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
 
 
 -- | Returns the type from a given Frame index.
-typeV :: Var -> PState i a -> P.Type
+typeV :: P.Var -> PState i a -> P.Type
 typeV v st@(PState hp _ _) = case valueV v st of
   RefVal q -> P.RefType . className $ lookupH q hp
   w        -> fromJust $ typeOf w
  
 -- | Computes reachable Addresses from a given a Frame index.
-reachableV :: Var -> PState i a -> [Address]
+reachableV :: P.Var -> PState i a -> [Address]
 reachableV var st = case valueV var st of
   RefVal r -> reachable r (heap st)
   _        -> []

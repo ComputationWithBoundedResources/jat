@@ -14,6 +14,7 @@ module Jat.PairSet
   , fold
   , filter
   , elems
+  , toList
   , fromList
 
   , member
@@ -117,6 +118,9 @@ isSubsetOf (Set es1) (Set es2) = es1 `S.isSubsetOf` es2
 
 elems :: Pair p e => PairSet e -> [p]
 elems (Set es) = L.map view (S.elems es)
+
+toList :: Ord e => PairSet e -> [(e,e)]
+toList (Set es) = S.elems es
 
 fromList :: Pair p e => [p] -> PairSet e
 fromList = Set . S.fromList . L.map mkPair
