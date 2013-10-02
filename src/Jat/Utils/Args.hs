@@ -21,7 +21,7 @@ import System.IO
 -- | A computation graph can be returned as Dot graph or as TRSs.
 data Format = DOT | TRS | ITRS | P | PRG deriving (Show,Read)
 data Domain = Sharing | UnSharing deriving (Show,Read)
-data Simplify = WithNarrowing | WithNone deriving (Show,Read)
+data Simplify = WithNarrowingAndSCC | WithNone | WithNarrowing deriving (Show,Read)
 
 -- | The options for the arguments.
 data Options = Options {

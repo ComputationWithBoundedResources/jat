@@ -103,9 +103,11 @@ rename s@(r1,c1) t@(r2,c2)
   | otherwise = rename s (rename' t)
   where
     cvars c          = [] `fromMaybe` liftM C.vars c
-    common           = (R.vars r1 ++ cvars c1) `intersect` (R.vars r2 ++ cvars c2)
+    vars1            = R.vars r1 ++ cvars c1
+    vars2            = R.vars r2 ++ cvars c2
+    common           = vars1 `intersect` vars2
     rename' (r,c)    = (rmap id varft r, mapvars varfc `liftM` c)
-    varft x          = if x `elem` common then x++"\'" else x
+    varft x          = if x `elem` common || x `elem` vars2 then varft $ 'q':x else x
     varfc (C.CVar x) = C.CVar $ varft x
     rmap f g r       = R.Rule (T.map f g (R.lhs r)) (T.map f g (R.rhs r))
 

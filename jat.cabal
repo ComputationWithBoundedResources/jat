@@ -34,7 +34,7 @@ executable jat
     text == 0.11.*
 
   ghc-options:
-    -O -funbox-strict-fields -threaded
+    -O2 -funbox-strict-fields -threaded
     
 
 

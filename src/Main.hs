@@ -90,8 +90,9 @@ theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> Ja
 theOutput opts p gM =
   let (simpGr,simpTRS) = 
           case simplify opts of
-            WithNarrowing -> (simplifySCC, simplifyRHS)
-            _             -> (id, id)
+            WithNarrowing       -> (id, simplifyRHS)
+            WithNarrowingAndSCC -> (simplifySCC, simplifyRHS)
+            _                   -> (id, id)
   in
   case format opts of
     DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
