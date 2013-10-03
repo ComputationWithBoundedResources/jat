@@ -18,7 +18,7 @@ import Data.List as L
 import Data.Maybe (fromMaybe)
 import Control.Monad (liftM)
 
-{-import Debug.Trace-}
+import Debug.Trace
 
 -- TODO: Constraint type should generalize Term from rewriting lib
 
@@ -47,14 +47,19 @@ simplifyRHS :: [CRule] -> [CRule]
 simplifyRHS crules = foldl clean crules (funs crules)
   where
     clean rules f
-      | null (tof `intersect` fot) && length fot == 1 && all nothing tof = cleanF tof fot rules
+      | null (tof `intersect` fot) 
+        && length fot == 1 
+        && all nothing tof
+        && all linear tof
+        = cleanF tof fot rules
       {-| null (tof `intersect` fot) && length fot == 1 = cleanF tof fot rules-}
       | otherwise = rules
       where
         tof = toF f rules
         fot = foT f rules
         nothing (_,Nothing) = True
-        nothing _ = False
+        nothing _           = False
+        linear (r,_)        = all (`elem` T.vars (R.lhs r)) (T.vars (R.rhs r))
 
     funs rules = nub $ map (\(r,_) -> root (R.lhs r)) rules
     toF f = filter k where k (r,_) = root (R.rhs r) == f
@@ -69,7 +74,13 @@ simplifyRHS crules = foldl clean crules (funs crules)
           l3 = substitutevars mu (R.lhs r1)
           r3 = substitutevars mu (R.rhs r2)
           c3 = C.mapvars (mkcmap mu) `liftM` mkc c1 c2
-      return (R.Rule l3 r3, c3)
+          r  =(R.Rule l3 r3, c3) 
+      return $ trace (show (prettyR r1,prettyR r2,prettyR (R.Rule l3 r3))) r
+    prettyR (R.Rule l r) = hang 2 $ prettyT l <+> text "->" </> prettyT r
+    prettyT (R.Var x)    = text x
+    prettyT (R.Fun f []) = text f
+    prettyT (R.Fun f ts) = text f <> args
+      where args = encloseSep lparen rparen comma [prettyT ti | ti <- ts]
 
     {-mgu t1 t2 | trace ("unifu" ++ show (t1,t2)) False = undefined-}
     mgu t1 t2 = unifyterms [t1] [t2]
