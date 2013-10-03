@@ -74,8 +74,7 @@ simplifyRHS crules = foldl clean crules (funs crules)
           l3 = substitutevars mu (R.lhs r1)
           r3 = substitutevars mu (R.rhs r2)
           c3 = C.mapvars (mkcmap mu) `liftM` mkc c1 c2
-          r  =(R.Rule l3 r3, c3) 
-      return $ trace (show (prettyR r1,prettyR r2,prettyR (R.Rule l3 r3))) r
+      return (R.Rule l3 r3, c3) 
     prettyR (R.Rule l r) = hang 2 $ prettyT l <+> text "->" </> prettyT r
     prettyT (R.Var x)    = text x
     prettyT (R.Fun f []) = text f
