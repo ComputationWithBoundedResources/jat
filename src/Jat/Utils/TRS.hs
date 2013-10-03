@@ -49,6 +49,8 @@ simplifyRHS crules = foldl clean crules (funs crules)
     clean rules f
       | null (tof `intersect` fot) 
         && length fot == 1 
+        && not (null tof)
+        && not (null fot)
         && all nothing tof
         && all linear tof
         = cleanF tof fot rules
