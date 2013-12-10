@@ -68,9 +68,9 @@ run opts p cn mn =
     then do
       let 
         evaluationM = case domain opts of
-          Sharing   -> let gM =  mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain PairSharing)
+          Sharing   -> let gM =  mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain PairSharing)
                       in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p)
-          UnSharing -> let gM = mkJGraph cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
+          UnSharing -> let gM = mkJGraphIO cn mn :: JatM IO (MkJGraph SignedIntDomain UnSharing)
                       in (dot2String . mkJGraph2Dot) `liftM` evalJat gM (initJat p) 
       res <- E.try evaluationM :: IO (Either E.SomeException String)
       return (cn,mn, res)
