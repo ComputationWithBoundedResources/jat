@@ -4,6 +4,7 @@ module Jat.Utils.TRS
     prettyTRS
   , prettyITRS
   , toITRS
+  , toCTRS
   
   , simplifyRHS
   )
@@ -15,7 +16,7 @@ import Jat.Constraints as C
 import qualified Data.Rewriting.Rule as R
 import qualified Data.Rewriting.Term as T
 import Data.List as L
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Control.Monad (liftM)
 
 import Debug.Trace
@@ -237,4 +238,50 @@ toITRS = map mapRule
     el (BConst b)    = R.Fun (show b) []
     el _             = error "Jat.Utils.TRS.toITRS: invalid format."
 
+-- | ctrl format c. k.
+  -- todo : change constraints -- maybe problem with and and so on
+toCTRS :: [(R.Rule String String, Maybe Constraint)] -> [(R.Rule String String, Maybe Constraint)]
+toCTRS = map mapRule
+  where
+    mapRule (R.Rule{R.lhs=l,R.rhs=r},Just c)  = (R.Rule (mapTerm l c) (mapTerm r c), isCon c)
+    mapRule (r,c)                       = (r, c) 
+    mapTerm t c                         = T.fold (assignment c) R.Fun t
+
+    isCon c@(Ass (CVar _) (Eq _ _))   = Just c
+    isCon c@(Ass (CVar _) (Neq _ _))  = Just c 
+    isCon c@(Ass (CVar _) (Gte _ _))  = Just c
+    isCon _                           = Nothing
+
+    isCon2 c@(Ass (CVar _) (Eq _ _))   = True
+    isCon2 c@(Ass (CVar _) (Neq _ _))  = True
+    isCon2 c@(Ass (CVar _) (Gte _ _))  = True
+    isCon2 _                           = False
+
+    assignment (Ass (CVar v1) c) v2 | isCon2 c = R.Var v2
+    assignment (Ass (CVar v1) c) v2 
+      | v1 == v2  =  op c
+      | otherwise =  R.Var v2
+    op (Not c)       = R.Fun "$not" [el c]
+    op (And c d)     = R.Fun "$and" [el c,el d]
+    op (Or  c d)     = R.Fun "$or"  [el c,el d]
+    op (Add c d)     = R.Fun "$add" [el c,el d]
+    op (Sub c d)     = R.Fun "$sub" [el c,el d]
+    op e@(BConst _) = el e
+    {-op e             = e-}
+    op e             = error $ "Jat.Utils.TRS.toCTRS: invalid format: " ++ show e
+    el (CVar v)      = R.Var v
+    el (IConst i)    = R.Fun (show i) []
+    el (BConst b)    = R.Fun (show b) []
+    el _             = error "Jat.Utils.TRS.toCTRS: invalid format."
+
+
+    foldRule = foldl k []
+      where 
+        k acc (R.Rule{R.lhs=l,R.rhs=r},Just c)  = (R.Rule (mapTrue l c) (mapFalse r c), Just c) : acc
+        k acc (r,c) = (r,c) : acc
+        mapTrue  t c                         = T.fold (assignment c "true") R.Fun t
+        mapFalse t c                         = T.fold (assignment c "false") R.Fun t
+        assignment (Ass (CVar v1) c) s v2 
+          | v1 == v2  =  R.Fun s []
+          | otherwise =  R.Var v2
 
