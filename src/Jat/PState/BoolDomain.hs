@@ -52,7 +52,7 @@ freshBool = do {i<-freshVarIdx; return $ AbstrBoolean i}
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
-evalb,evalb :: Monad m => BoolDomain -> BoolDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
+evalb :: Monad m => BoolDomain -> BoolDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
 evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
 
 -- | Comparison Operation.
@@ -91,7 +91,7 @@ ifFalse a@(AbstrBoolean _) = return $ Refinement [(Boolean False, con False), (B
   where con b = atom a `Ass` BConst b
 
 instance Pretty BoolDomain where
-  pretty (Boolean True)   = text "TRUE"
-  pretty (Boolean False)  = text "FALSE"
+  pretty (Boolean True)   = text "true"
+  pretty (Boolean False)  = text "false"
   pretty (AbstrBoolean i) = char 'b' <> int i
 

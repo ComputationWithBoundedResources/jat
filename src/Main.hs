@@ -98,6 +98,7 @@ theOutput opts p gM =
     DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
     TRS  -> (display . prettyTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
+    CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     PRG  -> return (display $ pretty p)
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]

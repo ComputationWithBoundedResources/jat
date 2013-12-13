@@ -19,7 +19,7 @@ import System.IO
 -- TODO: should define funcitons if common interface
                                     --
 -- | A computation graph can be returned as Dot graph or as TRSs.
-data Format = DOT | TRS | ITRS | P | PRG deriving (Show,Read)
+data Format = DOT | TRS | ITRS | CTRS | P | PRG deriving (Show,Read)
 data Domain = Sharing | UnSharing deriving (Show,Read)
 data Simplify = WithNarrowingAndSCC | WithNone | WithNarrowing deriving (Show,Read)
 
@@ -60,10 +60,10 @@ options = [
       (ReqArg (\arg opt -> return opt {output = writeFile arg}) "FILE")  
       "output file"
   , Option "f" ["format"]
-      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|PRG")
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|CTRS|PRG")
       "output format"
   , Option "s" ["simplify"]
-      (ReqArg (\arg opt -> return opt {simplify = read arg :: Simplify}) "WithNarrowing|WithNone")
+      (ReqArg (\arg opt -> return opt {simplify = read arg :: Simplify}) "WithNarrowingAndSCC|WithNarrowing|WithNone")
       "output simplify"
   , Option "d" ["domain"]
       (ReqArg (\arg opt -> return opt {domain = read arg :: Domain}) "Sharing|UnSharing")

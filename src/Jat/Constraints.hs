@@ -83,13 +83,13 @@ instance Pretty Constraint where
     IConst i -> int i
     BConst b -> bool b
 
-    And l r  -> p l <+> string "&&" <+> p r
-    Or  l r  -> p l <+> string "||" <+> p r
-    Not a    -> string "!" <> p a
+    And l r  -> p l <+> string "/\\" <+> p r
+    Or  l r  -> p l <+> string "\\/" <+> p r
+    Not a    -> string "not" <> lparen <> p a <> rparen
 
     Ass  l r  -> p l <+> string "=" <+> p r
     Eq  l r  -> p l <+> string "==" <+> p r
-    Neq l r  -> p l <+> string "!=" <+> p r
+    Neq l r  -> string "not" <> lparen <> p (Eq l r) <> rparen
     Gte l r  -> p l <+> string ">=" <+> p r
 
     Add l r  -> p l <+> string "+" <+> p r
