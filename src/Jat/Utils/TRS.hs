@@ -3,7 +3,9 @@ module Jat.Utils.TRS
   (
     prettyTRS
   , prettyITRS
+  , prettyCTRS
   , toITRS
+  , toCTRS
   
   , simplifyRHS
   )
@@ -15,7 +17,8 @@ import Jat.Constraints as C
 import qualified Data.Rewriting.Rule as R
 import qualified Data.Rewriting.Term as T
 import Data.List as L
-import Data.Maybe (fromMaybe)
+import Data.Char as C
+import Data.Maybe (fromMaybe, catMaybes)
 import Control.Monad (liftM)
 
 import Debug.Trace
@@ -47,11 +50,11 @@ simplifyRHS :: [CRule] -> [CRule]
 simplifyRHS crules = foldl clean crules (funs crules)
   where
     clean rules f
-      | null (tof `intersect` fot) 
-        && length fot == 1 
+      | null (tof `intersect` fot)
+        {-&& length fot == 1-}
         && not (null tof)
         && not (null fot)
-        && all nothing tof
+        {-&& all nothing fot-}
         && all linear tof
         = cleanF tof fot rules
       {-| null (tof `intersect` fot) && length fot == 1 = cleanF tof fot rules-}
@@ -66,17 +69,23 @@ simplifyRHS crules = foldl clean crules (funs crules)
     funs rules = nub $ map (\(r,_) -> root (R.lhs r)) rules
     toF f = filter k where k (r,_) = root (R.rhs r) == f
     foT f = filter k where k (r,_) = root (R.lhs r) == f
-    cleanF tof fot rules = ((rules \\ tof) \\ fot) ++ narrow tof fot 
-    {-narrow tof fot | trace ("narrow: " ++ show (tof,fot)) False = undefined-}
-    narrow tof fot = do
+    cleanF tof fot rules = 
+      rules `fromMaybe` ((((rules \\ tof) \\ fot) ++) `liftM` narrow tof fot)
+    
+    narrow :: [CRule] -> [CRule] -> Maybe [CRule]
+    narrow tof fot | trace ("narrow: " ++ show (map prettyR . fst $ unzip tof, map prettyR . fst $ unzip fot)) False = undefined
+    narrow tof fot = sequence $ do
       f@(r1,c1) <- tof
       (r2,c2)   <- rename f `liftM` fot
-      let err = error "Jat.Utils.TRS.simplify: no unifier found" 
-          mu = err `fromMaybe` mgu (R.rhs r1) (R.lhs r2)
-          l3 = substitutevars mu (R.lhs r1)
-          r3 = substitutevars mu (R.rhs r2)
-          c3 = C.mapvars (mkcmap mu) `liftM` mkc c1 c2
-      return (R.Rule l3 r3, c3) 
+      let 
+        mr = do 
+          mu <- mgu (R.rhs r1) (R.lhs r2)
+          let 
+            l3 = substitutevars mu (R.lhs r1)
+            r3 = substitutevars mu (R.rhs r2)
+            c3 = C.mapvars (mkcmap mu) `liftM` mkc c1 c2
+          return (R.Rule l3 r3, c3)
+      return mr
     prettyR (R.Rule l r) = hang 2 $ prettyT l <+> text "->" </> prettyT r
     prettyT (R.Var x)    = text x
     prettyT (R.Fun f []) = text f
@@ -88,17 +97,21 @@ simplifyRHS crules = foldl clean crules (funs crules)
     mkcmap mu v@CVar{} = fromTerm . mu $ toTerm v
       where 
         toTerm (CVar s) = R.Var s
-        fromTerm (R.Var s) = CVar s
-        fromTerm (R.Fun "FALSE" []) = BConst False
-        fromTerm (R.Fun "TRUE" [])  = BConst True
-        fromTerm (R.Fun s [])       = IConst $ err `fromMaybe` (readMaybe s :: Maybe Int)
-        fromTerm t = err
-        err = error $ "Jat.Utils.Trs.simplifyRHS.fromTerm: illegal substitution"
+        fromTerm (R.Var s)          = CVar s
+        fromTerm (R.Fun "flase" []) = BConst False
+        fromTerm (R.Fun "true" [])  = BConst True
+        fromTerm t@(R.Fun s [])       = IConst $ err t `fromMaybe` (readMaybe s :: Maybe Int)
+        fromTerm (R.Fun "$not" [t])     = Not $ fromTerm t
+        fromTerm (R.Fun "$and" [t1,t2]) = fromTerm t1 `And` fromTerm t2
+        fromTerm (R.Fun "$or"  [t1,t2]) = fromTerm t1 `Or`  fromTerm t2
+        fromTerm (R.Fun "$eq"  [t1,t2]) = fromTerm t1 `Eq`  fromTerm t2
+        fromTerm (R.Fun "$neq" [t1,t2]) = fromTerm t1 `Neq` fromTerm t2
+        fromTerm (R.Fun "$gte" [t1,t2]) = fromTerm t1 `Gte` fromTerm t2
+        fromTerm (R.Fun "$add" [t1,t2]) = fromTerm t1 `Add` fromTerm t2
+        fromTerm (R.Fun "$sub" [t1,t2]) = fromTerm t1 `Sub` fromTerm t2
+        err t = error $ "Jat.Utils.Trs.simplifyRHS.fromTerm: illegal substitution" ++ show t
     mkcmap _ c = c
 
-    readMaybe s = case reads s of
-      [(x, "")] -> Just x
-      _ -> Nothing
 
     mkc (Just c1) (Just c2) = Just $ c1 `And` c2
     mkc (Just c1) Nothing   = Just c1
@@ -108,6 +121,10 @@ simplifyRHS crules = foldl clean crules (funs crules)
     root (R.Var _)   = error "simplify.root: unexpected variable"
     root (R.Fun f _) = f
 
+readMaybe :: Read b => String -> Maybe b
+readMaybe s = case reads s of
+  [(x, "")] -> Just x
+  _ -> Nothing
 
 rename :: CRule -> CRule -> CRule
 rename s@(r1,c1) t@(r2,c2)
@@ -237,4 +254,91 @@ toITRS = map mapRule
     el (BConst b)    = R.Fun (show b) []
     el _             = error "Jat.Utils.TRS.toITRS: invalid format."
 
+
+prettyCTRS :: [(R.Rule String String, Maybe Constraint)] -> Doc
+prettyCTRS crules = vcat [logic, signature, rules, kind, query, eof]
+  where
+    logic = text "THEORY ints ;" <$> text "LOGIC QF_LIA ;" <$> text "SOLVER internal ;"
+    signature = text "SIGNATURE" <$> (indent 2 $ prettyfuns (allfuns (fst $ unzip crules))) <$> (indent 2 $ text "!INTEGER ;")
+      where
+        allfuns               = filter theory . nub . concatMap rulefuns
+        theory f              = not $ or [isInt f, isOp f]
+          where
+            isInt s = maybe False (const True) (readMaybe s :: Maybe Int)
+            isOp  s = any (s ==) ["$not", "$and", "$or", "$eq", "$neq", "$gte", "$add", "$sub", "true", "false"]
+        prettyfuns fs         = vsep (map (\f -> text f <+> char ';') fs)
+        rulefuns r            = termfuns(R.lhs r) ++ termfuns (R.rhs r)
+        termfuns (R.Var _)    = []
+        termfuns (R.Fun f ts) = f : concatMap termfuns ts
+    rules = text "RULES"  <$> (indent 2 $ vsep (map prettyR (reverse crules)))
+      where
+        prettyR (R.Rule l r, c)  = prettyT l <+> text "->" </> prettyT r <+> prettyC c <+> char ';'
+        prettyT (R.Fun "$not" [t])     = text "not" <> (parens $ prettyT t)
+        prettyT (R.Fun "$and" [t1,t2]) = prettyT t1 <+> text "/\\" <+> prettyT t2
+        prettyT (R.Fun "$or"  [t1,t2]) = prettyT t1 <+> text "\\/" <+> prettyT t2
+        prettyT (R.Fun "$eq"  [t1,t2]) = prettyT t1 <+> text "=" <+> prettyT t2
+        prettyT (R.Fun "$neq" [t1,t2]) = prettyT t1 <+> text "!=" <+> prettyT t2
+        prettyT (R.Fun "$gte" [t1,t2]) = prettyT t1 <+> text ">=" <+> prettyT t2
+        prettyT (R.Fun "$add" [t1,t2]) = prettyT t1 <+> text "+" <+> prettyT t2
+        prettyT (R.Fun "$sub" [t1,t2]) = prettyT t1 <+> text "-" <+> prettyT t2
+        prettyT (R.Var x)    = text x
+        prettyT (R.Fun f []) = text f
+        prettyT (R.Fun f ts) = text f <> args
+          where args = encloseSep lparen rparen comma [prettyT ti | ti <- ts]
+        prettyC Nothing    = empty
+        prettyC (Just c)   = text "<--" <+> lbracket <> pretty c <> rbracket
+    kind  = text "NON-STANDARD"
+    query = text "QUERY termination"
+    eof   = text "END OF FILE"
+
+-- | ctrl format c. k.
+  -- todo : change constraints -- maybe problem with and and so on
+toCTRS :: [(R.Rule String String, Maybe Constraint)] -> [(R.Rule String String, Maybe Constraint)]
+toCTRS = simplifyRHS . simplifyRHS . foldRule . map mapRule
+  where
+    mapRule (R.Rule{R.lhs=l,R.rhs=r},Just c)  = (R.Rule (mapTerm l c) (mapTerm r c), isCon c)
+    mapRule (r,c)                       = (r, c) 
+    mapTerm t c                         = T.fold (assignment c) R.Fun t
+
+    isCon c@(Ass (CVar _) (Eq _ _))   = Just c
+    isCon c@(Ass (CVar _) (Neq _ _))  = Just c 
+    isCon c@(Ass (CVar _) (Gte _ _))  = Just c
+    isCon _                           = Nothing
+
+    isCon2 (Eq _ _)  = True
+    isCon2 (Neq _ _) = True
+    isCon2 (Gte _ _) = True
+    isCon2 _         = False
+
+
+    assignment (Ass (CVar v1) c) v2 
+      | isCon2 c = R.Var v2
+      | v1 == v2  =  op c
+      | otherwise =  R.Var v2
+    op (Not c)       = R.Fun "$not" [el c]
+    op (And c d)     = R.Fun "$and" [el c,el d]
+    op (Or  c d)     = R.Fun "$or"  [el c,el d]
+    op (Add c d)     = R.Fun "$add" [el c,el d]
+    op (Sub c d)     = R.Fun "$sub" [el c,el d]
+    op e@(BConst _) = el e
+    {-op e             = e-}
+    op e             = error $ "Jat.Utils.TRS.toCTRS: invalid format: " ++ show e
+    el (CVar v)      = R.Var v
+    el (IConst i)    = R.Fun (show i) []
+    el (BConst b)    = R.Fun (map C.toLower $ show b) []
+    el _             = error "Jat.Utils.TRS.toCTRS: invalid format."
+
+
+    foldRule = foldl k []
+      where 
+        k acc (R.Rule{R.lhs=l,R.rhs=r},Just c)  = 
+          (R.Rule l (mapTrue r c), Just (toCon c)) : (R.Rule l (mapFalse r c), Just (Not $ toCon c)) : acc
+        k acc (r,c) = (r,c) : acc
+        mapTrue  t c                         = T.fold (toBool c "true") R.Fun t
+        mapFalse t c                         = T.fold (toBool c "false") R.Fun t
+        toBool (Ass (CVar v1) _) s v2 
+          | v1 == v2  =  R.Fun s []
+          | otherwise =  R.Var v2
+        toCon (Ass (CVar _) c) = c
+        toCon _                = error "Jat.Utils.TRS.toCon: invalid format."
 
