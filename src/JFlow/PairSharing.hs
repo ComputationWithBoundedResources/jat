@@ -1,20 +1,16 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 -- | Pair Sharing domain following 'Pair Sharing Analysis of Object-Oriented
 -- Programs' Spoto et al.
-module Jsat.PairSharing where
+module JFlow.PairSharing where
 
+import Jinja.Program
+import qualified Jat.PairSet as PS
 
-import Jsat.Utility ((|>))
-import Jsat.Data
-import Jsat.Program
-import qualified Jsat.PairSet as S
+import JFlow.Data
 
-import Text.PrettyPrint.ANSI.Leijen ((<+>),(<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen
 {-import Debug.Trace-}
 
--- TODO:
--- normalizing wrt types
--- necessary for getfield, closure ...?
 
 
 -- pair sharing domain sh:
@@ -41,40 +37,30 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 --- identified by a unique negative index
 --- only stack vars which are on the stack may occur in sh
 
-data ShVar = ShStkVar !Int | ShLocVar !Int | ShTmpVar !Int Type | ShOutVar deriving (Eq,Ord)
+data Share = Var:><:Var deriving (Eq,Ord)
 
-instance Show ShVar where
-  show (ShStkVar i)   = "sv" ++ show i
-  show (ShLocVar i)   = "lv" ++ show i
-  show (ShTmpVar i _) = "tv" ++ show i
-  show (ShOutVar  )   = "ov"
+instance Pretty Share where
+  pretty (x:><:y) = pretty x <> text "><" <> pretty y
 
-newtype SharingFact = ShFact (S.PairSet ShVar, [ShVar])  deriving (Eq,Ord)
+instance Show Share where
+  show = show . pretty
+
+instance PS.Pair Share Var where
+  view            = uncurry (:><:)
+  unview (x:><:y) = (x,y)
+
+type Sharing = PS.PairSet Var
+
+
+newtype SharingFact = ShFact Sharing  deriving (Eq,Ord)
+
+instance Pretty SharingFact where
+  pretty (ShFact sh) = 
+    string "ShFact"
+    <$> list (map pretty (PS.elems sh :: [Share]))
 
 instance Show SharingFact where
-  show (ShFact (sh,stk)) = show $
-    P.string "ShFact" <+> P.lparen 
-    <> P.string (show sh) <+> P.char '|' 
-    <+> P.string (show stk) <+> P.string "||" <+> P.int (length stk) <> P.rparen
-
-
-index :: [ShVar] -> ShVar
-index []            = ShStkVar 0
-index(ShStkVar i:_) = ShStkVar (i+1)
-index _             = error "PairSharing.index: invalid stack"
-
-tos :: [ShVar] -> ShVar
-tos (ShStkVar i:_) = ShStkVar i
-tos _              = error "PairSharing.tos: invalid stack"
-
-view :: Var -> ShVar
-view (StkVar i) = ShStkVar i
-view (LocVar i) = ShLocVar i
-
-unview :: ShVar -> Var
-unview (ShStkVar i) = StkVar i
-unview (ShLocVar i) = LocVar i
-unview _            = error "PairSharing.unview: illegal variable"
+  show = show . pretty
 
 
 shFlow :: Flow SharingFact
@@ -84,119 +70,79 @@ shLattice :: SemiLattice SharingFact
 shLattice = SemiLattice shName shBot shJoin
   where
     shName = "PairSharing"
-    shBot  = ShFact (S.empty,[])
-    shJoin _ (ShFact(sh1,stk1)) (ShFact(sh2,stk2)) = ShFact (sh3,stk3)
-      where
-        sh3 = sh1 `S.union` sh2
-        stk3 
-          | and $ zipWith (==) stk1 stk2 = stk1 
-          | otherwise = error $ "shJoin: invalid variable stk" ++ show (stk1,stk2)
-
+    shBot  = ShFact PS.empty
+    shJoin _ (ShFact sh1) (ShFact sh2) = ShFact (sh1 `PS.union` sh2)
 
 shTransfer :: Transfer SharingFact
 shTransfer = Transfer shTransferf shSetup shProject shExtend
   where
-    shTransferf p q ins (ShFact (sh, stk)) = ShFact $ case ins of
-      Load i -> let k = index stk in ((k `assign` ShLocVar i) sh, k:stk)
-      Store i -> case stk of
-        []     -> error "assertion error: shTransfer: empty stk"
-        (k:ks) -> ((ShLocVar i `assign` k) sh, ks)
-      Push _         -> push (sh,stk)
-      New _          -> let k = index stk in (k `S.insert'` sh, k:stk)
-      GetField _ _   -> normalize p q (sh,stk)
-                       {-let -}
-                          {-res = index stk -}
-                          {-fld = tos stk-}
-                       {-in (res `assign` fld) sh |> (fld `S.delete'`) |> (res `mapsto` fld) |> \lsh -> normalize p q (lsh,stk)-}
-      PutField _ _   -> case stk of
-        (val:ref:_) -> (ref `put` val) sh |> \lsh   -> normalize p q $ pop2 (lsh,stk)
-        _            -> error $ "assertion error: shTransfer: illegal stk" ++ show (sh,stk)
-      CheckCast _    -> pop (sh,stk)
-      Pop            -> pop (sh,stk)
-      IAdd           -> push $ pop2 (sh,stk)
-      ISub           -> push $ pop2 (sh,stk)
-      Goto _         -> (sh,stk)
-      IfFalse _      -> pop (sh,stk)
-      CmpEq          -> push $ pop2 (sh,stk)
-      CmpNeq          -> push $ pop2 (sh,stk)
-      ICmpGeq        -> push $ pop2 (sh,stk)
-      BNot           -> push $ pop (sh,stk)
-      BOr            -> push $ pop2 (sh,stk)
-      BAnd           -> push $ pop2 (sh,stk)
-      Return         -> undefined
-      Invoke _ _     -> undefined
+    assign x y sh 
+      | (y:><:y) `PS.member` sh' = (x:><:y) `PS.insert` (sh' `PS.union` PS.rename (y `to` x) sh')
+      | otherwise                = sh'
+      where 
+        sh'          = x `PS.delete'` sh
+        to old new z = if z == old then new else z
 
-    v `assign` w = assign' v w 
-    assign' v1 v2 sh
-      | v1 == v2              = error "assertion error: same index"
-      | (v2,v2) `S.member` sh = (v1,v2) `S.insert` sh' `S.union` (v2 `mapsto` v1) sh'
-      | otherwise             = sh'
-      where sh' = v1 `S.delete'` sh
+    normalize p q = PS.filter ty
+      where ty (x:><:y) = areSharingTypes p (hasTypeQ q x) (hasTypeQ q y)
 
-    ref `put` val = put' ref val
-    put' ref val sh
-      | (ref,ref) `S.member` sh = (ref,val) `S.insert` sh |> S.closure [val] |> (val `S.delete'`) |> S.closure [ref]
-      | otherwise = val `S.delete'` sh
+    -- index (i,j) after operation
+    shTransferf p q ins sh = 
+      let (i,j) = hasIndexQ q in shTransferf' p q ins sh i j
+    shTransferf' p q ins (ShFact sh) i j = ShFact $ case ins of
+      Load n          -> (StkVar i j `assign` LocVar i n) sh
+      Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  PS.delete' y $ (x `assign` y) sh
+      Push _          -> sh
+      New _           -> let x = StkVar i j in  x:><:x `PS.insert` sh
+      GetField fn cn  -> if isPrimitiveType $ snd (field p cn fn) 
+                          then PS.delete' (StkVar i j) sh
+                          else normalize p q sh
+      PutField fn cn  ->  if isPrimitiveType $ snd (field p cn fn)
+                          then PS.delete' val $ PS.delete' ref sh
+                          else normalize p q . PS.delete' val . PS.delete' ref $ (ref `put` val) sh
+                        where (val,ref) = (StkVar i (j+2), StkVar i (j+1))
+      CheckCast _     -> normalize p q sh
+      Pop             -> StkVar i j `PS.delete'` sh
+      IAdd            -> sh
+      ISub            -> sh
+      Goto _          -> sh
+      IfFalse _       -> sh
+      CmpEq           -> StkVar i (j+1) `PS.delete'` (StkVar i j `PS.delete'` sh)
+      CmpNeq          -> StkVar i (j+1) `PS.delete'` (StkVar i j `PS.delete'` sh)
+      ICmpGeq         -> sh
+      BNot            -> sh
+      BOr             -> sh
+      BAnd            -> sh
+      Return          -> undefined
+      Invoke _ _      -> undefined
 
-    v1 `mapsto` v2 = S.map (\v -> if v == v1 then v2 else v)
+    put ref val sh
+      | ref:><:ref `PS.member` sh = PS.closure [ref] . PS.delete' val . PS.closure [val] $ ref:><:val `PS.insert` sh
+      | otherwise                 = val `PS.delete'` sh
 
-    pop (sh,k:ks) = (k `S.delete'` sh, ks)
-    pop (_ ,[])   = error "assertion error: shFwdTransfer: empty stk"
-    pop2 = pop . pop
-    push (sh,stk) = (sh,index stk :stk)
-
-    shSetup p cn mn = ShFact (sh,[])
+    shSetup p cn mn = ShFact sh
       where
         md     = theMethod p cn mn
         params = zip [1..] (methodParams md)
-        sh     = S.fromList $ (ShLocVar 0, ShLocVar 0)  : [(ShLocVar i, ShLocVar i) | (i, RefType _) <- params]
+        sh     = PS.fromList $ (LocVar 0 0:><:LocVar 0 0) : [LocVar 0 i:><:LocVar 0 i | (i, RefType _) <- params]
 
-    shProject _ q _ _ nparams (ShFact (sh, lt)) = ShFact (sh', [])
+    shProject _ q _ _ nparams (ShFact sh) = ShFact (PS.renameWithLookup rename sh)
       where 
-        params  = reverse $ take (nparams + 1) lt
-        types   = [hasTypeQ q (unview x) | x <- params]
-        locals  = [ShLocVar i | i <- [0..nparams]]
-        ghosts  = [ShTmpVar i ty | (i,ty) <- zip [0..nparams] types]
+        (i,j)  = hasIndexQ q
+        rename = flip lookup (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
 
-        renamer = zip params locals
-        sh''    = params `S.restrict` sh |> (renamer `S.rename`) 
-        sh'     = foldl (\lsh f -> f lsh) sh'' (zipWith assign ghosts locals)
-
-    shExtend _ _ _ nparams (ShFact (sh1,lt1)) (ShFact (_  ,[])) = ShFact (sh2,lt2)
+    shExtend _ q _ nparams _ (ShFact sh) = 
+      ShFact . PS.filter (\(x:><:y) -> k x && k y) $ (rl `assign` rs) sh
       where 
-        (ps,lt') = splitAt (nparams + 1) lt1
-        sh2      = ps `S.deletes'` sh1
-        lt2      = index lt' :lt'
-      
-    shExtend _ q _ nparams (ShFact (sh1,lt1)) (ShFact (sh2,[ShStkVar 0])) = ShFact (sh3,lt3)
-      where
-        params = reverse $ take (nparams + 1) lt1
-        types  = [hasTypeQ q (unview x) | x <- params]
-        ghosts = [ShTmpVar i ty | (i,ty) <- zip [0..nparams] types]
-        out    = ShStkVar 0
-
-        sh'  = S.restrict (out:ghosts) sh2 |> S.rename  ((ShStkVar 0, ShOutVar) : zip ghosts params)
-        sh'' = sh' `S.union` sh1
-        sh3  = close sh'' (closef sh'') |> S.deletes' params |> S.rename [(ShOutVar, index lt')]
-        lt'  = drop (nparams + 1) lt1
-        lt3  = index lt':lt'
-
-        
-        close s1 s2 | s1 == s2 = s1
-        close s1 s2           = close s2 (closef s1)
-        closef s1 = foldl (\lsh (v1,v2) -> [v1,v2] `S.closure` lsh) s1 (S.elems sh') 
-
-    normalize p q (sh,lt) = (S.filter (uncurry $ areSharingTypes' p q) sh,lt)
-
-    areSharingTypes' p q x y = areSharingTypes p (ty x) (ty y)
-      where
-        ty (ShTmpVar _ t) = t
-        ty z              = hasTypeQ q (unview z)
-
+        (i,j) = hasIndexQ q
+        (rs,rl) = (StkVar (i+1) 0, StkVar i (j -nparams))
+        k (StkVar i2 _) = i2 <= i
+        k (LocVar i2 _) = i2 <= i
 
 shQueryV :: QueryV SharingFact
-shQueryV = defaultQueryV {mayShare = shMayShare}
-  where shMayShare (ShFact (sh,_)) x y = Just $ (view x, view y) `S.member` sh
-
+shQueryV = defaultQueryV {mayShare = shMayShare, maySharesWith = shMaySharesWith}
+  where 
+    shMayShare      (ShFact sh) x y = Just $ (x:><:y) `PS.member` sh
+    shMaySharesWith (ShFact sh) x   = Just $ x `PS.pairsWith` sh
 
 

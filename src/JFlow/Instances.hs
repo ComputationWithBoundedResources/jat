@@ -2,9 +2,9 @@
 module JFlow.Instances where
 
 import JFlow.Data
-import JFlow.Typing2
-import JFlow.PairSharing2
-import JFlow.TreeShaped2
+import JFlow.Typing
+import JFlow.PairSharing
+import JFlow.TreeShaped
 import JFlow.ReachAC
 
 import qualified Jat.PairSet as PS
