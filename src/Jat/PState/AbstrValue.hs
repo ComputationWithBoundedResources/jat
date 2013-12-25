@@ -14,7 +14,7 @@ import Jat.PState.AbstrDomain
 import Jat.PState.BoolDomain
 import Jat.PState.IntDomain
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 -- | Representation of an address.
 type Address = Int

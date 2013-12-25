@@ -21,7 +21,7 @@ import Data.Char as C
 import Data.Maybe (fromMaybe, catMaybes)
 import Control.Monad (liftM)
 
-import Debug.Trace
+{-import Debug.Trace-}
 
 -- TODO: Constraint type should generalize Term from rewriting lib
 
@@ -73,7 +73,7 @@ simplifyRHS crules = foldl clean crules (funs crules)
       rules `fromMaybe` ((((rules \\ tof) \\ fot) ++) `liftM` narrow tof fot)
     
     narrow :: [CRule] -> [CRule] -> Maybe [CRule]
-    narrow tof fot | trace ("narrow: " ++ show (map prettyR . fst $ unzip tof, map prettyR . fst $ unzip fot)) False = undefined
+    {-narrow tof fot | trace ("narrow: " ++ show (map prettyR . fst $ unzip tof, map prettyR . fst $ unzip fot)) False = undefined-}
     narrow tof fot = sequence $ do
       f@(r1,c1) <- tof
       (r2,c2)   <- rename f `liftM` fot
@@ -98,7 +98,7 @@ simplifyRHS crules = foldl clean crules (funs crules)
       where 
         toTerm (CVar s) = R.Var s
         fromTerm (R.Var s)          = CVar s
-        fromTerm (R.Fun "flase" []) = BConst False
+        fromTerm (R.Fun "false" []) = BConst False
         fromTerm (R.Fun "true" [])  = BConst True
         fromTerm t@(R.Fun s [])       = IConst $ err t `fromMaybe` (readMaybe s :: Maybe Int)
         fromTerm (R.Fun "$not" [t])     = Not $ fromTerm t
@@ -300,14 +300,21 @@ toCTRS = simplifyRHS . simplifyRHS . foldRule . map mapRule
     mapRule (r,c)                       = (r, c) 
     mapTerm t c                         = T.fold (assignment c) R.Fun t
 
-    isCon c@(Ass (CVar _) (Eq _ _))   = Just c
-    isCon c@(Ass (CVar _) (Neq _ _))  = Just c 
-    isCon c@(Ass (CVar _) (Gte _ _))  = Just c
+    isCon c@(Ass (CVar _) (Eq _ _))  = Just c
+    isCon c@(Ass (CVar _) (Neq _ _)) = Just c
+    isCon c@(Ass (CVar _) (Gte _ _)) = Just c
+    isCon c@(Ass (CVar _) (Not _))   = Just c
+    isCon c@(Ass (CVar _) (And _ _)) = Just c
+    isCon c@(Ass (CVar _) (Or _ _))  = Just c
     isCon _                           = Nothing
 
     isCon2 (Eq _ _)  = True
     isCon2 (Neq _ _) = True
     isCon2 (Gte _ _) = True
+    isCon2 (Not _)   = True
+    isCon2 (And _ _) = True
+    isCon2 (Or _ _)  = True
+
     isCon2 _         = False
 
 
@@ -315,9 +322,9 @@ toCTRS = simplifyRHS . simplifyRHS . foldRule . map mapRule
       | isCon2 c = R.Var v2
       | v1 == v2  =  op c
       | otherwise =  R.Var v2
-    op (Not c)       = R.Fun "$not" [el c]
-    op (And c d)     = R.Fun "$and" [el c,el d]
-    op (Or  c d)     = R.Fun "$or"  [el c,el d]
+    {-op (Not c)       = R.Fun "$not" [el c]-}
+    {-op (And c d)     = R.Fun "$and" [el c,el d]-}
+    {-op (Or  c d)     = R.Fun "$or"  [el c,el d]-}
     op (Add c d)     = R.Fun "$add" [el c,el d]
     op (Sub c d)     = R.Fun "$sub" [el c,el d]
     op e@(BConst _) = el e

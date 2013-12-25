@@ -12,6 +12,7 @@ module Jat.Constraints
 where 
 
 import Jat.Utils.Pretty
+import qualified Data.Char as Ch
 
 -- | General 'Constraint' type for Boolean and Integer Arithemtic constraints.
 data Constraint =
@@ -81,7 +82,7 @@ instance Pretty Constraint where
   pretty con = case con of
     CVar v   -> string v
     IConst i -> int i
-    BConst b -> bool b
+    BConst b -> text . map Ch.toLower $ show b
 
     And l r  -> p l <+> string "/\\" <+> p r
     Or  l r  -> p l <+> string "\\/" <+> p r

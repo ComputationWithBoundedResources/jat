@@ -41,7 +41,7 @@ import Jat.PState.Heap
 import Jat.PState.Step
 import Jat.PState.AbstrDomain as AD
 import Jat.JatM
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 import Jat.Utils.Pretty
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 

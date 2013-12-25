@@ -15,7 +15,7 @@ import Jat.PState.Fun
 import Jat.PState.IntDomain
 import Jat.PState.MemoryModel.Data
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import Control.Monad (zipWithM)
 

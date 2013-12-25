@@ -14,7 +14,7 @@ module Jat.JatM
   )
 where
 
-import Jat.Program (Program)
+import Jinja.Program (Program)
 
 import Control.Monad.State.Lazy
 import Control.Monad (liftM,liftM2,foldM,mapM,sequence)

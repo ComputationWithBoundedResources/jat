@@ -9,7 +9,7 @@ import Jat.PState.Data
 import Jat.PState.IntDomain 
 import Jat.PState.Step
 import Jat.Utils.Pretty (Pretty)
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
 

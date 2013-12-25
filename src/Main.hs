@@ -6,11 +6,11 @@ module Main (
 import Jat.CompGraph
 import Jat.JatM
 import Jat.PState
-import Jat.Program as P
 import Jat.Utils.Args
 import Jat.Utils.Dot
 import Jat.Utils.Pretty
 import Jat.Utils.TRS
+import Jinja.Program as P
 
 import Control.Monad.Identity (runIdentity)
 import Data.Char (toLower)

@@ -21,8 +21,8 @@ import Jat.PState.Object
 import Jat.PState.Step
 import Jat.Utils.Pretty
 import Jat.Utils.Fun
-import Jat.Program (Var (..))
-import qualified Jat.Program as P
+import Jinja.Program (Var (..))
+import qualified Jinja.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
 

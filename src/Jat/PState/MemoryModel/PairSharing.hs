@@ -21,7 +21,7 @@ import Jat.PState.Object
 import Jat.PState.Step
 import Jat.Utils.Pretty
 import Jat.Utils.Fun
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
 
@@ -31,8 +31,8 @@ import Control.Monad.State
 import Data.List (find)
 import Data.Array as A
 
-import qualified Jsat.Instances as F
-import qualified Jsat.Flow as F
+import qualified JFlow.Instances as F
+import qualified JFlow.Flow as F
 
 {-import Debug.Trace-}
 

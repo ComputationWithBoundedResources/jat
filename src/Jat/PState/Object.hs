@@ -19,7 +19,7 @@ where
 
 import Jat.PState.AbstrValue 
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)

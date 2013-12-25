@@ -98,7 +98,7 @@ insert' :: Ord e => e -> PairSet e -> PairSet e
 insert' e (Set es) = Set $ (e,e) `S.insert` es
 
 delete :: Pair p e => p -> PairSet e -> PairSet e
-delete p (Set es) = Set $ mkPair p `S.insert` es
+delete p (Set es) = Set $ mkPair p `S.delete` es
 
 delete' :: Ord e => e -> PairSet e -> PairSet e
 delete' e (Set es) = Set $ S.filter k es

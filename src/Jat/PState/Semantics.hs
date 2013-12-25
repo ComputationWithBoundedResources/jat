@@ -17,7 +17,7 @@ import Jat.PState.Frame
 import Jat.PState.IntDomain
 import Jat.PState.MemoryModel
 import Jat.PState.Step
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 --import Jat.Utils.Pretty hiding (equals)
 --import Debug.Trace

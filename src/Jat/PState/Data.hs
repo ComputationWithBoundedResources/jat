@@ -19,7 +19,7 @@ where
 import Jat.PState.Frame
 import Jat.PState.Heap
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 -- | The abstract State.
 data PState i a  = 

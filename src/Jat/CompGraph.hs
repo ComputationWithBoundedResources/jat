@@ -20,7 +20,7 @@ import Jat.PState
 import Jat.Utils.Dot
 import Jat.Utils.Fun
 import Jat.Utils.Pretty
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import Data.Rewriting.Rule (Rule (..))
 

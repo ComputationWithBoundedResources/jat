@@ -33,7 +33,7 @@ import Jat.PState.AbstrValue
 import Jat.PState.Object
 import Jat.Utils.Pretty
 import Jat.Utils.Fun
-import qualified Jat.Program as P
+import qualified Jinja.Program as P
 
 import qualified Data.Graph.Inductive as Gr
 import Data.Maybe (fromMaybe)
