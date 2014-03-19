@@ -425,13 +425,13 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
 {-unifiesFTablesM :: IntDomain i => P.Program -> PState i Sharing -> PState i Sharing -> FieldTable i -> FieldTable i -> Morph Bool-}
 {-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
 
-state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Int -> JatM m (TRS.Term String String)
-state2TRSSH m st@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st) m st n
+state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Sh i -> Int -> JatM m (TRS.Term String String)
+state2TRSSH m st1@PState{} st2@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st1) m st2 n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}
-    isSpecial p adr = not (acyclic p st adr)
+    isSpecial p adr = not (acyclic p st2 adr)
     isJoinable      = maybeShares
-state2TRSSH m st n = pState2TRS undefined undefined m st n
+state2TRSSH m _ st n = pState2TRS undefined undefined m st n
 
 normalizeSH :: Sh i -> Sh i
 normalizeSH (PState hp frms sh) = PState hp' frms (const (PS.filter k $ nShares sh) `liftNS` sh)

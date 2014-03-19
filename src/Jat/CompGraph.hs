@@ -257,14 +257,14 @@ simplifySCC (MkJGraph gr ctx) = MkJGraph (Gr.delNodes (allnodes \\ sccnodes) gr)
 mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule String String, Maybe Constraint)]
 mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
   where
-    rule _ (k,k',InstanceLabel) = ruleM (ts s k) (ts s k') Nothing
+    rule _ (k,k',InstanceLabel) = ruleM (ts s s k) (ts s s k') Nothing
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (ts t k) (ts t k') Nothing
+    rule _ (k,k',RefinementLabel con) = ruleM (ts t t k) (ts t t k') Nothing
       where t = lookupN k'
     rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of
-        Just q  -> ruleM (ts s k) (tsStar q t k') (mkCon con)
-        Nothing -> ruleM (ts s k) (ts t k') (mkCon con)
+        Just q  -> ruleM (ts s s k) (tsStar q s t k') (mkCon con)
+        Nothing -> ruleM (ts s s k) (ts s t k') (mkCon con)
       where s = lookupN k
             t = lookupN k'
 

@@ -709,12 +709,13 @@ normalizeUS (PState hp frms (UnSharing ma ms mt)) = PState hp' frms (UnSharing m
 normalizeUS st = st
 
        
-state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> PState i UnSharing -> Int -> JatM m (TRS.Term String String)
-state2TRSUS m st@(PState hp _ (UnSharing _ ms mt)) = pState2TRS isSpecial isJoinable m st
+state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> PState i UnSharing -> PState i UnSharing -> Int -> JatM m (TRS.Term String String)
+state2TRSUS m st1@(PState _ _ (UnSharing _ ms _)) st2@(PState hp _ (UnSharing _ _ mt)) = 
+  pState2TRS isSpecial isJoinable m st2
   where
     isSpecial adr        = isCyclic adr hp || isNotTreeShaped  adr hp || NT adr `S.member` mt
     isJoinable adr1 adr2 = (adr1:><:adr2) `S.member` ms
-state2TRSUS m st = pState2TRS undefined undefined m st
+state2TRSUS m _ st = pState2TRS undefined undefined m st
   
 
 

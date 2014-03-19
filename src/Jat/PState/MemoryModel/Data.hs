@@ -31,7 +31,8 @@ class Pretty a => MemoryModel a where
   widening  = join
 
   normalize :: PState i a -> PState i a
-  state2TRS :: (Monad m, IntDomain i) => Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
+  -- TODO: refactor
+  state2TRS :: (Monad m, IntDomain i) => Maybe Address -> PState i a -> PState i a -> Int -> JatM m (TRS.Term String String)
 
   update :: P.Program -> P.PC -> P.Instruction -> PState i a ->  PState i a
   update _ _ = const id

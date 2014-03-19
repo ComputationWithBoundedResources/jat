@@ -223,7 +223,11 @@ mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
 -- TODO:
 -- currently a new referene for every sepcial is inserted in lhs and rhs implying that it could alter in any step
 -- | Returns the cTRS representation of a state, given functions for checking cyclicity and joinability.
-pState2TRS :: (Monad m, IntDomain i) => (Address -> Bool) -> (Address -> Address -> Bool) -> Maybe Address -> PState i a -> Int -> JatM m (TRS.Term String String)
+pState2TRS :: (Monad m, IntDomain i) => 
+  (Address -> Bool)
+  -> (Address -> Address -> Bool)
+  -> Maybe Address
+  -> PState i a -> Int -> JatM m (TRS.Term String String)
 pState2TRS isSpecial isJoinable m (PState hp frms _) k =
   TRS.Fun (var "f" k)  `liftM` mapM tval (concatMap elemsF frms)
   where
