@@ -77,7 +77,7 @@ tsTransfer = Transfer tsTransferf tsSetup tsProject tsExtend
       PutField fn cn  -> S.delete val . S.delete ref $
                         if isTreeShaped' p cn fn 
                            || (val `S.member` ts && not (shares val ref))
-                           || maybe False (\ty -> cn `notElem` reachableClasses p ty) valty
+                           || maybe False (\ty -> cn `S.notMember` reachableClasses p ty) valty
                           then ts
                           else ts `S.difference` sharesWith ref (S.elems ts) q
                         where 

@@ -170,13 +170,13 @@ leastCommonSupClass p cn cn' = meet cns dns
     meet cs (_:ds)             = meet cs ds
     
 -- | Returns all reachable classes wrt. to subclasses and fieldtables.
-reachableClasses :: Program -> ClassId -> [ClassId]
-reachableClasses p cn = S.elems $ reachableClasses' p S.empty (S.singleton cn) 
+reachableClasses :: Program -> ClassId -> S.Set ClassId
+reachableClasses p cn = reachableClasses' p S.empty (S.singleton cn) 
 
 -- | Same as reachableClasses but the queried 'Class' is only member of the
 -- returned list if it is reachable from another class.
-properReachableClasses :: Program -> ClassId -> [ClassId]
-properReachableClasses p cn = S.elems $ reachableClasses' p S.empty initial
+properReachableClasses :: Program -> ClassId -> S.Set ClassId
+properReachableClasses p cn = reachableClasses' p S.empty initial
   where initial = S.fromList [tp | (_,_,RefType tp) <- hasFields p cn]
 
 reachableClasses' :: Program -> S.Set ClassId -> S.Set ClassId -> S.Set ClassId
@@ -196,7 +196,8 @@ reachableClasses' p acc new =
 
 
 isCyclicalType :: Program -> Type -> Bool
-isCyclicalType p (RefType cn) = cn `elem` properReachableClasses p cn
+isCyclicalType p (RefType cn) = S.foldr (\dn -> (cyclic dn ||)) False (reachableClasses p cn)
+  where cyclic dn = dn `S.member` properReachableClasses p dn
 isCyclicalType _ _            = False
 
 isTreeShapedType :: Program -> Type -> Bool
@@ -213,14 +214,14 @@ isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]
     treeShaped cn'    = case reaches of
       []     -> True
       (x:xs) -> foldl S.intersection x xs == S.empty
-      where reaches = map (S.fromList . reachableClasses p) (hasRefFields cn')
+      where reaches = reachableClasses p `fmap` hasRefFields cn'
 isTreeShapedType _ _ = False
 
 areSharingTypes :: Program -> Type -> Type -> Bool
 areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2
   where 
-    tys1 = S.fromList $ reachableClasses p cn1
-    tys2 = S.fromList $ reachableClasses p cn2
+    tys1 = reachableClasses p cn1
+    tys2 = reachableClasses p cn2
 areSharingTypes _ _ _                         = False
 
 areRelatedTypes :: Program -> Type -> Type -> Bool
