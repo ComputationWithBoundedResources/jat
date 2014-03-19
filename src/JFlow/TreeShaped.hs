@@ -75,12 +75,17 @@ tsTransfer = Transfer tsTransferf tsSetup tsProject tsExtend
 
       GetField fn cn  -> if isTreeShaped' p cn fn then StkVar i j `S.insert` ts else ts
       PutField fn cn  -> S.delete val . S.delete ref $
-                        if isTreeShaped' p cn fn || (val `S.member` ts && not (shares val ref))
+                        if isTreeShaped' p cn fn 
+                           || (val `S.member` ts && not (shares val ref))
+                           || maybe False (\ty -> cn `notElem` reachableClasses p ty) valty
                           then ts
                           else ts `S.difference` sharesWith ref (S.elems ts) q
                         where 
                           (val,ref) = (StkVar i (j+2), StkVar i (j+1))
                           shares    = mayShareQ q
+                          valty = case snd $ field p cn fn of
+                            RefType cn' -> Just cn'
+                            _           -> Nothing
       
     isTreeShaped' p cn fn = P.isTreeShapedType p ty
       where ty = snd $ field p cn fn
@@ -89,10 +94,10 @@ tsTransfer = Transfer tsTransferf tsSetup tsProject tsExtend
       where  k xs y = if  mayShareQ q x y then y:xs else xs
 
 
-    tsSetup p cn mn = TsFact (Ts $ S.fromList [LocVar 0 i | i <- [0..nparams]])
+    tsSetup p cn mn = TsFact (Ts $ S.fromList [LocVar 0 i | i <- [0..mx]])
       where
-        md      = theMethod p cn mn
-        nparams = length (methodParams md)
+        md = theMethod p cn mn
+        mx = maxLoc md + length (methodParams md)
 
     tsProject _ q _ _ nparams (TsFact (Ts ts)) = TsFact (Ts $ S.map rename ts)
       where 

@@ -101,13 +101,25 @@ execStore n (Frame loc stk cn mn pc) = case stk of
 execGoto :: Monad m => Int -> Frame i -> JatM m (PStep (Frame i))
 execGoto i (Frame loc stk cn mn pc) = return $ topEvaluation (Frame loc stk cn mn (pc+i))
 
+-- TODO: 
+-- refinement should be substituted in whole state;
+-- in generic case not helpful ie Load 1; Load 2: BOr; IfFalse
+-- special case Load 1; IfFalse
 execIfFalse :: Monad m => Int -> Frame i -> JatM m (PStep (Frame i))
-execIfFalse i (Frame loc stk cn mn pc) = case stk of
-  BoolVal b1:vs -> liftStep eval refine `liftM` ifFalse b1
-    where
-      eval   b = Frame loc vs cn mn (pc + if b == constant True  then 1 else i)
-      refine b = Frame loc (BoolVal b:vs) cn mn pc
+execIfFalse i frm@(Frame loc stk cn mn pc) = case stk of
+  BoolVal b1:vs -> do
+    eva <- ifFalse b1
+    return $ case eva of
+      Evaluation (b,c) -> topEvaluation $ Frame loc vs cn mn (pc + if b == constant True  then 1 else i)
+      Refinement rs    -> Refinement $ map (\(r,c) -> (mapValuesF (k r) frm, c)) rs
+      where
+        k r (BoolVal b) = BoolVal $ r b
+        k r v           = v
   _            -> error "Jat.PState.Semantics.execIfFalse: invalid stack."
+  {-BoolVal b1:vs -> liftStep eval refine `liftM` ifFalse b1-}
+    {-where-}
+      {-eval   b = Frame loc vs cn mn (pc + if b == constant True  then 1 else i)-}
+      {-refine b = Frame loc (BoolVal (b b1):vs) cn mn pc-}
 
 
 execBinIntOp :: (Monad m, IntDomain i) => (i -> i -> JatM m (PStep i)) -> Frame i -> JatM m (PStep (Frame i))

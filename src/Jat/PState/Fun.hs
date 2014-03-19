@@ -4,6 +4,8 @@ module Jat.PState.Fun
     mkInstance
   , mkAbsInstance
   , mergeStates
+  , Correlation (..)
+  , mergeStates'
   , mkGetField
   , mkPutField
   , pState2TRS
@@ -98,12 +100,15 @@ correlation = C
 
 data Corre i = Corr {unCorr :: M.Map Correlation Address, unHeap:: Heap i}
 
--- | Given two states, builds a new states with maximal common paths and maximal common aliasing.
 mergeStates :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a -> PState i a -> a -> JatM m (PState i a)
-mergeStates _ st1 st2 _ | not (isSimilar st1 st2) = error "Jat.PState.Fun.mergeStates: non-similar states."
-mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
+mergeStates p s1 s2 a = fst `liftM` mergeStates' p s1 s2 a
+
+-- | Given two states, builds a new states with maximal common paths and maximal common aliasing.
+mergeStates' :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a -> PState i a -> a -> JatM m (PState i a, M.Map Correlation Address)
+mergeStates' _ st1 st2 _ | not (isSimilar st1 st2) = error "Jat.PState.Fun.mergeStates: non-similar states."
+mergeStates' p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
   (st,frms3) <- wideningFs Corr{unCorr=M.empty, unHeap=emptyH} frms1 frms2
-  return $ PState (unHeap st) frms3 ann
+  return $ (PState (unHeap st) frms3 ann, unCorr st)
     where
       wideningF st (Frame loc1 stk1 cn mn pc) (Frame loc2 stk2 _ _ _) = do
         (st1,loc3) <- joinValM st loc1 loc2
@@ -184,7 +189,7 @@ mergeStates p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
         (d,e) <- joinValM st' vs vs'
         return (d, v'':e)
       joinValM _ _ _ = error "Jat.PState.Funl.mergeStates: unexpected case: illegal fieldtable"
-mergeStates _ _ _ _ = error "Jat.PState.Fun.mergeStates: unexpected case."
+mergeStates' _ _ _ _ = error "Jat.PState.Fun.mergeStates: unexpected case."
 
 
 -- | Performs Getfield, assuming it is valid to perform. 

@@ -28,13 +28,13 @@ import qualified Data.Rewriting.Term as TRS (Term (..))
 import Data.Maybe ( fromMaybe)
 import qualified Data.Map as M
 import Control.Monad.State
-import Data.List (find)
+import Data.List (find, intersect)
 import Data.Array as A
 
 import qualified JFlow.Instances as F
 import qualified JFlow.Flow as F
 
-{-import Debug.Trace-}
+import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.PairSharing"
@@ -123,7 +123,8 @@ treeShaped p st q =
 
 isValidStateTS :: Sh i -> Bool
 isValidStateTS st@(PState hp _ _) = not $ any (treeShapedSh st) nonts
-  where nonts = (`isNotTreeShaped` hp) `filter` addresses hp
+  where nonts = (`isCyclic` hp) `filter` addresses hp
+  {-where nonts = (`isNotTreeShaped` hp) `filter` addresses hp-}
 isValidStateTS _ = True
 
 --maybeSharesV :: P.Program -> Sh i -> P.Var -> P.Var -> Bool
@@ -403,12 +404,19 @@ leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
 
 -- Todo: take correlation into account
 joinSH :: (Monad m, IntDomain i) => Sh i -> Sh i -> JatM m (Sh i)
-joinSH st1 st2 = do
+joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
   p <- getProgram
-  PState hp frms _  <- mergeStates p st1 st2 undefined
-  let ns = PS.empty
+  (PState hp frms _, cor)  <- mergeStates' p st1 st2 undefined
+  let ns = joinNS hp cor (nShares sh1) (nShares sh2)
+  {-let ns = joinNS cor (PS.empty) (PS.empty)-}
+      {-ns = PS.empty-}
       sh = sharing st1
   return $ PState hp frms (const ns `liftNS` sh)
+  where
+    joinNS hp cor ns1 ns2 = PS.intersection ns1' ns2' where
+      ns1' = PS.renameWithLookup (`lookup` lk) ns1 
+      ns2' = PS.renameWithLookup (`lookup` lk) ns2
+      lk   = uncurry intersect $ unzip [ ((p,r),(q,r)) | (C p q, r) <-  M.toList cor, r `elem` addresses hp]
 
 {-unifiesObjectsM :: IntDomain i => P.Program -> PState i Sharing -> PState i Sharing -> Object i -> Object i -> Morph Bool-}
 {-[>unifiesOjects b p s t o1 o2 | trace (">>> unifiesO\n" ++ (show $ pretty o1 <+> pretty o2)) False = undefined<]-}

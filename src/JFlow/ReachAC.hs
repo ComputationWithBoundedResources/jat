@@ -63,7 +63,7 @@ filter :: (Reaches -> Bool) -> (Var -> Bool) -> AcyclicityFact -> AcyclicityFact
 filter f g (AcFact rs cs) = AcFact (S.filter f rs) (S.filter g cs)
 
 acFlow :: Flow AcyclicityFact
-acFlow = undefined
+acFlow = Flow acLattice acTransfer acQueryV
 
 acLattice :: SemiLattice AcyclicityFact
 acLattice = SemiLattice acName acBot acJoin
@@ -80,7 +80,7 @@ normalize shTypes cyType (AcFact rs cs) = AcFact rs' cs'
 
 acTransfer :: Transfer AcyclicityFact
 {-acTransfer = Transfer shTransferf shSetup shProject shExtend-}
-acTransfer = Transfer undefined undefined undefined undefined
+acTransfer = Transfer acTransferf acSetup acProject shExtend
   where
     {-normalize p q = normalize -}
       {-where ty (x:><:y) = areSharingTypes p (hasTypeQ q x) (hasTypeQ q y)-}

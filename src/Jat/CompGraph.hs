@@ -162,6 +162,7 @@ mkJoin ctx2 (MkJGraph g (ctx1:ctxs)) = do
       ctx3 = ([edge],k,st3,[])
       g1  = delNodes successors g
       g2   = ctx3 & g1
+      {-g2   = ctx3 & g-}
   return $ MkJGraph g2 (ctx3: filter (\lctx -> node' lctx `notElem` successors) ctxs)
   {-return $ MkJGraph g2 (ctx3: ctxs)-}
   where 

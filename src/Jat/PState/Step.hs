@@ -41,7 +41,7 @@ map2 f _ (Evaluation (a,c))  = Evaluation (f a,c)
 map2 _ g (Refinement bs)     = Refinement [(g b,c) | (b,c) <- bs]
 map2 f _ (Abstraction (a,c)) = Abstraction (f a,c)
 
--- | lifts two function to a step.
+-- | Lifts two function to a step.
 liftStep :: (a -> c) -> (b -> d) -> Step a b -> Step c d
 liftStep = map2
 

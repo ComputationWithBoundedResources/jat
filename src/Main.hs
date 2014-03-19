@@ -90,13 +90,13 @@ theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> Ja
 theOutput opts p gM =
   let (simpGr,simpTRS) = 
           case simplify opts of
-            WithNarrowing       -> (id, simplifyRHS)
+            WithNarrowing       -> (id, simplifyRHS . simplifyRHS . simplifyRHS)
             WithNarrowingAndSCC -> (simplifySCC, simplifyRHS)
             _                   -> (id, id)
   in
   case format opts of
     DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
-    TRS  -> (display . prettyTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
+    TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     PRG  -> return (display $ pretty p)

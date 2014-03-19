@@ -85,10 +85,12 @@ a .||. b                 = evalb a b Or
 
 -- | Abstract Semantics for ifFalse instruction.
 -- Returns a refinement if a concrete value can not be inferred.
-ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain BoolDomain)
+ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain (BoolDomain -> BoolDomain))
 ifFalse (Boolean a) = return $ Evaluation (Boolean a, C.top)
-ifFalse a@(AbstrBoolean _) = return $ Refinement [(Boolean False, con False), (Boolean True, con True)]
-  where con b = atom a `Ass` BConst b
+ifFalse a@(AbstrBoolean _) = return $ Refinement [(sub a (Boolean False), con False), (sub a (Boolean True), con True)]
+  where 
+    con b = atom a `Ass` BConst b
+    sub a b v = if v == a then b else v
 
 instance Pretty BoolDomain where
   pretty (Boolean True)   = text "true"
