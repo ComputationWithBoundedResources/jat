@@ -36,7 +36,7 @@ data QueryV v = QueryV {
   , hasType       :: v -> Var -> Maybe P.Type
   , mayShare      :: v -> Var -> Var -> Maybe Bool
   , maySharesWith :: v -> Var -> Maybe [Var]
-  , isTreeShaped  :: v -> Var -> Maybe Bool
+  , isAcyclic     :: v -> Var -> Maybe Bool
 }
 
 data Query = Query {
@@ -45,7 +45,7 @@ data Query = Query {
   , hasTypeQ       :: Var -> P.Type
   , mayShareQ      :: Var -> Var -> Bool
   , maySharesWithQ :: Var -> [Var]
-  , isTreeShapedQ  :: Var -> Bool
+  , isAcyclicQ  :: Var -> Bool
 }
 
 runQueryV :: v -> QueryV v -> Query
@@ -56,7 +56,7 @@ runQueryV v (QueryV ix sx ty sh sh' ts) = Query qix qsx qty qsh qsh' qts
     qty  x   = error "runQueryV: type"       `fromMaybe` ty v x
     qsh  x y = error "runQueryV: sharing"    `fromMaybe` sh v x y
     qsh' x   = error "runQueryV: sharings"   `fromMaybe` sh' v x
-    qts  x   = error "runQueryV: treeshaped" `fromMaybe` ts v x
+    qts  x   = error "runQueryV: acyclic" `fromMaybe` ts v x
 
 defaultQueryV :: QueryV v
 defaultQueryV = QueryV {
@@ -65,7 +65,7 @@ defaultQueryV = QueryV {
   , hasType       = \_ _   -> Nothing
   , mayShare      = \_ _ _ -> Nothing
   , maySharesWith = \_ _   -> Nothing
-  , isTreeShaped  = \_ _   -> Nothing
+  , isAcyclic     = \_ _   -> Nothing
   }
 
 data SemiLattice v = SemiLattice {
@@ -103,7 +103,7 @@ mkFlow2 p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 quer
   where
     lat3  = SemiLattice name3 bot3 join3
     tran3 = Transfer transf3 setup3 project3 extend3
-    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isTreeShaped3
+    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3
 
     name3 = name lat1 ++ 'X': name lat2
     bot3  = bot lat1 :*: bot lat2
@@ -114,7 +114,7 @@ mkFlow2 p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 quer
     hasType3       (v :*: v') x   = hasType       quer1 v x   `mplus` hasType       quer2 v' x
     mayShare3      (v :*: v') x y = mayShare      quer1 v x y `mplus` mayShare      quer2 v' x y
     maySharesWith3 (v :*: v') x   = maySharesWith quer1 v x   `mplus` maySharesWith quer2 v' x 
-    isTreeShaped3  (v :*: v') x   = isTreeShaped  quer1 v x   `mplus` isTreeShaped  quer2 v' x
+    isAcyclic3     (v :*: v') x   = isAcyclic  quer1 v x   `mplus` isAcyclic  quer2 v' x
 
     setup3 _ cn mn = setup tran1 p cn mn :*: setup tran2 p cn mn
 
@@ -140,7 +140,7 @@ mkFlow2' p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 que
   where
     lat3  = SemiLattice name3 bot3 join3
     tran3 = Transfer transf3 setup3 project3 extend3
-    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isTreeShaped3
+    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3
 
     name3 = name lat1 ++ 'X': name lat2
     bot3  = bot lat1 :>: bot lat2
@@ -151,7 +151,7 @@ mkFlow2' p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 que
     hasType3       (v :>: v') x   = hasType       quer1 v x   `mplus` hasType       quer2 v' x
     mayShare3      (v :>: v') x y = mayShare      quer1 v x y `mplus` mayShare      quer2 v' x y
     maySharesWith3 (v :>: v') x   = maySharesWith quer1 v x   `mplus` maySharesWith quer2 v' x 
-    isTreeShaped3  (v :>: v') x   = isTreeShaped  quer1 v x   `mplus` isTreeShaped  quer2 v' x
+    isAcyclic3  (v :>: v') x      = isAcyclic  quer1 v x   `mplus` isAcyclic  quer2 v' x
 
     setup3 _ cn mn = setup tran1 p cn mn :>: setup tran2 p cn mn
 

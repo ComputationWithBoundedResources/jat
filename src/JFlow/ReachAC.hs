@@ -151,8 +151,9 @@ acTransfer = Transfer acTransferf acSetup acProject shExtend
         k2 x            = k x && k x
 
 acQueryV :: QueryV AcyclicityFact
-acQueryV = defaultQueryV{ isTreeShaped = tsIsTreeShaped }
-  where tsIsTreeShaped (AcFact _ cs) x = Just . not $ maybeCyclic x cs
+acQueryV = defaultQueryV
+--acQueryV = defaultQueryV{ isAcyclic = tsIsTreeShaped }
+  --where tsIsTreeShaped (AcFact _ cs) x = Just . not $ maybeCyclic x cs
 
 
 

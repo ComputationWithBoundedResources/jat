@@ -26,7 +26,8 @@ module Jinja.Program.Fun
   , properReachableClasses
   , reachableClasses
 
-  , isCyclicalType
+  , isAcyclicType
+  , isAcyclicType'
   , isTreeShapedType
   , areSharingTypes
   , areRelatedTypes
@@ -195,13 +196,18 @@ reachableClasses' p acc new =
 
 
 
-isCyclicalType :: Program -> Type -> Bool
-isCyclicalType p (RefType cn) = S.foldr (\dn -> (cyclic dn ||)) False (reachableClasses p cn)
+isAcyclicType :: Program -> Type -> Bool
+isAcyclicType p (RefType cn) = cn `S.member` properReachableClasses p cn
+isAcyclicType _ _            = False
+
+-- like acyclic but also checks if subtypes are acyclic
+isAcyclicType' :: Program -> Type -> Bool
+isAcyclicType' p (RefType cn) = S.foldr (\dn -> (cyclic dn ||)) False (reachableClasses p cn)
   where cyclic dn = dn `S.member` properReachableClasses p dn
-isCyclicalType _ _            = False
+isAcyclicType' _ _            = False
 
 isTreeShapedType :: Program -> Type -> Bool
-isTreeShapedType p ty | isCyclicalType p ty = False
+isTreeShapedType p ty | isAcyclicType p ty = False
 isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]
   where
     isTreeShaped' _ [] = True

@@ -116,9 +116,10 @@ tsTransfer = Transfer tsTransferf tsSetup tsProject tsExtend
     
 
 tsQueryV :: QueryV TreeShapedFact
-tsQueryV = defaultQueryV{ isTreeShaped = tsIsTreeShaped }
-  where
-    tsIsTreeShaped (TsFact TsTop) _   = Just True
-    tsIsTreeShaped (TsFact (Ts ts)) x = Just $ x `S.member` ts
+tsQueryV = defaultQueryV
+--tsQueryV = defaultQueryV{ isTreeShaped = tsIsTreeShaped }
+  --where
+    --tsIsTreeShaped (TsFact TsTop) _   = Just True
+    --tsIsTreeShaped (TsFact (Ts ts)) x = Just $ x `S.member` ts
 
 

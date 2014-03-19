@@ -21,6 +21,7 @@ module Jat.PState.Heap
   , reachable
   , reachableFrom
   , isCyclic
+  , isCyclic'
   , hasCommonSuccessor
   , isNotTreeShaped
   , commonPrefix
@@ -157,10 +158,19 @@ reachableFrom adr hp = filter (\ladr -> adr `elem` reachable ladr hp) (Gr.nodes 
 isCyclic :: Address -> Heap i -> Bool
 isCyclic adr hp = 
   let gr = toGraph hp 
-  in  any (adr `elem`) $ filter (notTrivial gr) $ Gr.scc gr
+  in  any (adr `elem`) $ filter (not . isTrivialCycle gr) $ Gr.scc gr
   where
     notTrivial gr [n] | n `notElem` Gr.suc gr n = False
     notTrivial _   _                            = True
+
+-- | Like isCyclic but checks successors also
+isCyclic' :: Address -> Heap i -> Bool
+isCyclic' adr hp = not . null $ filter (not . isTrivialCycle gr) $ Gr.scc gr
+  where gr = toGraph hp
+
+--isTrivialCycle :: Gr.Gr a b -> [a] -> Bool
+isTrivialCycle gr [n] | n `notElem` Gr.suc gr n = True
+isTrivialCycle _   _                            = False
 
 -- | Checks if the successor of an address have a common successor.
 hasCommonSuccessor :: Address -> Heap i -> Bool

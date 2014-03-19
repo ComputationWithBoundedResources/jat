@@ -111,21 +111,18 @@ maybeSharesSh st q r =
         xReaches = reachableV x st
         yReaches = reachableV y st
 
-treeShapedSh :: Sh i -> Address -> Bool
-treeShapedSh st q = 
-  any k (F.treeShapedVars . fact $ sharing st)
+acyclicSh :: Sh i -> Address -> Bool
+acyclicSh st q = 
+  any k (F.acyclicVars . fact $ sharing st)
   where k x = q `elem` reachableV x st
 
-treeShaped :: P.Program -> Sh i -> Address -> Bool
-treeShaped p st q = 
-  treeShapedSh st q ||
-  P.isTreeShapedType p (tyOf st q)
+acyclic :: P.Program -> Sh i -> Address -> Bool
+acyclic p st q = P.isAcyclicType p (tyOf st q) || acyclicSh st q
 
-isValidStateTS :: Sh i -> Bool
-isValidStateTS st@(PState hp _ _) = not $ any (treeShapedSh st) nonts
-  where nonts = (`isCyclic` hp) `filter` addresses hp
-  {-where nonts = (`isNotTreeShaped` hp) `filter` addresses hp-}
-isValidStateTS _ = True
+isValidStateAC :: Sh i -> Bool
+isValidStateAC st@(PState hp _ _) = not $ any (acyclicSh st) nonac
+  where nonac = (`isCyclic` hp) `filter` addresses hp
+isValidStateAC _ = True
 
 --maybeSharesV :: P.Program -> Sh i -> P.Var -> P.Var -> Bool
 --maybeSharesV p st x y =
@@ -199,7 +196,7 @@ putFieldSH st@PState{} cn fn = case opstk $ frame st of
                        return $ case stp1 of
                           Evaluation (st1,con) -> 
                             let st2 = updateSH undefined undefined (P.PutField fn cn) st1 in
-                            if isValidStateTS st2
+                            if isValidStateAC st2
                               then Evaluation (normalize st2,con) 
                               else topEvaluation $ EState IllegalStateException
                           stp -> stp
@@ -259,7 +256,7 @@ tryEqualityRefinement st@(PState hp _ _) q = do
 equalityRefinement :: (Monad m, IntDomain i) => Sh i -> Address -> Address -> JatM m (PStep(Sh i))
 equalityRefinement st@(PState hp frms sh) q r = do
   p <- getProgram
-  return . topRefinement $ if isValidStateTS mkEqual && leqSH p mkEqual st then [mkEqual, mkNequal] else [mkNequal]
+  return . topRefinement $ if isValidStateAC mkEqual && leqSH p mkEqual st then [mkEqual, mkNequal] else [mkNequal]
   where
     mkEqual  = liftNS (PS.renameWithLookup (`lookup` [(r,q)]))`liftSh` substitute (RefVal r) (RefVal q) st
     mkNequal = PState hp frms (PS.insert (r:/=:q) `liftNS` sh)
@@ -432,7 +429,7 @@ state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Int -> JatM m 
 state2TRSSH m st@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st) m st n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}
-    isSpecial p adr = not (treeShaped p st adr)
+    isSpecial p adr = not (acyclic p st adr)
     isJoinable      = maybeShares
 state2TRSSH m st n = pState2TRS undefined undefined m st n
 
