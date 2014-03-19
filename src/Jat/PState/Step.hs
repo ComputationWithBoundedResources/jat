@@ -12,20 +12,20 @@ module Jat.PState.Step
   )
 where
 
-import Jat.Constraints
+import Jat.Constraints (PATerm,top)
 
 -- | The type of a step.
 data Step a b =
-    Evaluation (a,Constraint)
-  | Refinement [(b,Constraint)]
-  | Abstraction (a,Constraint)
+    Evaluation (a,PATerm)
+  | Refinement [(b,PATerm)]
+  | Abstraction (a,PATerm)
   deriving Show
 
 -- | The type of a program step.
 type PStep a = Step a a
 
 -- | Performs an evaluation step.
-evaluation :: a -> Constraint -> Step a b
+evaluation :: a -> PATerm -> Step a b
 evaluation = curry Evaluation
 
 -- | Performs an evaluation step constrained with top.

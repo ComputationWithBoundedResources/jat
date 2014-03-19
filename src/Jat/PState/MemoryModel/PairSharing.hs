@@ -7,6 +7,7 @@ module Jat.PState.MemoryModel.PairSharing
   )
 where
 
+import Jat.Constraints (PATerm)
 import Jat.JatM
 import qualified Jat.PairSet as PS
 import Jat.PState.AbstrValue
@@ -425,7 +426,7 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
 {-unifiesFTablesM :: IntDomain i => P.Program -> PState i Sharing -> PState i Sharing -> FieldTable i -> FieldTable i -> Morph Bool-}
 {-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
 
-state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Sh i -> Int -> JatM m (TRS.Term String String)
+state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Sh i -> Int -> JatM m PATerm
 state2TRSSH m st1@PState{} st2@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st1) m st2 n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}

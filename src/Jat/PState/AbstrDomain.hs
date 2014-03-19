@@ -8,6 +8,7 @@ where
 
 import Jat.JatM
 import Jat.Utils.Pretty
+import Data.Maybe (isJust)
 
 -- | The 'AbstrDomain' class.
 class Pretty a => AbstrDomain a b | a -> b where
@@ -19,7 +20,9 @@ class Pretty a => AbstrDomain a b | a -> b where
 
   --abstract domain
   constant :: b -> a 
+  fromConstant :: a -> Maybe b
   isConstant :: a -> Bool
+  isConstant = isJust . fromConstant
   widening :: Monad m => a -> a -> JatM m a 
   widening = join
 

@@ -16,18 +16,18 @@ where
 import Jat.JatM
 import Jat.PState.Step
 import Jat.PState.AbstrDomain
-import Jat.Constraints hiding (top)
+import qualified Jat.Constraints as PA
 import qualified Jat.Constraints as C (top)
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty hiding (bool)
 
 -- | 'BoolDomain' defines a simple domain with no refinements but constraints
 -- ie. if a (concrete value) can not be inferred by an operation, the operation
 -- returns a (constrained) abstract Boolean.
 data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq,Ord)
 
-instance Atom BoolDomain where
-  atom (Boolean b)      = BConst b 
-  atom (AbstrBoolean i) = CVar ('b':show i)
+instance PA.Atom BoolDomain where
+  atom (Boolean b)      = PA.bool b 
+  atom (AbstrBoolean i) = PA.bvar ('b':show i)
 
 instance AbstrDomain BoolDomain Bool where
   join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
@@ -38,12 +38,12 @@ instance AbstrDomain BoolDomain Bool where
   isTop _                = False
 
   leq (Boolean i) (Boolean j) | i == j   = True
-  leq _ (AbstrBoolean _)                 = True
-  leq _ _                                = False
+  leq _ (AbstrBoolean _)                = True
+  leq _ _                               = False
 
   constant = Boolean
-  isConstant (Boolean _) = True
-  isConstant _           = False
+  fromConstant (Boolean b) = Just b
+  fromConstant _           = Nothing
 
 -- | Returns an abstract Boolean with a fresh index.
 freshBool :: Monad m => JatM m BoolDomain
@@ -52,26 +52,26 @@ freshBool = do {i<-freshVarIdx; return $ AbstrBoolean i}
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
-evalb :: Monad m => BoolDomain -> BoolDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
-evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
+evalb :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> BoolDomain -> BoolDomain -> JatM m (Step BoolDomain b)
+evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
 
 -- | Comparison Operation.
 (.==.),(./=.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 Boolean a .==. Boolean b = eval $ Boolean (a == b)
-a .==. b                 = evalb a b Eq 
+a .==. b                 = evalb PA.eq a b
 Boolean a ./=. Boolean b = eval $ Boolean (a /= b)
-a ./=. b                 = evalb a b Neq 
+a ./=. b                 = evalb PA.neq a b
 
 -- | Binary Boolean Operation.
 (.&&.),(.||.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)
 Boolean a .&&. Boolean b = eval $ Boolean (a && b)
 Boolean False .&&. _     = eval $ Boolean False
 a .&&. b@(Boolean _)     = b .&&. a
-a .&&. b                 = evalb a b And
+a .&&. b                 = evalb PA.and a b
 Boolean a .||. Boolean b = eval $ Boolean (a || b)
 Boolean True .||. _      = eval $ Boolean True
 a .||. b@(Boolean _)     = b .||. a
-a .||. b                 = evalb a b Or 
+a .||. b                 = evalb PA.or a b
 
 -- | Not Operation.
 (.!) :: Monad m => BoolDomain -> JatM m (Step BoolDomain BoolDomain)
@@ -79,7 +79,7 @@ a .||. b                 = evalb a b Or
 (.!) a@(AbstrBoolean _) = do
   j <- freshVarIdx
   let b = AbstrBoolean j
-      notcon = atom b `Ass` (Not $ atom a)
+      notcon = PA.atom b `PA.ass` (PA.not $ PA.atom a)
   return $ evaluation b notcon
 
 
@@ -89,7 +89,7 @@ ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain (BoolDomain -> BoolD
 ifFalse (Boolean a) = return $ Evaluation (Boolean a, C.top)
 ifFalse a@(AbstrBoolean _) = return $ Refinement [(sub a (Boolean False), con False), (sub a (Boolean True), con True)]
   where 
-    con b = atom a `Ass` BConst b
+    con b = PA.atom a `PA.ass` PA.bool b
     sub a b v = if v == a then b else v
 
 instance Pretty BoolDomain where

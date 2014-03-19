@@ -33,6 +33,7 @@ module Jat.PState.Fun
   )
 where
 
+import qualified Jat.Constraints as PA
 import Jat.PState.AbstrValue
 import Jat.PState.Data
 import Jat.PState.Frame
@@ -52,7 +53,7 @@ import Data.Char (toLower)
 import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, maybe)
 
 --import Debug.Trace
 
@@ -227,18 +228,18 @@ pState2TRS :: (Monad m, IntDomain i) =>
   (Address -> Bool)
   -> (Address -> Address -> Bool)
   -> Maybe Address
-  -> PState i a -> Int -> JatM m (TRS.Term String String)
+  -> PState i a -> Int -> JatM m PA.PATerm
 pState2TRS isSpecial isJoinable m (PState hp frms _) k =
-  TRS.Fun (var "f" k)  `liftM` mapM tval (concatMap elemsF frms)
+  PA.ufun ('f':show k)  `liftM` mapM tval (concatMap elemsF frms)
   where
-    nullterm = TRS.Fun "null" []
-    var cn key = map toLower cn ++ show key
+    nullterm = PA.ufun "null" []
+    var cn key = PA.uvar $ map toLower cn ++ show key
     
     tval Null        = return nullterm
     tval Unit        = return nullterm
     tval (RefVal r)  = taddr r
-    tval (BoolVal b) = return $ let sb = show (pretty b) in if AD.isConstant b then TRS.Fun sb [] else TRS.Var sb
-    tval (IntVal i)  = return $ let is = show (pretty i) in if AD.isConstant i then TRS.Fun is [] else TRS.Var is
+    tval (BoolVal b) = return $ maybe (PA.bvar (show $ pretty b)) PA.bool (fromConstant b)
+    tval (IntVal i)  = return $ maybe (PA.ivar (show $ pretty i)) PA.int (fromConstant i)
 
         
     taddr r = case m of
@@ -248,21 +249,21 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
     taddr' r | isSpecial r = do
       key <- freshVarIdx
       let cn = className $ lookupH r hp
-      return . TRS.Var  $ var ('c':showcn cn) key
+      return $ var ('c':showcn cn) key
     taddr' r =
       case lookupH r hp of
-        AbsVar cn      -> return . TRS.Var $ var (showcn cn) r
-        Instance cn ft -> TRS.Fun (showcn cn) `liftM` mapM tval (elemsFT ft)
+        AbsVar cn      -> return $ var (showcn cn) r
+        Instance cn ft -> PA.ufun (showcn cn) `liftM` mapM tval (elemsFT ft)
 
     
     taddrStar q r | isJoinable q r = do
                           key <- freshVarIdx
                           let cn = className $ lookupH r hp
-                          return . TRS.Var  $ var ('x':showcn cn) key
+                          return $ var ('x':showcn cn) key
                   | otherwise = taddr' r
     showcn = show . pretty
 
-pState2TRS _ _ _ (EState  ex) _ = return $ TRS.Fun (show ex) []
+pState2TRS _ _ _ (EState  ex) _ = return $ PA.ufun (show ex) []
   
 
 

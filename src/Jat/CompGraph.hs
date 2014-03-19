@@ -14,7 +14,7 @@ module Jat.CompGraph
 where
 
 
-import Jat.Constraints
+import Jat.Constraints (PAFun, PAVar, PATerm, isTop)
 import Jat.JatM
 import Jat.PState
 import Jat.Utils.Dot
@@ -44,9 +44,9 @@ import Data.List ((\\))
 -- finding a candidate reduces to (predc) topsort if we do not allow merging of nodes stemming from different back jump points
 
 data ELabel = 
-    EvaluationLabel Constraint P.Instruction
+    EvaluationLabel PATerm P.Instruction
   | InstanceLabel 
-  | RefinementLabel Constraint 
+  | RefinementLabel PATerm
   deriving Show
 
 instance Pretty ELabel where
@@ -191,7 +191,7 @@ mkEval mg@(MkJGraph _ (ctx:_)) = do
     Abstraction a -> addNodes (const InstanceLabel) [a] mg
 
   where
-    addNodes :: Monad m => (Constraint -> ELabel) -> [(PState i a, Constraint)] -> MkJGraph i a -> JatM m (MkJGraph i a)
+    addNodes :: Monad m => (PATerm -> ELabel) -> [(PState i a, PATerm)] -> MkJGraph i a -> JatM m (MkJGraph i a)
     addNodes label rs (MkJGraph g (origin:ctxs)) = foldM (addNode (node' origin)) (MkJGraph g ctxs) rs
       where 
       addNode k1 (MkJGraph g1 ctxs1) (st,con) = do
@@ -254,7 +254,7 @@ simplifySCC (MkJGraph gr ctx) = MkJGraph (Gr.delNodes (allnodes \\ sccnodes) gr)
 
 -- | Returns pairs of rewrite rules and constraints of a constructed
 -- computation graph.
-mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule String String, Maybe Constraint)]
+mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule PAFun PAVar, Maybe PATerm)]
 mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
   where
     rule _ (k,k',InstanceLabel) = ruleM (ts s s k) (ts s s k') Nothing
@@ -281,9 +281,7 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
     ts        = state2TRS Nothing
     tsStar q  = state2TRS (Just q)
 
-    mkCon con = case con of
-      BConst True -> Nothing
-      _           -> Just con
+    mkCon con = if isTop con then Nothing else Just con
 
 -- Interactive
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)

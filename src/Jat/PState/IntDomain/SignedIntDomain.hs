@@ -12,7 +12,7 @@ import Jat.PState.Step
 import Jat.PState.AbstrDomain
 import Jat.PState.BoolDomain
 import Jat.PState.IntDomain.Data
-import Jat.Constraints hiding (top)
+import qualified Jat.Constraints as PA
 
 import Jat.Utils.Pretty
 
@@ -20,11 +20,11 @@ import Jat.Utils.Pretty
 -- 0 is element of Pos and Neg.
 data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving (Show,Eq,Ord)
 
-instance Atom SignedIntDomain where
-  atom (Integer i)    = IConst i
-  atom (AbsInteger i) = CVar ('i':show i)
-  atom (Pos i)        = CVar ('k':show i)
-  atom (Neg i)        = CVar ('n':show i)
+instance PA.Atom SignedIntDomain where
+  atom (Integer i)    = PA.int i
+  atom (AbsInteger i) = PA.ivar ('i':show i)
+  atom (Pos i)        = PA.ivar ('k':show i)
+  atom (Neg i)        = PA.ivar ('n':show i)
 
 freshInt :: Monad m => JatM m SignedIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
@@ -56,9 +56,9 @@ instance AbstrDomain SignedIntDomain Int where
   leq _ (AbsInteger _)                  = True
   leq _ _                               = False
 
-  constant               = Integer
-  isConstant (Integer _) = True
-  isConstant _           = False
+  constant                 = Integer
+  fromConstant (Integer i) = Just i
+  fromConstant _           = Nothing
 
 isPositive :: SignedIntDomain -> Bool
 isPositive (Integer i) = i >= 0
@@ -73,22 +73,22 @@ isNegative _           = False
 instance IntDomain SignedIntDomain where
   Integer i +. Integer j = eval $ Integer (i+j)
   i +. j 
-    | isPositive i && isPositive j = evali Pos i j Add
-    | isNegative i && isNegative j = evali Neg i j Add
-    | otherwise                    = evali AbsInteger i j Add
+    | isPositive i && isPositive j = evali PA.add Pos i j
+    | isNegative i && isNegative j = evali PA.add Neg i j
+    | otherwise                    = evali PA.add AbsInteger i j
   Integer i -. Integer j = eval $ Integer (i-j)
   i -. j 
-    | isNegative i && isPositive j = evali Neg i j Sub
-    | isPositive i && isNegative j = evali Pos i j Sub
-    | otherwise                    = evali AbsInteger i j Sub
+    | isNegative i && isPositive j = evali PA.sub Neg i j
+    | isPositive i && isNegative j = evali PA.sub Pos i j
+    | otherwise                    = evali PA.sub AbsInteger i j
 
   Integer i ==. Integer j = eval $ Boolean (i == j)
-  i ==. j                 = evalb i j Eq
+  i ==. j                 = evalb PA.eq i j
   Integer i /=. Integer j = eval $ Boolean (i /= j)
-  i /=. j                 = evalb i j Neq
+  i /=. j                 = evalb PA.neq i j
   Integer i >=. Integer j = eval $ Boolean (i>=j)
   (Pos _) >=. (Neg _)    = eval $ Boolean True
-  i >=. j                 = evalb i j Gte
+  i >=. j                 = evalb PA.gte i j
 
 instance Pretty SignedIntDomain where
   pretty (Integer i)    = int i
@@ -100,13 +100,15 @@ eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
 evali :: Monad m => 
-  (Int -> SignedIntDomain) -> SignedIntDomain -> SignedIntDomain -> 
-  (Constraint -> Constraint -> Constraint) -> JatM m (Step SignedIntDomain b)
-evali si i j cop = do {k <- freshVarIdx; return $ evaluation (si k) (mkcon (si k) cop i j)}
+  (PA.PATerm -> PA.PATerm -> PA.PATerm)
+  -> (Int -> SignedIntDomain) -> SignedIntDomain -> SignedIntDomain
+  -> JatM m (Step SignedIntDomain b)
+evali f si i j = do {k <- freshVarIdx; return $ evaluation (si k) (PA.mkcon (si k) f i j)}
 
 evalb :: Monad m => 
-  SignedIntDomain -> SignedIntDomain -> 
-  (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
-evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
+  (PA.PATerm -> PA.PATerm -> PA.PATerm)
+  -> SignedIntDomain -> SignedIntDomain
+  -> JatM m (Step BoolDomain b)
+evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
 
 

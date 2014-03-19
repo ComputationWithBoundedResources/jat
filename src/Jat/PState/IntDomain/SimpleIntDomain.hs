@@ -12,16 +12,16 @@ import Jat.PState.Step
 import Jat.PState.AbstrDomain
 import Jat.PState.BoolDomain
 import Jat.PState.IntDomain.Data
-import Jat.Constraints hiding (top)
+import qualified Jat.Constraints as PA
 
 import Jat.Utils.Pretty
 
 -- |'SimpleIntDomain' defines a simple integer domain with no refinements but constraints.
 data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq,Ord)
 
-instance Atom SimpleIntDomain where
-  atom (Integer i)    = IConst i
-  atom (AbsInteger i) = CVar ('i':show i)
+instance PA.Atom SimpleIntDomain where
+  atom (Integer i)    = PA.int i
+  atom (AbsInteger i) = PA.ivar ('i':show i)
 
 freshInt :: Monad m => JatM m SimpleIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
@@ -39,21 +39,21 @@ instance AbstrDomain SimpleIntDomain Int where
   leq _ _                                = False
 
   constant = Integer
-  isConstant (Integer _) = True
-  isConstant _           = False
+  fromConstant (Integer i) = Just i
+  fromConstant _           = Nothing
 
 instance IntDomain SimpleIntDomain where
   Integer i +. Integer j  = eval $ Integer (i+j)
-  i +. j                  = evali i j Add
+  i +. j                  = evali PA.add i j
   Integer i -. Integer j  = eval $ Integer (i-j)
-  i -. j                  = evali i j Sub
+  i -. j                  = evali PA.sub i j
 
   Integer i ==. Integer j = eval $ Boolean (i == j)
-  i ==. j                 = evalb i j Eq
+  i ==. j                 = evalb PA.eq i j
   Integer i /=. Integer j = eval $ Boolean (i /= j)
-  i /=. j                 = evalb i j Neq
+  i /=. j                 = evalb PA.neq i j
   Integer i >=. Integer j = eval $ Boolean (i>=j)
-  i >=. j                 = evalb i j Gte
+  i >=. j                 = evalb PA.gte i j
 
 instance Pretty SimpleIntDomain where
   pretty (Integer i)    = int i
@@ -62,9 +62,9 @@ instance Pretty SimpleIntDomain where
 eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
-evali :: Monad m => SimpleIntDomain -> SimpleIntDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step SimpleIntDomain b)
-evali i j cop = do {k <- freshInt; return $ evaluation k (mkcon k cop i j)}
+evali :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> SimpleIntDomain -> SimpleIntDomain -> JatM m (Step SimpleIntDomain b)
+evali f i j = do {k <- freshInt; return $ evaluation k (PA.mkcon k f i j)}
 
-evalb :: Monad m => SimpleIntDomain -> SimpleIntDomain -> (Constraint -> Constraint -> Constraint) -> JatM m (Step BoolDomain b)
-evalb i j cop = do {b <- freshBool; return $ evaluation b (mkcon b cop i j)}
+evalb :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> SimpleIntDomain -> SimpleIntDomain -> JatM m (Step BoolDomain b)
+evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
 

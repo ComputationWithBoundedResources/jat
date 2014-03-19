@@ -96,7 +96,8 @@ theOutput opts p gM =
   in
   case format opts of
     DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
-    TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
+    {-TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
+    TRS  -> (display . prettyTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
     PRG  -> return (display $ pretty p)
