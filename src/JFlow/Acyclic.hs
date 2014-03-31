@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 import qualified Data.Set as S
 
-{-import Debug.Trace-}
+import Debug.Trace
 
 newtype AcyclicFact = AcFact AC  deriving (Eq,Ord)
 data AC = AcTop | Ac (S.Set Var) deriving (Eq,Ord)
@@ -72,20 +72,18 @@ acTransfer = Transfer acTransferf acSetup acProject acExtend
       GetField fn cn  -> if isAcyclic' p cn fn then StkVar i j `S.insert` ac else ac
       -- x.f = y; either y is already cyclic or there is a cycle with x
       -- TODO: check if normalising is necessary
-      PutField fn cn  
-        | P.isAcyclicType p $ hasTypeQ q (StkVar i (j+1)) -> ac
-        | otherwise -> S.delete val . S.delete ref $
-                        if isAcyclic' p cn fn 
-                          || (val `S.member` ac && not (shares val ref))
-                          || (val `S.member` ac && (maybe False (\ty -> cn `S.notMember` reachableClasses p ty) valty))
-                        then ac
-                        else ac `S.difference` sharesWith ref (S.elems ac) q
-                        where 
-                          (val,ref) = (StkVar i (j+2), StkVar i (j+1))
-                          shares    = mayShareQ q
-                          valty = case snd $ field p cn fn of
-                            RefType cn' -> Just cn'
-                            _           -> Nothing
+      PutField fn cn -> S.delete val . S.delete ref $
+        if isAcyclic' p cn fn 
+          {-|| (val `S.member` ac && not (shares val ref))-}
+          {-|| (val `S.member` ac && (maybe False ((cn `S.notMember`) . reachableClasses p) valty))-}
+        then trace (show ("val",fn,cn)) ac
+        else trace (show ("nval",fn,cn)) $ ac `S.difference` sharesWith ref (S.elems ac) q
+        where 
+          (val,ref) = (StkVar i (j+2), StkVar i (j+1))
+          shares    = mayShareQ q
+          valty = case snd $ field p cn fn of
+            RefType cn' -> Just cn'
+            _           -> Nothing
       
     isAcyclic' p cn fn = P.isAcyclicType' p ty
       where ty = snd $ field p cn fn

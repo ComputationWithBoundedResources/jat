@@ -37,26 +37,35 @@ data QueryV v = QueryV {
   , mayShare      :: v -> Var -> Var -> Maybe Bool
   , maySharesWith :: v -> Var -> Maybe [Var]
   , isAcyclic     :: v -> Var -> Maybe Bool
+  , mayReach      :: v -> Var -> Var -> Maybe Bool
+  , mayReaches    :: v -> Var -> Maybe [Var]
+  , isCyclic      :: v -> Var -> Maybe Bool
 }
 
 data Query = Query {
-    hasIndexQ      :: (Int,Int)
+  hasIndexQ        :: (Int,Int)
   , hasStkIndexQ   :: Int -> Int
   , hasTypeQ       :: Var -> P.Type
   , mayShareQ      :: Var -> Var -> Bool
   , maySharesWithQ :: Var -> [Var]
-  , isAcyclicQ  :: Var -> Bool
+  , isAcyclicQ     :: Var -> Bool
+  , mayReachQ      :: Var -> Var -> Bool
+  , mayReachesQ    :: Var -> [Var]
+  , isCyclicQ      :: Var -> Bool
 }
 
 runQueryV :: v -> QueryV v -> Query
-runQueryV v (QueryV ix sx ty sh sh' ts) = Query qix qsx qty qsh qsh' qts
+runQueryV v (QueryV ix sx ty sh sh' ac rh rh' cy) = Query qix qsx qty qsh qsh' qac qrh qrh' qcy
   where
-    qix      = error "runQueryV: index"      `fromMaybe` ix v
-    qsx  n   = error "runQueryV: stkindex"   `fromMaybe` sx v n
-    qty  x   = error "runQueryV: type"       `fromMaybe` ty v x
-    qsh  x y = error "runQueryV: sharing"    `fromMaybe` sh v x y
-    qsh' x   = error "runQueryV: sharings"   `fromMaybe` sh' v x
-    qts  x   = error "runQueryV: acyclic" `fromMaybe` ts v x
+    qix      = error "runQueryV: index"    `fromMaybe` ix v
+    qsx  n   = error "runQueryV: stkindex" `fromMaybe` sx v n
+    qty  x   = error "runQueryV: type"     `fromMaybe` ty v x
+    qsh  x y = error "runQueryV: sharing"  `fromMaybe` sh v x y
+    qsh' x   = error "runQueryV: sharings" `fromMaybe` sh' v x
+    qac  x   = error "runQueryV: acyclic"  `fromMaybe` ac v x
+    qrh  x y = error "runQueryV: reach"    `fromMaybe` rh v x y
+    qrh' x   = error "runQueryV: reaches"  `fromMaybe` rh' v x
+    qcy  x   = error "runQueryV: cyclic"   `fromMaybe` cy v x
 
 defaultQueryV :: QueryV v
 defaultQueryV = QueryV {
@@ -66,6 +75,9 @@ defaultQueryV = QueryV {
   , mayShare      = \_ _ _ -> Nothing
   , maySharesWith = \_ _   -> Nothing
   , isAcyclic     = \_ _   -> Nothing
+  , mayReach      = \_ _ _ -> Nothing
+  , mayReaches    = \_ _   -> Nothing
+  , isCyclic      = \_ _   -> Nothing
   }
 
 data SemiLattice v = SemiLattice {
@@ -103,7 +115,7 @@ mkFlow2 p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 quer
   where
     lat3  = SemiLattice name3 bot3 join3
     tran3 = Transfer transf3 setup3 project3 extend3
-    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3
+    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3 mayReach3 mayReaches3 isCyclic3
 
     name3 = name lat1 ++ 'X': name lat2
     bot3  = bot lat1 :*: bot lat2
@@ -114,7 +126,10 @@ mkFlow2 p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 quer
     hasType3       (v :*: v') x   = hasType       quer1 v x   `mplus` hasType       quer2 v' x
     mayShare3      (v :*: v') x y = mayShare      quer1 v x y `mplus` mayShare      quer2 v' x y
     maySharesWith3 (v :*: v') x   = maySharesWith quer1 v x   `mplus` maySharesWith quer2 v' x 
-    isAcyclic3     (v :*: v') x   = isAcyclic  quer1 v x   `mplus` isAcyclic  quer2 v' x
+    isAcyclic3     (v :*: v') x   = isAcyclic     quer1 v x   `mplus` isAcyclic     quer2 v' x
+    mayReach3      (v :*: v') x y = mayReach      quer1 v x y `mplus` mayReach      quer2 v' x y
+    mayReaches3    (v :*: v') x   = mayReaches    quer1 v x   `mplus` mayReaches    quer2 v' x
+    isCyclic3      (v :*: v') x   = isCyclic      quer1 v x   `mplus` isCyclic      quer2 v' x
 
     setup3 _ cn mn = setup tran1 p cn mn :*: setup tran2 p cn mn
 
@@ -140,7 +155,7 @@ mkFlow2' p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 que
   where
     lat3  = SemiLattice name3 bot3 join3
     tran3 = Transfer transf3 setup3 project3 extend3
-    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3
+    quer3 = QueryV hasIndex3 hasStkIndex3 hasType3 mayShare3 maySharesWith3 isAcyclic3 mayReach3 mayReaches3 isCyclic3
 
     name3 = name lat1 ++ 'X': name lat2
     bot3  = bot lat1 :>: bot lat2
@@ -152,6 +167,9 @@ mkFlow2' p (Flow lat1 tran1 quer1) (Flow lat2 tran2 quer2) = Flow lat3 tran3 que
     mayShare3      (v :>: v') x y = mayShare      quer1 v x y `mplus` mayShare      quer2 v' x y
     maySharesWith3 (v :>: v') x   = maySharesWith quer1 v x   `mplus` maySharesWith quer2 v' x 
     isAcyclic3  (v :>: v') x      = isAcyclic  quer1 v x   `mplus` isAcyclic  quer2 v' x
+    mayReach3   (v :>: v') x y = mayReach   quer1 v x y `mplus` mayReach   quer2 v' x y
+    mayReaches3 (v :>: v') x   = mayReaches quer1 v x   `mplus` mayReaches quer2 v' x
+    isCyclic3   (v :>: v') x   = isCyclic   quer1 v x   `mplus` isCyclic   quer2 v' x
 
     setup3 _ cn mn = setup tran1 p cn mn :>: setup tran2 p cn mn
 

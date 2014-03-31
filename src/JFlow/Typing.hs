@@ -11,7 +11,7 @@ import Jinja.Program
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 
-{-import Debug.Trace-}
+import Debug.Trace
 
 
 -- Notes:
@@ -25,6 +25,12 @@ type LocVars = [[Type]]
 type StkVars = [[Type]]
 data TypingFact = TyFact !Int !Int LocVars StkVars deriving (Eq,Ord)
 
+
+vars :: TypingFact -> [Var]
+vars (TyFact _ _ lss sss) = lvars ++ svars
+  where
+    lvars = [LocVar i j | (i, ls) <- zip [0..] lss, (j, _) <- zip [0..] ls]
+    svars = [StkVar i j | (i, ss) <- zip [0..] sss, (j, _) <- zip [0..] ss]
 
 instance Pretty TypingFact where
   pretty (TyFact i j locs stks) =
@@ -70,7 +76,6 @@ tyLattice = SemiLattice tyName tyBot tyJoin
 tyTransfer :: Transfer TypingFact
 tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
   where
-    get = flip (!!)
     set 0 y (_:xs) = y: xs
     set n y (x:xs) = x: set (n-1) y xs
     pop (_:xs)    = xs
@@ -84,7 +89,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
       in  TyFact i j' (loc':locs) (stk':stks)
     tyTransferf _ _ ins tyf = error $ show ins ++ show tyf
     tyTransferf' p j loc stk ins = case ins of
-      Load i         -> (j+1,loc, get i loc `push` stk)
+      Load i         -> (j+1,loc, lookup' loc i `push` stk)
       Store i        -> let (ty,stk') = popx stk
                        in  (j-1,set i ty loc, stk')
       Push v         -> (j+1,loc, fromMaybe err (typeOf v) `push` stk)
@@ -132,13 +137,18 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
     tyExtend _ _ _ _ _ _ = error "Typing.tyExtend: unexpected error"
 
 
+lookup' :: [a] -> Int -> a
+lookup' (x:_) 0  = x
+lookup' (x:xs) i = lookup' xs (i-1)
+lookup' _ i      = error $ "Typing.lookup" ++ show i
+
 tyQueryV :: QueryV TypingFact
 tyQueryV = defaultQueryV {hasIndex = tyHasIndex, hasStkIndex = tyHasStkIndex, hasType = tyHasType}
   where
     {-tyHasIndex (TyFact i j _ _) | trace ("tyHasIndex: " ++ show (i,j)) False = undefined-}
     tyHasIndex (TyFact i j _ _)                = Just (i,j)
-    tyHasStkIndex (TyFact _ _ locs _) i        = Just . length $ reverse locs !! i
+    tyHasStkIndex (TyFact _ _ locs _) i        = Just . length $ reverse locs `lookup'` i
     {-tyHasType tyf var | trace ("tyHasType: " ++ show tyf ++ show var) False = undefined-}
-    tyHasType (TyFact _ _ locs _) (LocVar i j) = Just $ (reverse locs !! i) !! j
-    tyHasType (TyFact _ _ _ stks) (StkVar i j) = Just $ reverse (reverse stks !! i) !! j
+    tyHasType (TyFact _ _ locs _) (LocVar i j) = Just $ (reverse locs `lookup'` i) `lookup'` j
+    tyHasType (TyFact _ _ _ stks) (StkVar i j) = Just $ reverse (reverse stks `lookup'` i) `lookup'` j
 

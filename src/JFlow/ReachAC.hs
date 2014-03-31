@@ -5,7 +5,8 @@ module JFlow.ReachAC where
 
 import Jinja.Program
 
-import JFlow.Data
+import JFlow.Data hiding (isAcyclic)
+import qualified JFlow.Data as D (isAcyclic)
 
 import Prelude hiding (filter)
 import qualified Data.Set as S
@@ -34,92 +35,100 @@ type Cyclic = S.Set Var
 maybeCyclic :: Var -> Cyclic -> Bool
 maybeCyclic = S.member
 
-data AcyclicityFact = AcFact Reaching Cyclic  deriving (Eq,Ord)
+isAcyclic :: Var -> Cyclic -> Bool
+isAcyclic = S.notMember
 
-instance Pretty AcyclicityFact where
-  pretty (AcFact rs cs) = 
-    string "AcFact"
+
+
+data RACFact = RACFact Reaching Cyclic  deriving (Eq,Ord)
+
+instance Pretty RACFact where
+  pretty (RACFact rs cs) = 
+    string "RACFact"
     <$> list (map pretty (S.elems rs))
     <$> list (map pretty (S.elems cs))
-instance Show AcyclicityFact where
+instance Show RACFact where
   show = show . pretty
 
-reduce :: AcyclicityFact -> AcyclicityFact
-reduce (AcFact rs cs) = AcFact rs' cs
+reduce :: RACFact -> RACFact
+reduce (RACFact rs cs) = RACFact rs' cs
   where rs' = S.filter (\(v1:~>:v2) -> v1 /= v2 || maybeCyclic v1 cs) rs
 
-rename :: (Var -> Var) -> AcyclicityFact -> AcyclicityFact
-rename f (AcFact rs cs) = AcFact (k `S.map` rs) (f `S.map` cs)
+rename :: (Var -> Var) -> RACFact -> RACFact
+rename f (RACFact rs cs) = RACFact (k `S.map` rs) (f `S.map` cs)
   where k (x:~>:y) = f x:~>:f y
 
-union :: AcyclicityFact -> AcyclicityFact -> AcyclicityFact
-union (AcFact rs1 cs1) (AcFact rs2 cs2) = AcFact (rs1 `S.union` rs2) (cs1 `S.union` cs2)
+union :: RACFact -> RACFact -> RACFact
+union (RACFact rs1 cs1) (RACFact rs2 cs2) = RACFact (rs1 `S.union` rs2) (cs1 `S.union` cs2)
 
-delete :: Var -> AcyclicityFact -> AcyclicityFact
-delete x (AcFact rs cs) = AcFact (x `rdelete` rs) (x `S.delete` cs)
+delete :: Var -> RACFact -> RACFact
+delete x (RACFact rs cs) = RACFact (x `rdelete` rs) (x `S.delete` cs)
   where rdelete x = S.filter (\(y:~>:z) -> x /= y && x /= z)
 
-filter :: (Reaches -> Bool) -> (Var -> Bool) -> AcyclicityFact -> AcyclicityFact
-filter f g (AcFact rs cs) = AcFact (S.filter f rs) (S.filter g cs)
+filter :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
+filter f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 
-acFlow :: Flow AcyclicityFact
-acFlow = Flow acLattice acTransfer acQueryV
+racFlow :: Flow RACFact
+racFlow = Flow racLattice racTransfer racQueryV
 
-acLattice :: SemiLattice AcyclicityFact
-acLattice = SemiLattice acName acBot acJoin
+racLattice :: SemiLattice RACFact
+racLattice = SemiLattice racName racBot racJoin
   where
-    acName   = "Acyclicity"
-    acBot    = AcFact S.empty S.empty
-    acJoin _ = union
+    racName   = "Reachability+Acyclicity"
+    racBot    = RACFact S.empty S.empty
+    racJoin _ = union
 
-normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> AcyclicityFact -> AcyclicityFact
-normalize shTypes cyType (AcFact rs cs) = AcFact rs' cs'
+normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
+normalize shTypes cyType (RACFact rs cs) = reduce $ RACFact rs' cs'
   where
     rs' = S.filter (\(v1:~>:v2) -> shTypes v1 v2) rs
     cs' = S.filter cyType cs
 
-acTransfer :: Transfer AcyclicityFact
-{-acTransfer = Transfer shTransferf shSetup shProject shExtend-}
-acTransfer = Transfer acTransferf acSetup acProject shExtend
+racTransfer :: Transfer RACFact
+racTransfer = Transfer racTransferf racSetup racProject racExtend
   where
-    {-normalize p q = normalize -}
-      {-where ty (x:><:y) = areSharingTypes p (hasTypeQ q x) (hasTypeQ q y)-}
+    normalize' p q = normalize shTypes cyType
+      where
+        shTypes x y = areSharingTypes p (hasTypeQ q x) (hasTypeQ q y)
+        cyType x    = isAcyclicType p (hasTypeQ q x)
+      
 
     x `to` y = \z -> if z == x then y else z
-    assign x y ac = ac' `union` rename (y `to` x) ac'
-      where ac' = x `delete` ac
+    assign x y rac = rac' `union` rename (y `to` x) rac'
+      where rac' = x `delete` rac
 
-    acTransferf p q ins ac =
-      let (i,j) = hasIndexQ q in acTransferf' p q ins ac i j
-    acTransferf' p q ins ac@(AcFact rs cs) i j = case ins of
-      Load n          -> (StkVar i j `assign` LocVar i n) ac
-      Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` ((x `assign` y) ac)
-      Push _          -> ac
-      Pop             -> StkVar i j `delete` ac
-      IAdd            -> ac
-      ISub            -> ac
-      ICmpGeq         -> ac
-      Goto _          -> ac
-      IfFalse _       -> ac
-      BNot            -> ac
-      BOr             -> ac
-      BAnd            -> ac
-      CmpEq           -> StkVar i (j+1) `delete` (StkVar i j `delete` ac)
-      CmpNeq          -> StkVar i (j+1) `delete` (StkVar i j `delete` ac)
-      New _           -> ac
-      {-CheckCast _     -> normalize p q sh-}
+    racTransferf p q ins rac =
+      let (i,j) = hasIndexQ q in racTransferf' p q ins rac i j
+    racTransferf' p q ins rac@(RACFact rs cs) i j = case ins of
+      Load n          -> (StkVar i j `assign` LocVar i n) rac
+      Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` ((x `assign` y) rac)
+      Push _          -> rac
+      Pop             -> StkVar i j `delete` rac
+      IAdd            -> rac
+      ISub            -> rac
+      ICmpGeq         -> rac
+      Goto _          -> rac
+      IfFalse _       -> rac
+      BNot            -> rac
+      BOr             -> rac
+      BAnd            -> rac
+      CmpEq           -> StkVar i (j+1) `delete` (StkVar i j `delete` rac)
+      CmpNeq          -> StkVar i (j+1) `delete` (StkVar i j `delete` rac)
+      New _           -> rac
+
+      {-CheckCast _     -> normalize p q rac-}
       GetField fn cn  ->
         if isPrimitiveType $ snd (field p cn fn)
-          then x `delete` ac
-          else reduce $ AcFact (rs `S.union` rs') cs
+          then x `delete` rac
+          else reduce $ RACFact  (rs `S.union` rs') cs
         where
           x = StkVar i j
-          rs' = rs `S.union` S.fromList [ y :~>: x | y <- maySharesWithQ q x]
+          rs' = S.fromList [ y :~>: x | y <- maySharesWithQ q x]
 
       PutField fn cn  -> delete val . delete ref $
         if isPrimitiveType $ snd (field p cn fn)
-          then ac
-          else reduce $ AcFact (rs `S.union` rs') (cs `S.union` cs')
+          then rac
+          else reduce $ RACFact (rs `S.union` rs') (cs `S.union` cs')
           where
             (val,ref) = (StkVar i (j+2), StkVar i (j+1))
             aliasWith = maySharesWithQ q
@@ -133,14 +142,14 @@ acTransfer = Transfer acTransferf acSetup acProject shExtend
       Return          -> undefined
       Invoke _ _      -> undefined
 
-    acSetup _ _ _ = AcFact S.empty S.empty
+    racSetup _ _ _ = RACFact S.empty S.empty
 
-    acProject _ q _ _ nparams = rename to
+    racProject _ q _ _ nparams = rename to
       where
         (i,j)  = hasIndexQ q
         to z = z `fromMaybe` lookup z (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
 
-    shExtend _ q _ nparams _ ac =
+    racExtend _ q _ nparams _ ac =
       filter k1 k2 $ (rl `assign` rs) ac
       where
         (i,j) = hasIndexQ q
@@ -150,10 +159,14 @@ acTransfer = Transfer acTransferf acSetup acProject shExtend
         k1 (x:~>:y)     = k x && k y
         k2 x            = k x && k x
 
-acQueryV :: QueryV AcyclicityFact
-acQueryV = defaultQueryV
---acQueryV = defaultQueryV{ isAcyclic = tsIsTreeShaped }
-  --where tsIsTreeShaped (AcFact _ cs) x = Just . not $ maybeCyclic x cs
+racQueryV :: QueryV RACFact
+racQueryV = defaultQueryV {D.isAcyclic = isAcyclic', mayReach = mayReach', mayReaches = mayReaches'}
+  where
+    isAcyclic' (RACFact _ cs) x  = Just $ isAcyclic x cs
+    mayReach' (RACFact rs _) x y = Just $ y `elem` reaches x rs
+    mayReaches' (RACFact rs _) x = Just $ reaches x rs
+
+
 
 
 
