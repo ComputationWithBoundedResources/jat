@@ -78,11 +78,11 @@ pTransfer = Transfer pTransferf pSetup pProject pExtend
     Transfer shTransferf shSetup shProject shExtend = transfer shFlow'
     Transfer acTransferf acSetup acProject acExtend = transfer acFlow'
 
-    pTransferf p ins w v@(PFact ty sh ac) = PFact ty' sh' ac'
+    pTransferf p ins (w',w) v@(PFact ty sh ac) = PFact ty' sh' ac'
       where 
-        ty' = tyTransferf p ins w ty 
-        sh' = shTransferf p ins (PFact ty' sh ac) sh
-        ac' = acTransferf p ins (PFact ty' sh ac) ac
+        ty' = tyTransferf p ins (w',w) ty 
+        sh' = shTransferf p ins (w',(PFact ty' sh ac)) sh
+        ac' = acTransferf p ins (w',(PFact ty' sh ac)) ac
 
     pSetup p cn mn = PFact (tySetup p cn mn) (shSetup p cn mn) (acSetup p cn mn)
     pProject p cn mn i w v@(PFact ty sh ac) = 

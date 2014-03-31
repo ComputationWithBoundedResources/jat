@@ -127,7 +127,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
         params = methodParams md
         locals = replicate (maxLoc md) Void
         
-    tyProject p cn mn nparams w (TyFact i _ locs (stk:stks)) =
+    tyProject p cn mn nparams _ (TyFact i _ locs (stk:stks)) =
       TyFact (i+1) (-1) ((this:params++locals):locs) ([]:stk':stks)
       where
         this       = RefType cn
@@ -136,7 +136,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
         locals     = replicate (maxLoc $ theMethod p cn mn) Void
     tyProject _ _ _ _ _ _ = error "Typing.tyProject: unexpected error"
         
-    tyExtend _ _ nparams w (TyFact i _ locs1 (stk1:stks1)) v2@(TyFact _ _ _ stks2) =
+    tyExtend _ _ nparams _ (TyFact i _ locs1 (stk1:stks1)) v2@(TyFact _ _ _ stks2) =
       TyFact i (length rstk - 1) locs1 (rstk:stks1)
       where 
         rstk = ret: drop (nparams+1) stk1

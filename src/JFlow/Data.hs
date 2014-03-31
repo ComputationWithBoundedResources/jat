@@ -36,7 +36,7 @@ data SemiLattice v = SemiLattice {
 }
 
 data Transfer v w = Transfer {
-      transf  :: P.Program -> P.Instruction -> w -> v -> v
+      transf  :: P.Program -> P.Instruction -> (w,w) -> v -> v
     , setup   :: P.Program -> P.ClassId -> P.MethodId -> v
     , project :: P.Program -> P.ClassId -> P.MethodId -> Int -> w -> v -> v
     , extend  :: P.Program -> P.ClassId -> Int -> w -> v -> v -> v

@@ -279,7 +279,7 @@ interpretInstruction (Flow _ tran) ctx pc ins = do
     prog     = program st
     fbase    = facts st
     curVal   = value ctx fbase pc
-  return . Just $ transf tran prog ins curVal curVal
+  return . Just $ transf tran prog ins (curVal,curVal) curVal
 
 processCall :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
 {-processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined-}

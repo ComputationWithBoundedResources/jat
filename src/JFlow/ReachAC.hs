@@ -16,7 +16,7 @@ import Jinja.Program
 
 import JFlow.Data
 
-import Prelude hiding (filter)
+import Prelude
 import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
@@ -88,8 +88,8 @@ delete :: Var -> RACFact -> RACFact
 delete x (RACFact rs cs) = RACFact (x `rdelete` rs) (x `S.delete` cs)
   where rdelete x = S.filter (\(y:~>:z) -> x /= y && x /= z)
 
-filter :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
-filter f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
+filter' :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
+filter' f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 
 racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Flow RACFact w
 racFlow = Flow racLattice racTransfer
@@ -120,9 +120,9 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
     assign x y rac = rac' `union` rename (y `to` x) rac'
       where rac' = x `delete` rac
 
-    racTransferf p ins w rac =
-      let (i,j) = hasIndexQ w in racTransferf' p ins w rac i j
-    racTransferf' p ins w rac@(RACFact rs cs) i j = case ins of
+    racTransferf p ins (w',w) rac =
+      let (i,j) = hasIndexQ w in racTransferf' p ins (w',w) rac i j
+    racTransferf' p ins (w',w) rac@(RACFact rs cs) i j = case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) rac
       Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` ((x `assign` y) rac)
       Push _          -> rac
@@ -154,8 +154,13 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
           else reduce $ RACFact (rs `S.union` rs') (cs `S.union` cs')
           where
             (val,ref) = (StkVar i (j+2), StkVar i (j+1))
-            aliasWith = maySharesWithQ w
-            alias     = mayShareQ w
+            -- TODO: incorporate typing information in alias
+            -- but necessary to get old typing info
+            aliasWith x = filter (talias x) $ maySharesWithQ w x
+            alias x y   = mayShareQ w x y && talias x y
+            talias x y  = areRelatedTypes p (hasTypeQ w' x) (hasTypeQ w' y)
+            --aliasWith = maySharesWithQ w
+            --alias = mayShareQ w
             rs' = S.fromList [ w1 :~>: w2 | w1 <- lhs1, w2 <- rhs1 ]
             lhs1 = aliasWith ref ++ ref `reachable` rs
             rhs1 = aliasWith val ++ val `reaches` rs
@@ -173,7 +178,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
         to z = z `fromMaybe` lookup z (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
 
     racExtend _ _ nparams w _ ac =
-      filter k1 k2 $ (rl `assign` rs) ac
+      filter' k1 k2 $ (rl `assign` rs) ac
       where
         (i,j) = hasIndexQ w
         (rs,rl) = (StkVar (i+1) 0, StkVar i (j -nparams))

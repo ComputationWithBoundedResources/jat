@@ -109,7 +109,7 @@ shTransfer = Transfer shTransferf shSetup shProject shExtend
       where ty (x:><:y) = areSharingTypes p (hasTypeQ w x) (hasTypeQ w y)
 
     -- index (i,j) after operation
-    shTransferf p ins w sh = 
+    shTransferf p ins (_,w) sh = 
       let (i,j) = hasIndexQ w in shTransferf' p ins w sh i j
     shTransferf' p ins w (ShFact sh) i j = ShFact $ case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) sh
