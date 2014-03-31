@@ -1,18 +1,25 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module JFlow.ReachAC where
+module JFlow.ReachAC 
+  (
+    RACFact
+  , racFlow
+  , mayReach
+  , mayReaches
+  , mayReachingVars
+  , isAcyclic
+  )
+where
 
 
 import Jinja.Program
 
-import JFlow.Data hiding (isAcyclic)
-import qualified JFlow.Data as D (isAcyclic)
+import JFlow.Data
 
 import Prelude hiding (filter)
 import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
-
 
 data Reaches = Var:~>:Var deriving (Eq,Ord)
 type Reaching = S.Set Reaches
@@ -35,12 +42,28 @@ type Cyclic = S.Set Var
 maybeCyclic :: Var -> Cyclic -> Bool
 maybeCyclic = S.member
 
-isAcyclic :: Var -> Cyclic -> Bool
-isAcyclic = S.notMember
-
-
+isAcyclic' :: Var -> Cyclic -> Bool
+isAcyclic' = S.notMember
 
 data RACFact = RACFact Reaching Cyclic  deriving (Eq,Ord)
+
+mayReach :: RACFact -> Var -> Var -> Bool  
+mayReach (RACFact rs _) x y = y `elem` reaches x rs
+
+mayReaches :: RACFact -> Var -> [Var]
+mayReaches (RACFact rs _) x = reaches x rs
+
+mayReachingVars :: RACFact -> [(Var,Var)]
+mayReachingVars (RACFact rs _) = map (\(x:~>:y) -> (x,y)) $ S.toList rs
+
+isAcyclic :: RACFact -> Var -> Bool
+isAcyclic (RACFact _ cs) x = x `S.notMember` cs
+
+instance MayReachQ RACFact        where mayReachQ = mayReach
+instance MayReachesQ RACFact      where mayReachesQ = mayReaches
+instance MayReachingVarsQ RACFact where mayReachingVarsQ = mayReachingVars
+instance IsAcyclicQ RACFact       where isAcyclicQ = isAcyclic
+
 
 instance Pretty RACFact where
   pretty (RACFact rs cs) = 
@@ -68,8 +91,8 @@ delete x (RACFact rs cs) = RACFact (x `rdelete` rs) (x `S.delete` cs)
 filter :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
 filter f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 
-racFlow :: Flow RACFact
-racFlow = Flow racLattice racTransfer racQueryV
+racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Flow RACFact w
+racFlow = Flow racLattice racTransfer
 
 racLattice :: SemiLattice RACFact
 racLattice = SemiLattice racName racBot racJoin
@@ -84,22 +107,22 @@ normalize shTypes cyType (RACFact rs cs) = reduce $ RACFact rs' cs'
     rs' = S.filter (\(v1:~>:v2) -> shTypes v1 v2) rs
     cs' = S.filter cyType cs
 
-racTransfer :: Transfer RACFact
+racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Transfer RACFact w
 racTransfer = Transfer racTransferf racSetup racProject racExtend
   where
-    normalize' p q = normalize shTypes cyType
+    normalize' p w = normalize shTypes cyType
       where
-        shTypes x y = areSharingTypes p (hasTypeQ q x) (hasTypeQ q y)
-        cyType x    = isAcyclicType p (hasTypeQ q x)
+        shTypes x y = areSharingTypes p (hasTypeQ w x) (hasTypeQ w y)
+        cyType x    = isAcyclicType p (hasTypeQ w x)
       
 
     x `to` y = \z -> if z == x then y else z
     assign x y rac = rac' `union` rename (y `to` x) rac'
       where rac' = x `delete` rac
 
-    racTransferf p q ins rac =
-      let (i,j) = hasIndexQ q in racTransferf' p q ins rac i j
-    racTransferf' p q ins rac@(RACFact rs cs) i j = case ins of
+    racTransferf p ins w rac =
+      let (i,j) = hasIndexQ w in racTransferf' p ins w rac i j
+    racTransferf' p ins w rac@(RACFact rs cs) i j = case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) rac
       Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` ((x `assign` y) rac)
       Push _          -> rac
@@ -123,7 +146,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
           else reduce $ RACFact  (rs `S.union` rs') cs
         where
           x = StkVar i j
-          rs' = S.fromList [ y :~>: x | y <- maySharesWithQ q x]
+          rs' = S.fromList [ y :~>: x | y <- maySharesWithQ w x]
 
       PutField fn cn  -> delete val . delete ref $
         if isPrimitiveType $ snd (field p cn fn)
@@ -131,8 +154,8 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
           else reduce $ RACFact (rs `S.union` rs') (cs `S.union` cs')
           where
             (val,ref) = (StkVar i (j+2), StkVar i (j+1))
-            aliasWith = maySharesWithQ q
-            alias     = mayShareQ q
+            aliasWith = maySharesWithQ w
+            alias     = mayShareQ w
             rs' = S.fromList [ w1 :~>: w2 | w1 <- lhs1, w2 <- rhs1 ]
             lhs1 = aliasWith ref ++ ref `reachable` rs
             rhs1 = aliasWith val ++ val `reaches` rs
@@ -144,29 +167,19 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
 
     racSetup _ _ _ = RACFact S.empty S.empty
 
-    racProject _ q _ _ nparams = rename to
+    racProject _ _ _ nparams w = rename to
       where
-        (i,j)  = hasIndexQ q
+        (i,j)  = hasIndexQ w
         to z = z `fromMaybe` lookup z (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
 
-    racExtend _ q _ nparams _ ac =
+    racExtend _ _ nparams w _ ac =
       filter k1 k2 $ (rl `assign` rs) ac
       where
-        (i,j) = hasIndexQ q
+        (i,j) = hasIndexQ w
         (rs,rl) = (StkVar (i+1) 0, StkVar i (j -nparams))
         k (StkVar i2 _) = i2 <= i
         k (LocVar i2 _) = i2 <= i
         k1 (x:~>:y)     = k x && k y
         k2 x            = k x && k x
-
-racQueryV :: QueryV RACFact
-racQueryV = defaultQueryV {D.isAcyclic = isAcyclic', mayReach = mayReach', mayReaches = mayReaches'}
-  where
-    isAcyclic' (RACFact _ cs) x  = Just $ isAcyclic x cs
-    mayReach' (RACFact rs _) x y = Just $ y `elem` reaches x rs
-    mayReaches' (RACFact rs _) x = Just $ reaches x rs
-
-
-
 
 

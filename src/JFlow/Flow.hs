@@ -34,13 +34,13 @@ type FactBase v = ContextMap v (Facts v)
 
 data CallString = Call ClassId MethodId PC CallString | Nil PC
 
-queryCS :: Ord v => CallString -> Context v -> FactBase v -> QueryV v -> Query
-queryCS (Nil pc)             ctx fb queryv = runQueryV (value ctx fb pc) queryv
-queryCS (Call cn mn pc call) ctx fb queryv = queryCS call (Context cn mn (value ctx fb pc)) fb queryv
+--queryCS :: Ord v => CallString -> Context v -> FactBase v -> QueryV v -> Query
+--queryCS (Nil pc)             ctx fb queryv = runQueryV (value ctx fb pc) queryv
+--queryCS (Call cn mn pc call) ctx fb queryv = queryCS call (Context cn mn (value ctx fb pc)) fb queryv
 
-queryFrom :: Ord v => ClassId -> MethodId -> CallString -> FactBase v -> QueryV v -> Maybe Query
-queryFrom cn fn cs fb q = find k (M.keys fb) >>= \ctx -> return (queryCS cs ctx fb q)
-  where k (Context cn' fn' _) = cn' == cn && fn' == fn
+--queryFrom :: Ord v => ClassId -> MethodId -> CallString -> FactBase v -> QueryV v -> Maybe Query
+--queryFrom cn fn cs fb q = find k (M.keys fb) >>= \ctx -> return (queryCS cs ctx fb q)
+  --where k (Context cn' fn' _) = cn' == cn && fn' == fn
 
 instance Show v => Show (Facts v) where
   show (Facts fs) = show . P.list $ map (P.string . show) (A.assocs fs)
@@ -138,7 +138,7 @@ value ctx fb pc = unFacts (lookupx ctx fb) A.! pc
 
 ------
 
-analyse :: (Show v,Ord v) => Flow v -> Program -> ClassId -> MethodId -> (Facts v, FactBase v)
+analyse :: (Show v,Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Program -> ClassId -> MethodId -> (Facts v, FactBase v)
 {-analyse _ _ _ _ | trace ">>> analyse" False = undefined-}
 analyse flow p cn mn = evalState analyseM st0
   where
@@ -164,9 +164,9 @@ mkInitState p = FlowState {
   , program     = p
 }
 
-setupContext :: (Show v, Ord v) => Flow v -> Context v -> St m v ()
+setupContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
 {-setupContext _ ctx | trace (">>> setupContext" ++ show ctx) False = undefined-}
-setupContext (Flow lat _ _) ctx@(Context cn mn v) = do
+setupContext (Flow lat _) ctx@(Context cn mn v) = do
   md <- getsMethod cn mn
   let bottom  = bot lat
   updateFacts ctx (initFacts md bottom)
@@ -177,16 +177,15 @@ setupContext (Flow lat _ _) ctx@(Context cn mn v) = do
     initFacts md val = Facts $ A.listArray bounds (cycle [val])
       where bounds = A.bounds $ methodInstructions md
 
-initContext :: (Show v, Ord v) => Flow v -> Context v -> St m v ()
+initContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
 {-initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined-}
-initContext (Flow lat tran quer) ctx@(Context cn mn v) = do
+initContext (Flow lat tran) ctx@(Context cn mn v) = do
   md <- getsMethod cn mn
   p <- gets program
   let 
     bottom  = bot lat
     nparams = length $ methodParams md
-    q       = runQueryV v quer
-    val     = project tran p q cn mn nparams v
+    val     = project tran p cn mn nparams v v
   updateFacts ctx (initFacts md bottom)
   updateFact ctx entryPC val
   pushPC ctx entryPC
@@ -195,7 +194,7 @@ initContext (Flow lat tran quer) ctx@(Context cn mn v) = do
     initFacts md val = Facts $ A.listArray bounds (cycle [val])
       where bounds = A.bounds $ methodInstructions md
 
-analyseCallStack :: (Show v, Ord v) => Flow v -> St m v ()
+analyseCallStack :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> St m v ()
 {-analyseCallStack flow = trace ">>> analyseCallStack" $ do-}
 analyseCallStack flow = do
   stk <- gets callStack
@@ -203,7 +202,7 @@ analyseCallStack flow = do
     []      -> return ()
     (ctx:_) -> analyseContext flow ctx
 
-analyseContext :: (Show v, Ord v) => Flow v -> Context v -> St m v ()
+analyseContext :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> St m v ()
 {-analyseContext flow ctx = trace ">>> analyseContext" $ do-}
 analyseContext flow ctx = do
   wl  <- getsWorklist ctx
@@ -217,7 +216,7 @@ analyseContext flow ctx = do
       forM_ callingCtxs (pushCall' . fst)
       analyseCallStack flow
        
-analyseInstruction :: (Show v,Ord v) => Flow v -> Context v -> PC -> St m v ()
+analyseInstruction :: (Show v,Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> St m v ()
 {-analyseInstruction _ _ _ | trace ">>> analyseInstruction" False = undefined-}
 analyseInstruction flow ctx@(Context cn mn _) pc = do
   ins <- getsInstruction cn mn pc
@@ -227,15 +226,14 @@ analyseInstruction flow ctx@(Context cn mn _) pc = do
   updateValue flow ctx pc ins newVal
 
 
-analyseCall' :: (Show v, Ord v) => Flow v -> Context v -> Instruction -> PC -> St m v (Maybe v)
-analyseCall' flow@(Flow lat tran quer)  ctx (Invoke mn n) pc = do
+analyseCall' :: (Show v, Ord v, HasTypeQ v, HasIndexQ v) => Flow v v -> Context v -> Instruction -> PC -> St m v (Maybe v)
+analyseCall' flow@(Flow lat tran)  ctx (Invoke mn n) pc = do
   p <- gets program
   fb <- gets facts
   let 
     val = value ctx fb pc
-    q   = runQueryV val quer
-    (lix,six) = hasIndexQ q
-    ty  = hasTypeQ q (StkVar lix (six -n))
+    (lix,six) = hasIndexQ val 
+    ty  = hasTypeQ val (StkVar lix (six -n))
   case ty of 
     RefType cn -> do
       let
@@ -247,14 +245,14 @@ analyseCall' flow@(Flow lat tran quer)  ctx (Invoke mn n) pc = do
       {-let rval   = let r = foldl1 joinf rvals in trace ("RET:" ++ show (rvals,r)) r -}
       {-return . Just $ let r = extend tran p q cn n val rval in trace ("EXT:" ++ show (cn,n,val,rval,r)) r-}
       let rval   = foldl1 joinf rvals
-      return . Just $ extend tran p q cn n val rval
+      return . Just $ extend tran p cn n val val rval
     _ -> error "Flow.analyseCall': unexpected type"
 
 
 
-updateValue :: (Show v, Ord v) => Flow v -> Context v -> PC -> Instruction -> Maybe v -> St m v ()
+updateValue :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> Instruction -> Maybe v -> St m v ()
 updateValue flow _ _ _ Nothing = analyseCallStack flow
-updateValue flow@(Flow lat _ _) ctx pc ins (Just newVal) = do
+updateValue flow@(Flow lat _) ctx pc ins (Just newVal) = do
   st <- get
   let
     joinf    = join lat (program st)
@@ -273,19 +271,19 @@ updateValue flow@(Flow lat _ _) ctx pc ins (Just newVal) = do
   analyseCallStack flow
 
 
-interpretInstruction :: (Show v, Ord v) => Flow v -> Context v -> PC -> Instruction -> St m v (Maybe v)
+interpretInstruction :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> Instruction -> St m v (Maybe v)
 {-interpretInstruction _ (Context cn mn _) pc ins | trace (">>> interpretInstruction " ++ show (cn,mn,pc,ins)) False = undefined-}
-interpretInstruction (Flow _ tran quer) ctx pc ins = do
+interpretInstruction (Flow _ tran) ctx pc ins = do
   st <- get
   let
     prog     = program st
     fbase    = facts st
     curVal   = value ctx fbase pc
-  return . Just $ transf tran prog (runQueryV curVal quer) ins curVal
+  return . Just $ transf tran prog ins curVal curVal
 
-processCall :: (Show v, Ord v) => Flow v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
+processCall :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
 {-processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined-}
-processCall flow@(Flow lat _ _) callingCtx cn mn v = do
+processCall flow@(Flow lat _) callingCtx cn mn v = do
   let currentCtx = Context cn mn v
   addTransition (callingCtx, currentCtx)
   fsM <- getsFactsM currentCtx

@@ -1,7 +1,15 @@
 -- | The typing Domain provides typing information for local variables and
 -- operand stack. This analysis is necessary to provide a (upper) static type
 -- for method invocations.
-module JFlow.Typing where
+module JFlow.Typing 
+  (
+    TypingFact
+  , tyFlow
+  , vars
+  , hasIndex
+  , hasType
+  )
+where
 
 import JFlow.Data
 import JFlow.Utility (safeZipWith)
@@ -25,7 +33,6 @@ type LocVars = [[Type]]
 type StkVars = [[Type]]
 data TypingFact = TyFact !Int !Int LocVars StkVars deriving (Eq,Ord)
 
-
 vars :: TypingFact -> [Var]
 vars (TyFact _ _ lss sss) = lvars ++ svars
   where
@@ -42,8 +49,8 @@ instance Pretty TypingFact where
 instance Show TypingFact where
   show = show . pretty
 
-tyFlow :: Flow TypingFact
-tyFlow = Flow tyLattice tyTransfer tyQueryV
+tyFlow :: Flow TypingFact w
+tyFlow = Flow tyLattice tyTransfer
 
 tyBot :: TypingFact
 tyBot = TyFact (-1) (-1) [[]] [[]]
@@ -73,7 +80,7 @@ tyLattice = SemiLattice tyName tyBot tyJoin
           | ty1 == ty2 = ty1
           | otherwise  = error $ "Typing.join: p not wellformed: " ++ show (ty1,ty2)
 
-tyTransfer :: Transfer TypingFact
+tyTransfer :: Transfer TypingFact w
 tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
   where
     set 0 y (_:xs) = y: xs
@@ -84,10 +91,10 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
     push = (:) 
     
     {-tyTransferf p _ ins tyf | trace (show ins ++ "\n" ++ show tyf) False = undefined-}
-    tyTransferf p _ ins (TyFact i j (loc:locs) (stk:stks)) = 
+    tyTransferf p ins _ (TyFact i j (loc:locs) (stk:stks)) = 
       let (j',loc',stk') = tyTransferf' p j loc stk ins
       in  TyFact i j' (loc':locs) (stk':stks)
-    tyTransferf _ _ ins tyf = error $ show ins ++ show tyf
+    tyTransferf _ ins _ tyf = error $ show ins ++ show tyf
     tyTransferf' p j loc stk ins = case ins of
       Load i         -> (j+1,loc, lookup' loc i `push` stk)
       Store i        -> let (ty,stk') = popx stk
@@ -120,7 +127,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
         params = methodParams md
         locals = replicate (maxLoc md) Void
         
-    tyProject p _  cn mn nparams (TyFact i _ locs (stk:stks)) =
+    tyProject p cn mn nparams w (TyFact i _ locs (stk:stks)) =
       TyFact (i+1) (-1) ((this:params++locals):locs) ([]:stk':stks)
       where
         this       = RefType cn
@@ -129,7 +136,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
         locals     = replicate (maxLoc $ theMethod p cn mn) Void
     tyProject _ _ _ _ _ _ = error "Typing.tyProject: unexpected error"
         
-    tyExtend _ _ _ nparams (TyFact i _ locs1 (stk1:stks1)) v2@(TyFact _ _ _ stks2) =
+    tyExtend _ _ nparams w (TyFact i _ locs1 (stk1:stks1)) v2@(TyFact _ _ _ stks2) =
       TyFact i (length rstk - 1) locs1 (rstk:stks1)
       where 
         rstk = ret: drop (nparams+1) stk1
@@ -142,13 +149,27 @@ lookup' (x:_) 0  = x
 lookup' (x:xs) i = lookup' xs (i-1)
 lookup' _ i      = error $ "Typing.lookup" ++ show i
 
-tyQueryV :: QueryV TypingFact
-tyQueryV = defaultQueryV {hasIndex = tyHasIndex, hasStkIndex = tyHasStkIndex, hasType = tyHasType}
-  where
-    {-tyHasIndex (TyFact i j _ _) | trace ("tyHasIndex: " ++ show (i,j)) False = undefined-}
-    tyHasIndex (TyFact i j _ _)                = Just (i,j)
-    tyHasStkIndex (TyFact _ _ locs _) i        = Just . length $ reverse locs `lookup'` i
-    {-tyHasType tyf var | trace ("tyHasType: " ++ show tyf ++ show var) False = undefined-}
-    tyHasType (TyFact _ _ locs _) (LocVar i j) = Just $ (reverse locs `lookup'` i) `lookup'` j
-    tyHasType (TyFact _ _ _ stks) (StkVar i j) = Just $ reverse (reverse stks `lookup'` i) `lookup'` j
+
+hasIndex :: TypingFact -> (Int,Int)
+hasIndex (TyFact i j _ _)                = (i,j)
+
+hasType :: TypingFact -> Var -> Type
+hasType (TyFact _ _ locs _) (LocVar i j) = (reverse locs `lookup'` i) `lookup'` j
+hasType (TyFact _ _ _ stks) (StkVar i j) = reverse (reverse stks `lookup'` i) `lookup'` j
+
+instance HasIndexQ TypingFact where
+  hasIndexQ = hasIndex
+
+instance HasTypeQ TypingFact where
+  hasTypeQ = hasType
+
+--tyQueryV :: QueryV TypingFact
+--tyQueryV = defaultQueryV {hasIndex = tyHasIndex, hasStkIndex = tyHasStkIndex, hasType = tyHasType}
+  --where
+    --[>tyHasIndex (TyFact i j _ _) | trace ("tyHasIndex: " ++ show (i,j)) False = undefined<]
+    --tyHasIndex (TyFact i j _ _)                = Just (i,j)
+    --tyHasStkIndex (TyFact _ _ locs _) i        = Just . length $ reverse locs `lookup'` i
+    --[>tyHasType tyf var | trace ("tyHasType: " ++ show tyf ++ show var) False = undefined<]
+    --tyHasType (TyFact _ _ locs _) (LocVar i j) = Just $ (reverse locs `lookup'` i) `lookup'` j
+    --tyHasType (TyFact _ _ _ stks) (StkVar i j) = Just $ reverse (reverse stks `lookup'` i) `lookup'` j
 
