@@ -27,10 +27,13 @@ module Jinja.Program.Fun
   , reachableClasses
 
   , isAcyclicType
-  , isAcyclicType'
+  {-, isAcyclicType'-}
   , isTreeShapedType
   , areSharingTypes
+  , areReachingTypes
   , areRelatedTypes
+  , singleCyclicField
+  , singleReachingField
   )
 where
 
@@ -161,10 +164,10 @@ theLeastCommonSupClass p cn cn' = errmsg `fromMaybe` leastCommonSupClass p cn cn
 -- | Returns the least common super class if it exists.
 -- It is not necessary that there exists a dedicated object class.
 leastCommonSupClass :: Program -> ClassId -> ClassId -> Maybe ClassId
-leastCommonSupClass p cn cn' = meet cns dns
+leastCommonSupClass p cn dn = meet cns dns
   where
     cns                        = supClassesOf p cn
-    dns                        = supClassesOf p cn'
+    dns                        = supClassesOf p dn
     meet [] []                 = Nothing
     meet (c:_) (d:_) | c == d  = Just c
     meet (_:cs) []             = meet cs dns
@@ -177,8 +180,8 @@ reachableClasses p cn = reachableClasses' p S.empty (S.singleton cn)
 -- | Same as reachableClasses but the queried 'Class' is only member of the
 -- returned list if it is reachable from another class.
 properReachableClasses :: Program -> ClassId -> S.Set ClassId
-properReachableClasses p cn = reachableClasses' p S.empty initial
-  where initial = S.fromList [tp | (_,_,RefType tp) <- hasFields p cn]
+properReachableClasses p cn = reachableClasses' p S.empty (S.unions . map initial $ subClassesOf p cn)
+  where initial dn = S.fromList [tp | (_,_,RefType tp) <- hasFields p dn]
 
 reachableClasses' :: Program -> S.Set ClassId -> S.Set ClassId -> S.Set ClassId
 reachableClasses' p acc new = 
@@ -195,16 +198,17 @@ reachableClasses' p acc new =
     fix s1 s2 = S.size s1 == S.size s2
 
 
+-- TODO: in computationgraph static type analysis can be refined if object is not abstract
 
+{-isAcyclicType :: Program -> Type -> Bool-}
+{-isAcyclicType p (RefType cn) = not $ cn `S.member` properReachableClasses p cn-}
+{-isAcyclicType _ _            = True-}
+
+-- like isAcyclicType but also checks if subtypes are acyclic
 isAcyclicType :: Program -> Type -> Bool
-isAcyclicType p (RefType cn) = cn `S.member` properReachableClasses p cn
-isAcyclicType _ _            = False
-
--- like acyclic but also checks if subtypes are acyclic
-isAcyclicType' :: Program -> Type -> Bool
-isAcyclicType' p (RefType cn) = S.foldr (\dn -> (cyclic dn ||)) False (reachableClasses p cn)
-  where cyclic dn = dn `S.member` properReachableClasses p dn
-isAcyclicType' _ _            = False
+isAcyclicType p (RefType cn) = S.foldr (\dn -> (acyclic dn &&)) True (reachableClasses p cn)
+  where acyclic dn = dn `S.notMember` properReachableClasses p dn
+isAcyclicType _ _            = True
 
 isTreeShapedType :: Program -> Type -> Bool
 isTreeShapedType p ty | isAcyclicType p ty = False
@@ -230,6 +234,14 @@ areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersect
     tys2 = reachableClasses p cn2
 areSharingTypes _ _ _                         = False
 
+-- cn <= cn1, cn' <= cn2 and cn ->+ cn'
+areReachingTypes :: Program -> Type -> Type -> Bool
+areReachingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2
+  where
+    tys1 = properReachableClasses p cn1
+    tys2 = S.fromList $ subClassesOf p cn2
+areReachingTypes _ _ _                         = False
+
 areRelatedTypes :: Program -> Type -> Type -> Bool
 areRelatedTypes _ BoolType BoolType           = True
 areRelatedTypes _ IntType IntType             = True
@@ -237,6 +249,18 @@ areRelatedTypes _ Void Void                   = True
 areRelatedTypes p (RefType cn1) (RefType cn2) =
   isSuper p cn1 cn2 || isSuber p cn1 cn2
 areRelatedTypes _ _ _                          = False
+
+
+-- given cn, checks for all cn' <= cn that there exists no field different from (dn,fn) that is statically not acyclic
+singleCyclicField :: Program -> ClassId -> (ClassId,FieldId) -> Bool
+singleCyclicField p cn (dn,fn) = and [ not (isAcyclicType p ty') | (fn',dn',ty') <- fds, dn' /= dn || fn' /= fn]
+  where fds = concatMap (hasFields p) $ subClassesOf p cn
+
+-- given cn, checks for all cn' <= cn that there exists no field different from (dn,fn) that statically reaches ty
+singleReachingField :: Program -> ClassId -> (ClassId,FieldId) -> Type -> Bool
+singleReachingField p cn (dn,fn) ty = and [ areReachingTypes p ty' ty | (fn',dn',ty') <- fds, dn' /= dn || fn' /= fn]
+  where fds = concatMap (hasFields p) $ subClassesOf p cn
+
 
 
 
