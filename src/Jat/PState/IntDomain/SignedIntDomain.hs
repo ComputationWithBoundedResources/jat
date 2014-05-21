@@ -20,12 +20,6 @@ import Jat.Utils.Pretty
 -- 0 is element of Pos and Neg.
 data SignedIntDomain = Integer Int | Pos Int | Neg Int | AbsInteger Int deriving (Show,Eq,Ord)
 
-instance PA.Atom SignedIntDomain where
-  atom (Integer i)    = PA.int i
-  atom (AbsInteger i) = PA.ivar ('i':show i)
-  atom (Pos i)        = PA.ivar ('k':show i)
-  atom (Neg i)        = PA.ivar ('n':show i)
-
 freshInt :: Monad m => JatM m SignedIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
 
@@ -56,6 +50,10 @@ instance AbstrDomain SignedIntDomain Int where
   leq _ (AbsInteger _)                  = True
   leq _ _                               = False
 
+  atom (Integer i)         = PA.int i
+  atom (AbsInteger i)      = PA.ivar "" i
+  atom (Pos i)             = PA.ivar "pos" i
+  atom (Neg i)             = PA.ivar "neg" i
   constant                 = Integer
   fromConstant (Integer i) = Just i
   fromConstant _           = Nothing
@@ -103,12 +101,12 @@ evali :: Monad m =>
   (PA.PATerm -> PA.PATerm -> PA.PATerm)
   -> (Int -> SignedIntDomain) -> SignedIntDomain -> SignedIntDomain
   -> JatM m (Step SignedIntDomain b)
-evali f si i j = do {k <- freshVarIdx; return $ evaluation (si k) (PA.mkcon (si k) f i j)}
+evali f si i j = do {k <- freshVarIdx; return $ evaluation (si k) (mkcon (si k) f i j)}
 
 evalb :: Monad m => 
   (PA.PATerm -> PA.PATerm -> PA.PATerm)
   -> SignedIntDomain -> SignedIntDomain
   -> JatM m (Step BoolDomain b)
-evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
+evalb f i j = do {b <- freshBool; return $ evaluation b (mkcon b f i j)}
 
 

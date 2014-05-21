@@ -154,7 +154,7 @@ reachables adrs hp = concatMap (`Gr.reachable` gr) adrs
 reachableFrom :: Address -> Heap i -> [Address]
 reachableFrom adr hp = filter (\ladr -> adr `elem` reachable ladr hp) (Gr.nodes . toGraph $ hp)
 
--- | Checks if the given address is part of cycle.
+-- | Checks if the given address is part of a cycle.
 isCyclic :: Address -> Heap i -> Bool
 isCyclic adr hp = 
   let gr = toGraph hp 

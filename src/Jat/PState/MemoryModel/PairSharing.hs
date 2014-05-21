@@ -55,7 +55,7 @@ instance Pretty NShare where pretty (q:/=:r) = int q <> text "/=" <> int r
 instance Show NShare   where show = show . pretty
 
 data PairSharing = 
-  Sh NShares (F.FactBase F.PairFlow) ([F.Facts F.PairFlow]) F.PairFlow
+  Sh NShares (F.FactBase F.PFact) ([F.Facts F.PFact]) F.PFact
 type Sh i = PState i PairSharing
 
 instance Pretty PairSharing where 
@@ -75,7 +75,7 @@ nShares (Sh ns _ _ _) = ns
 nShares' :: PairSharing -> [NShare]
 nShares' = PS.elems . nShares
 
-fact :: PairSharing -> F.PairFlow
+fact :: PairSharing -> F.PFact
 fact (Sh _ _ _ f) = f
 
 
@@ -87,8 +87,10 @@ liftNS' f = f . nShares
 
 
 initSh :: P.Program -> P.ClassId -> P.MethodId -> PairSharing
-initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
-  where (fs,fb) = F.analyse (F.pairFlow p) p cn mn
+{-initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)-}
+  {-where (fs,fb) = F.analyse F.pFlow p cn mn-}
+initSh p cn mn = trace (show (fs,fb)) $ Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
+  where (fs,fb) = F.analyse (F.pFlow p) p cn mn
 
 sharing :: Sh i -> PairSharing
 sharing (PState _ _ sh) = sh
@@ -98,12 +100,11 @@ tyOf st q = P.RefType . className $ lookupH q (heap st)
 
 maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
 maybeShares p st q r = 
-  P.areSharingTypes p (tyOf st q) (tyOf st r) && 
-  maybeSharesSh st q r
+  P.areSharingTypes p (tyOf st q) (tyOf st r)
+  && maybeSharesSh st q r
 
 maybeSharesSh :: Sh i -> Address -> Address -> Bool
-maybeSharesSh st q r = 
-  any pairShares (F.sharingVars . fact $ sharing st)
+maybeSharesSh st q r = any pairShares (F.sharingVars . fact $ sharing st)
   where
     pairShares (x,y) =
       (q `elem` xReaches && r `elem` yReaches) ||
@@ -112,13 +113,25 @@ maybeSharesSh st q r =
         xReaches = reachableV x st
         yReaches = reachableV y st
 
-acyclicSh :: Sh i -> Address -> Bool
-acyclicSh st q = 
-  any k (F.acyclicVars . fact $ sharing st)
-  where k x = q `elem` reachableV x st
+maybeReaches :: P.Program -> Sh i -> Address -> Address -> Bool
+maybeReaches p st q r = 
+  P.areReachingTypes p (tyOf st q) (tyOf st r)
+  && maybeReachesSh p st q r
+
+maybeReachesSh :: P.Program -> Sh i -> Address -> Address -> Bool
+maybeReachesSh p st q r = 
+  any pairReaches (F.reachingVars . fact $ sharing st)
+  {-&& if q `elem` reachable r (heap st) then not (acyclic p st q) else True-}
+  where pairReaches (x,y) = q `elem` reachableV x st && r `elem` reachableV y st
 
 acyclic :: P.Program -> Sh i -> Address -> Bool
-acyclic p st q = P.isAcyclicType p (tyOf st q) || acyclicSh st q
+acyclic p st q = 
+  P.isAcyclicType p (tyOf st q) 
+  || acyclicSh st q
+
+acyclicSh :: Sh i -> Address -> Bool
+acyclicSh st q = any k (F.acyclicVars . fact $ sharing st)
+  where k x = q `elem` reachableV x st
 
 isValidStateAC :: Sh i -> Bool
 isValidStateAC st@(PState hp _ _) = not $ any (acyclicSh st) nonac
@@ -427,11 +440,13 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
 {-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
 
 state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Sh i -> Int -> JatM m PATerm
-state2TRSSH m st1@PState{} st2@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (isJoinable p st1) m st2 n
+state2TRSSH m st1@PState{} st2@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (maybeReaches' p) m st2 n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}
     isSpecial p adr = not (acyclic p st2 adr)
-    isJoinable      = maybeShares
+    maybeReaches' p q r = case lookupH q (heap st1) of
+      (AbsVar _) -> maybeReaches p st1 q r
+      _          -> False
 state2TRSSH m _ st n = pState2TRS undefined undefined m st n
 
 normalizeSH :: Sh i -> Sh i

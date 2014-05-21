@@ -54,8 +54,9 @@ import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, maybe)
+import Safe (at)
 
---import Debug.Trace
+import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
@@ -224,24 +225,25 @@ mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
 -- TODO:
 -- currently a new referene for every sepcial is inserted in lhs and rhs implying that it could alter in any step
 -- | Returns the cTRS representation of a state, given functions for checking cyclicity and joinability.
-pState2TRS :: (Monad m, IntDomain i) => 
+pState2TRS :: (Monad m, IntDomain i, Pretty a) => 
   (Address -> Bool)
   -> (Address -> Address -> Bool)
   -> Maybe Address
   -> PState i a -> Int -> JatM m PA.PATerm
-pState2TRS isSpecial isJoinable m (PState hp frms _) k =
+pState2TRS isSpecial maybeReaches m st@(PState hp frms _) k =
   PA.ufun ('f':show k)  `liftM` mapM tval (concatMap elemsF frms)
   where
     nullterm = PA.ufun "null" []
-    var cn key = PA.uvar $ map toLower cn ++ show key
+    var cn key = PA.uvar (map toLower cn) key
     
     tval Null        = return nullterm
     tval Unit        = return nullterm
     tval (RefVal r)  = taddr r
-    tval (BoolVal b) = return $ maybe (PA.bvar (show $ pretty b)) PA.bool (fromConstant b)
-    tval (IntVal i)  = return $ maybe (PA.ivar (show $ pretty i)) PA.int (fromConstant i)
+    tval (BoolVal b) = return $ atom b
+    tval (IntVal i)  = return $ atom i
 
         
+    {-taddr r | trace (">> taddr" ++ show r ++ show st) False = undefined-}
     taddr r = case m of
       Just q  -> taddrStar q r
       Nothing -> taddr' r
@@ -256,11 +258,13 @@ pState2TRS isSpecial isJoinable m (PState hp frms _) k =
         Instance cn ft -> PA.ufun (showcn cn) `liftM` mapM tval (elemsFT ft)
 
     
-    taddrStar q r | isJoinable q r = do
-                          key <- freshVarIdx
-                          let cn = className $ lookupH r hp
-                          return $ var ('x':showcn cn) key
-                  | otherwise = taddr' r
+    {-taddrStar q r | trace (">> taddrStar" ++ show (q,r,maybeReaches r q, st)) False = undefined-}
+    taddrStar q r 
+      | maybeReaches r q = do
+        key <- freshVarIdx
+        let cn = className $ lookupH r hp
+        return $ var ('x':showcn cn) key
+      | otherwise = taddr' r
     showcn = show . pretty
 
 pState2TRS _ _ _ (EState  ex) _ = return $ PA.ufun (show ex) []
@@ -385,7 +389,6 @@ rmaxPrefix path@(RPath r rls) pths =
 
 -- | Returns the value from a given Frame index.
 valueV :: P.Var -> PState i a -> AbstrValue i
-{-valueV  v st | trace ("valueV" ++ show v) False = undefined-}
 valueV (P.StkVar i j) (PState _ frms _) = (reverse . opstk)  (reverse frms !! i) !! j
 valueV (P.LocVar i j) (PState _ frms _) = locals (reverse frms !! i) !! j
 {-valueV (LocVar i j) (PState _ frms _) = case lookup i $ zip [0..] frms of-}

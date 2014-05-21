@@ -19,10 +19,6 @@ import Jat.Utils.Pretty
 -- |'SimpleIntDomain' defines a simple integer domain with no refinements but constraints.
 data SimpleIntDomain = Integer Int | AbsInteger Int deriving (Show,Eq,Ord)
 
-instance PA.Atom SimpleIntDomain where
-  atom (Integer i)    = PA.int i
-  atom (AbsInteger i) = PA.ivar ('i':show i)
-
 freshInt :: Monad m => JatM m SimpleIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
 
@@ -38,7 +34,9 @@ instance AbstrDomain SimpleIntDomain Int where
   leq _ (AbsInteger _)                   = True
   leq _ _                                = False
 
-  constant = Integer
+  atom (Integer i)         = PA.int i
+  atom (AbsInteger i)      = PA.ivar "" i
+  constant                 = Integer
   fromConstant (Integer i) = Just i
   fromConstant _           = Nothing
 
@@ -63,8 +61,8 @@ eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
 evali :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> SimpleIntDomain -> SimpleIntDomain -> JatM m (Step SimpleIntDomain b)
-evali f i j = do {k <- freshInt; return $ evaluation k (PA.mkcon k f i j)}
+evali f i j = do {k <- freshInt; return $ evaluation k (mkcon k f i j)}
 
 evalb :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> SimpleIntDomain -> SimpleIntDomain -> JatM m (Step BoolDomain b)
-evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
+evalb f i j = do {b <- freshBool; return $ evaluation b (mkcon b f i j)}
 

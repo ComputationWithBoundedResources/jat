@@ -25,10 +25,6 @@ import Jat.Utils.Pretty hiding (bool)
 -- returns a (constrained) abstract Boolean.
 data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq,Ord)
 
-instance PA.Atom BoolDomain where
-  atom (Boolean b)      = PA.bool b 
-  atom (AbstrBoolean i) = PA.bvar ('b':show i)
-
 instance AbstrDomain BoolDomain Bool where
   join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
   join _ _                               = freshBool
@@ -41,7 +37,9 @@ instance AbstrDomain BoolDomain Bool where
   leq _ (AbstrBoolean _)                = True
   leq _ _                               = False
 
-  constant = Boolean
+  atom (Boolean b)         = PA.bool b
+  atom (AbstrBoolean i)    = PA.bvar "" i
+  constant                 = Boolean
   fromConstant (Boolean b) = Just b
   fromConstant _           = Nothing
 
@@ -53,7 +51,7 @@ eval :: Monad m => a -> JatM m (Step a b)
 eval = return . topEvaluation
 
 evalb :: Monad m => (PA.PATerm -> PA.PATerm -> PA.PATerm) -> BoolDomain -> BoolDomain -> JatM m (Step BoolDomain b)
-evalb f i j = do {b <- freshBool; return $ evaluation b (PA.mkcon b f i j)}
+evalb f i j = do {b <- freshBool; return $ evaluation b (mkcon b f i j)}
 
 -- | Comparison Operation.
 (.==.),(./=.) :: Monad m => BoolDomain -> BoolDomain -> JatM m (Step BoolDomain BoolDomain)
@@ -79,7 +77,7 @@ a .||. b                 = evalb PA.or a b
 (.!) a@(AbstrBoolean _) = do
   j <- freshVarIdx
   let b = AbstrBoolean j
-      notcon = PA.atom b `PA.ass` (PA.not $ PA.atom a)
+      notcon = atom b `PA.ass` (PA.not $ atom a)
   return $ evaluation b notcon
 
 
@@ -89,7 +87,7 @@ ifFalse :: Monad m => BoolDomain -> JatM m (Step BoolDomain (BoolDomain -> BoolD
 ifFalse (Boolean a) = return $ Evaluation (Boolean a, C.top)
 ifFalse a@(AbstrBoolean _) = return $ Refinement [(sub a (Boolean False), con False), (sub a (Boolean True), con True)]
   where 
-    con b = PA.atom a `PA.ass` PA.bool b
+    con b = atom a `PA.ass` PA.bool b
     sub a b v = if v == a then b else v
 
 instance Pretty BoolDomain where

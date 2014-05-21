@@ -50,6 +50,12 @@ frame (PState _ frms _)
   | otherwise = head frms
 frame (EState _) = error "Jat.PState.Data.frame assertion error: exceptional state"
 
+-- | Returns Frame indices.
+vars :: PState i a -> [P.Var]
+vars s = foldr k [] (zip [0..] $ frames s)
+  where k (i,frm) xs = xs ++ ([P.StkVar i j | (j, _) <- zip [0..] (opstk frm)] 
+                    ++ [P.LocVar i j | (j, _) <- zip [0..] (locals frm)])
+
 -- | Returns the heap.
 heap :: PState i a -> Heap i
 heap (PState hp _ _) = hp

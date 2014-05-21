@@ -4,6 +4,7 @@
 module Jat.CompGraph 
   (
     MkJGraph
+  , JGraph
   , mkJGraph
   , mkJGraph2Dot
   , mkJGraph2TRS
@@ -33,7 +34,7 @@ import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 import Data.List ((\\))
---import Debug.Trace
+import Debug.Trace
 
 -- finding instance/merge nodes for backjumps
 -- assumptions: 
@@ -254,12 +255,18 @@ simplifySCC (MkJGraph gr ctx) = MkJGraph (Gr.delNodes (allnodes \\ sccnodes) gr)
 
 -- | Returns pairs of rewrite rules and constraints of a constructed
 -- computation graph.
-mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> JatM m [(Rule PAFun PAVar, Maybe PATerm)]
-mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
+mkJGraph2TRS :: (Monad m, IntDomain i, MemoryModel a) => MkJGraph i a -> 
+  JatM m (JGraph i a, [(Rule PAFun PAVar, [PATerm])])
+{-mkJGraph2TRS (MkJGraph gr _) | trace ("gr" ++ show (Gr.nodes gr)) False = undefined-}
+mkJGraph2TRS (MkJGraph gr _) = do
+  p <- getProgram
+  rs <- mapM (rule p) ledges
+  return (gr,rs)
   where
-    rule _ (k,k',InstanceLabel) = ruleM (ts s s k) (ts s s k') Nothing
+    {-rule _ (k,k',_) | trace (show (k,k')) False = undefined-}
+    rule _ (k,k',InstanceLabel) = ruleM (ts s s k) (ts s s k') []
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (ts t t k) (ts t t k') Nothing
+    rule _ (k,k',RefinementLabel con) = ruleM (ts t t k) (ts t t k') []
       where t = lookupN k'
     rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of
@@ -273,15 +280,15 @@ mkJGraph2TRS (MkJGraph g _) = getProgram >>= \p -> mapM (rule p) ledges
       t <- mt
       return (Rule {lhs = s, rhs = t}, con)
       
-    lnodes = labNodes g
-    ledges = labEdges g
+    lnodes = labNodes gr
+    ledges = labEdges gr
 
     lookupN k = errmsg `fromMaybe` lookup k lnodes
     errmsg    = error "Jat.CompGraph.mkGraph2TRS: unexpected key"
     ts        = state2TRS Nothing
     tsStar q  = state2TRS (Just q)
 
-    mkCon con = if isTop con then Nothing else Just con
+    mkCon con = if isTop con then [] else [con]
 
 -- Interactive
 data Command = NSteps Int | Until Int | Run | Help | Exit deriving (Show, Read)
