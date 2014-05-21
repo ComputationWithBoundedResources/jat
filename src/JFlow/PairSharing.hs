@@ -124,7 +124,7 @@ shTransfer = Transfer shTransferf shSetup shProject shExtend
                           else normalize p w . PS.delete' val . PS.delete' ref $ (ref `put` val) sh
                         where (val,ref) = (StkVar i (j+2), StkVar i (j+1))
       CheckCast _     -> normalize p w sh
-      Pop             -> StkVar i j `PS.delete'` sh
+      Pop             -> StkVar i (j+1) `PS.delete'` sh
       IAdd            -> sh
       ISub            -> sh
       Goto _          -> sh

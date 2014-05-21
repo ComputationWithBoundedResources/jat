@@ -36,8 +36,8 @@ data TypingFact = TyFact !Int !Int LocVars StkVars deriving (Eq,Ord)
 vars :: TypingFact -> [Var]
 vars (TyFact _ _ lss sss) = lvars ++ svars
   where
-    lvars = [LocVar i j | (i, ls) <- zip [0..] lss, (j, _) <- zip [0..] ls]
-    svars = [StkVar i j | (i, ss) <- zip [0..] sss, (j, _) <- zip [0..] ss]
+    lvars = [LocVar i j | (i, ls) <- zip [0..] (reverse lss), (j, _) <- zip [0..] ls]
+    svars = [StkVar i j | (i, ss) <- zip [0..] (reverse sss), (j, _) <- zip [0..] (reverse ss)]
 
 instance Pretty TypingFact where
   pretty (TyFact i j locs stks) =

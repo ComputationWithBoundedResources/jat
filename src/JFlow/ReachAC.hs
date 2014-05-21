@@ -69,7 +69,7 @@ instance Pretty RACFact where
   pretty (RACFact rs cs) = 
     string "RACFact"
     <$> list (map pretty (S.elems rs))
-    <$> list (map pretty (S.elems cs))
+    <$> list (map (\v -> char '&' <> pretty v) (S.elems cs))
 instance Show RACFact where
   show = show . pretty
 
@@ -91,6 +91,9 @@ delete x (RACFact rs cs) = RACFact (x `rdelete` rs) (x `S.delete` cs)
 filter' :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
 filter' f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 
+normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
+normalize shTypes cyType ac = reduce $ filter' (\(v1:~>:v2) -> shTypes v1 v2) cyType ac
+
 racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Flow RACFact w
 racFlow = Flow racLattice racTransfer
 
@@ -101,19 +104,19 @@ racLattice = SemiLattice racName racBot racJoin
     racBot    = RACFact S.empty S.empty
     racJoin _ = union
 
-normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
-normalize shTypes cyType (RACFact rs cs) = reduce $ RACFact rs' cs'
-  where
-    rs' = S.filter (\(v1:~>:v2) -> shTypes v1 v2) rs
-    cs' = S.filter cyType cs
 
 racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Transfer RACFact w
 racTransfer = Transfer racTransferf racSetup racProject racExtend
   where
     normalize' p w = normalize shTypes cyType
       where
-        shTypes x y = areSharingTypes p (hasTypeQ w x) (hasTypeQ w y)
-        cyType x    = isAcyclicType p (hasTypeQ w x)
+        shTypes x y = areReachingTypes p (hasTypeQ w x) (hasTypeQ w y)
+        cyType x    = not $ isAcyclicType p (hasTypeQ w x)
+
+    {-singleField p dn cn fn = and $ single (subClassesOf p dn)-}
+      {-where single cns = [ False | (fn',cn',ty') <- concatMap (hasFields p) cns, (fn' /= fn || cn' /= cn) && not (isAcyclicType' p ty')]-}
+
+    {-singleField p-}
       
 
     x `to` y = \z -> if z == x then y else z
@@ -143,30 +146,42 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
       GetField fn cn  ->
         if isPrimitiveType $ snd (field p cn fn)
           then x `delete` rac
-          else reduce $ RACFact  (rs `S.union` rs') cs
+          else normalize' p w $ RACFact  (rs `S.union` rs') cs
         where
           x = StkVar i j
           rs' = S.fromList [ y :~>: x | y <- maySharesWithQ w x]
 
-      PutField fn cn  -> delete val . delete ref $
-        if isPrimitiveType $ snd (field p cn fn)
-          then rac
-          else reduce $ RACFact (rs `S.union` rs') (cs `S.union` cs')
-          where
-            (val,ref) = (StkVar i (j+2), StkVar i (j+1))
-            -- TODO: incorporate typing information in alias
-            -- but necessary to get old typing info
-            aliasWith x = filter (talias x) $ maySharesWithQ w x
-            alias x y   = mayShareQ w x y && talias x y
-            talias x y  = areRelatedTypes p (hasTypeQ w' x) (hasTypeQ w' y)
-            --aliasWith = maySharesWithQ w
-            --alias = mayShareQ w
-            rs' = S.fromList [ w1 :~>: w2 | w1 <- lhs1, w2 <- rhs1 ]
-            lhs1 = aliasWith ref ++ ref `reachable` rs
-            rhs1 = aliasWith val ++ val `reaches` rs
-            cs' = S.fromList [ x | lhs2, x <- rhs2]
-            lhs2 = maybeCyclic val cs || ref `elem` (val `reaches` rs) || val `alias` ref
-            rhs2 = aliasWith val ++ val `reachable` rs
+      PutField fn cn  -> delete val . delete ref $ RACFact rs1 cs1 `union` RACFact rs' cs'
+        where
+          (val,ref)   = (StkVar i (j+2), StkVar i (j+1))
+          RefType tref = hasTypeQ w' ref
+
+          cs1 = if singleCyclicField p tref (cn,fn) then ref `S.delete` cs else cs
+          {-cs1 = cs-}
+          rs1 = rs
+
+          rs' = S.fromList [ w1 :~>: w2 | w1 <- lhs1, w2 <- rhs1 ]
+            where
+              lhs1 = aliasWith ref ++ ref `reachable` rs
+              rhs1 = aliasWith val ++ val `reaches` rs
+
+          cs' 
+            | isAcyclic'' p cn fn = cs1
+            | (val `S.notMember`) cs1 && not (val `mayShare` ref) = cs1
+            | otherwise = S.fromList [ x | lhs, x <- rhs ]
+            where
+              lhs = ref `elem` (val `reaches` rs1) || val `alias` ref || maybeCyclic val cs1
+              rhs = aliasWith val ++ val `reachable` rs
+
+          isAcyclic'' p cn fn = isAcyclicType p (snd $ field p cn fn)
+          hasType = hasTypeQ w
+          mayShare = mayShareQ w
+          alias x y   = x `mayShare` y && talias x y
+          talias x y  = areRelatedTypes p (hasTypeQ w' x) (hasTypeQ w' y)
+          aliasWith x = filter (talias x) $ maySharesWithQ w x
+
+
+
       Return          -> undefined
       Invoke _ _      -> undefined
 
