@@ -31,7 +31,8 @@ executable jat
     graphviz >= 2999.16,
     fgl == 5.4.*,
     set-monad == 0.1.*,
-    text == 0.11.*
+    text == 0.11.*,
+    safe >= 0.3.4
 
   ghc-options:
     -O2 -funbox-strict-fields -threaded

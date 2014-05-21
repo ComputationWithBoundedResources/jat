@@ -11,7 +11,6 @@ import Jat.Utils.Dot
 import Jat.Utils.Pretty
 import Jat.Utils.TRS
 import Jinja.Program as P
-
 import Control.Monad.Identity (runIdentity)
 import Data.Char (toLower)
 import Data.Maybe (fromMaybe)
@@ -88,19 +87,23 @@ run opts p cn mn =
 
 theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> JatM m (MkJGraph i a) -> JatM m String 
 theOutput opts p gM =
-  let (simpGr,simpTRS) = 
-          case simplify opts of
-            WithNarrowing       -> (id, simplifyRHS . simplifyRHS . simplifyRHS)
-            WithNarrowingAndSCC -> (simplifySCC, simplifyRHS)
-            _                   -> (id, id)
-  in
-  case format opts of
-    DOT  -> (dot2String . mkJGraph2Dot . simpGr) `liftM` gM 
-    {-TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
-    TRS  -> (display . prettyTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
-    ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
-    CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)
-    PRG  -> return (display $ pretty p)
+  {-let (simpGr,simpTRS) = -}
+          {-case simplify opts of-}
+            {-WithNarrowing       -> (id, simplifyRHS . simplifyRHS . simplifyRHS)-}
+            {-WithNarrowingAndSCC -> (simplifySCC, simplifyRHS)-}
+            {-_                   -> (id, id)-}
+  do
+    g <- gM
+    (gr,rs) <- mkJGraph2TRS g
+    return $case format opts of
+      TRS  -> (display . prettyTRS $ rs)
+      CTRS  -> (display . prettyCTRS $ toCTRS gr rs)
+      {-TRS  -> (display $ prettyTRS rs)-}
+      DOT  -> (dot2String $ mkJGraph2Dot g)
+      {-TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
+      {-ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
+      {-CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
+      {-PRG  -> return (display $ pretty p)-}
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]
 runAll opts p = map (uncurry $ run opts p) (methods p) 
