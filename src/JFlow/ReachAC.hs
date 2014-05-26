@@ -94,7 +94,7 @@ filter' f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
 normalize shTypes cyType ac = reduce $ filter' (\(v1:~>:v2) -> shTypes v1 v2) cyType ac
 
-racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Flow RACFact w
+racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w) => Flow RACFact w
 racFlow = Flow racLattice racTransfer
 
 racLattice :: SemiLattice RACFact
@@ -105,7 +105,7 @@ racLattice = SemiLattice racName racBot racJoin
     racJoin _ = union
 
 
-racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w) => Transfer RACFact w
+racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w) => Transfer RACFact w
 racTransfer = Transfer racTransferf racSetup racProject racExtend
   where
     normalize' p w = normalize shTypes cyType
@@ -123,7 +123,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
     assign x y rac = rac' `union` rename (y `to` x) rac'
       where rac' = x `delete` rac
 
-    racTransferf p ins (w',w) rac =
+    racTransferf p _ ins (w',w) rac =
       let (i,j) = hasIndexQ w in racTransferf' p ins (w',w) rac i j
     racTransferf' p ins (w',w) rac@(RACFact rs cs) i j = case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) rac
@@ -174,9 +174,10 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
               rhs = aliasWith val ++ val `reachable` rs
 
           isAcyclic'' p cn fn = isAcyclicType p (snd $ field p cn fn)
-          hasType = hasTypeQ w
+          hasType  = hasTypeQ w
+          mayAlias = mayAliasQ w
           mayShare = mayShareQ w
-          alias x y   = x `mayShare` y && talias x y
+          alias x y   = x `talias` y && x `mayShare` y  && x `mayAlias` y
           talias x y  = areRelatedTypes p (hasTypeQ w' x) (hasTypeQ w' y)
           aliasWith x = filter (talias x) $ maySharesWithQ w x
 

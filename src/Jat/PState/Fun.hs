@@ -30,6 +30,7 @@ module Jat.PState.Fun
   , valueV
   , typeV
   , reachableV
+  , programLocation
   )
 where
 
@@ -409,4 +410,10 @@ reachableV :: P.Var -> PState i a -> [Address]
 reachableV var st = case valueV var st of
   RefVal r -> reachable r (heap st)
   _        -> []
-     
+    
+-- | Returns the program location of a state.
+programLocation :: PState i a -> [(P.ClassId,P.MethodId,P.PC)]
+programLocation (PState _ frms _)  = [(cn,mn,pc) | Frame _ _ cn mn pc <- frms]
+programLocation (EState _)         = []
+
+

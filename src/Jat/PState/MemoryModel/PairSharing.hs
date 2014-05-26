@@ -55,7 +55,7 @@ instance Pretty NShare where pretty (q:/=:r) = int q <> text "/=" <> int r
 instance Show NShare   where show = show . pretty
 
 data PairSharing = 
-  Sh NShares (F.FactBase F.PFact) ([F.Facts F.PFact]) F.PFact
+  Sh NShares (F.FactBase F.PFactP) ([F.Facts F.PFactP]) F.PFactP
 type Sh i = PState i PairSharing
 
 instance Pretty PairSharing where 
@@ -75,7 +75,7 @@ nShares (Sh ns _ _ _) = ns
 nShares' :: PairSharing -> [NShare]
 nShares' = PS.elems . nShares
 
-fact :: PairSharing -> F.PFact
+fact :: PairSharing -> F.PFactP
 fact (Sh _ _ _ f) = f
 
 
@@ -90,7 +90,7 @@ initSh :: P.Program -> P.ClassId -> P.MethodId -> PairSharing
 {-initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)-}
   {-where (fs,fb) = F.analyse F.pFlow p cn mn-}
 initSh p cn mn = trace (show (fs,fb)) $ Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
-  where (fs,fb) = F.analyse (F.pFlow p) p cn mn
+  where (fs,fb) = F.analyse (F.pFlowP p) p cn mn
 
 sharing :: Sh i -> PairSharing
 sharing (PState _ _ sh) = sh
@@ -104,7 +104,7 @@ maybeShares p st q r =
   && maybeSharesSh st q r
 
 maybeSharesSh :: Sh i -> Address -> Address -> Bool
-maybeSharesSh st q r = any pairShares (F.sharingVars . fact $ sharing st)
+maybeSharesSh st q r = any pairShares (F.sharingVarsP . fact $ sharing st)
   where
     pairShares (x,y) =
       (q `elem` xReaches && r `elem` yReaches) ||
@@ -120,7 +120,7 @@ maybeReaches p st q r =
 
 maybeReachesSh :: P.Program -> Sh i -> Address -> Address -> Bool
 maybeReachesSh p st q r = 
-  any pairReaches (F.reachingVars . fact $ sharing st)
+  any pairReaches (F.reachingVarsP . fact $ sharing st)
   {-&& if q `elem` reachable r (heap st) then not (acyclic p st q) else True-}
   where pairReaches (x,y) = q `elem` reachableV x st && r `elem` reachableV y st
 
@@ -130,7 +130,7 @@ acyclic p st q =
   || acyclicSh st q
 
 acyclicSh :: Sh i -> Address -> Bool
-acyclicSh st q = any k (F.acyclicVars . fact $ sharing st)
+acyclicSh st q = any k (F.acyclicVarsP . fact $ sharing st)
   where k x = q `elem` reachableV x st
 
 isValidStateAC :: Sh i -> Bool
@@ -235,7 +235,7 @@ invokeSH st1 mn1 n1 = do
         (cn2,mb)    = P.seesMethodIn p cn1 mn
         mxl         = P.maxLoc mb
         frm         = Frame (initL (rv:reverse ps) mxl) [] cn2 mn 0
-        fs'         = error "inv ctx" `fromMaybe` M.lookup (F.Context cn2 mn f) fb
+        fs'         = F.queryFB'' (programLocation st) cn2 mn f fb 
         sh'         = Sh ns fb (fs':fs) (F.unFacts fs' A.! 0)
     invoke' _ _ _ _ = error ".inoke: exceptional case."
 

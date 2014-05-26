@@ -29,6 +29,11 @@ instance Pretty Type where
 instance Pretty ClassId where
   pretty (ClassId cn) = string cn
 
+-- callstring
+data Call       = Call ClassId MethodId deriving (Eq,Ord,Show)
+data CallSite   = CallSite ClassId MethodId PC deriving (Eq,Ord,Show)
+data CallString = CallString Call [CallSite] deriving (Eq,Ord,Show)
+
 data SemiLattice v = SemiLattice {
     name :: String
   , bot  :: v
@@ -36,7 +41,7 @@ data SemiLattice v = SemiLattice {
 }
 
 data Transfer v w = Transfer {
-      transf  :: P.Program -> P.Instruction -> (w,w) -> v -> v
+      transf  :: P.Program -> (CallString,PC) -> P.Instruction -> (w,w) -> v -> v
     , setup   :: P.Program -> P.ClassId -> P.MethodId -> v
     , project :: P.Program -> P.ClassId -> P.MethodId -> Int -> w -> v -> v
     , extend  :: P.Program -> P.ClassId -> Int -> w -> v -> v -> v
@@ -63,7 +68,7 @@ class MayReachingVarsQ w where mayReachingVarsQ :: w -> [(Var,Var)]
 class IsAcyclicQ w       where isAcyclicQ :: w -> Var -> Bool
 class AcyclicVarsQ w     where acyclicVarsQ :: w -> [Var]
 
-
+class MayAliasQ w        where mayAliasQ :: w -> Var -> Var -> Bool
 
 
 --data QueryV v = QueryV {

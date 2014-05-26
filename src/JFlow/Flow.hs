@@ -26,13 +26,56 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 --
 -- whole context-sensitive analysis can be still obtained when considering product construction
 
-data Context v = Context ClassId MethodId v deriving (Eq,Ord,Show)
+-- May '14
+-- replace value context with finite call-string
+-- as points-to analysis needs identifier for allocation sites
+
+
+-- value based context
+{-data Context v = Context ClassId MethodId v deriving (Eq,Ord,Show)-}
+{-type ContextMap v a = Map (Context v) a-}
+
+{-newtype Facts v = Facts { unFacts :: Array Int v }-}
+{-type FactBase v = ContextMap v (Facts v)-}
+
+
+
+-- finite call string as context
+
+data Context v = Context CallString v deriving (Ord,Show)
+
+instance Eq (Context v) where
+  Context cs1 _ == Context cs2 _ = cs1 == cs2
+
 type ContextMap v a = Map (Context v) a
 
 newtype Facts v = Facts { unFacts :: Array Int v }
 type FactBase v = ContextMap v (Facts v)
 
-data CallString = Call ClassId MethodId PC CallString | Nil PC
+currentCall :: Context v -> Call
+currentCall (Context (CallString c _) _) = c
+
+pushCall :: Context v -> ClassId -> MethodId -> PC -> Context v
+pushCall (Context cs v) ncn nmn pc = (Context (k cs) v)
+  where k (CallString (Call cn mn) cs) = CallString (Call ncn nmn) (CallSite cn mn pc:cs)
+
+popCall :: Context v -> Context v
+popCall (Context cs v) = Context (k cs) v
+  where
+    k (CallString _ [])                     = error "Flow.popCall: location out of pounds"
+    k (CallString _ (CallSite cn mn _ :cs)) = CallString (Call cn mn) cs
+
+queryFB :: Ord v => Context v -> FactBase v -> Facts v
+queryFB ctx fb = error "Flow.queryFB: undefined context" `fromMaybe` M.lookup ctx fb
+
+queryFB' :: Ord v => CallString -> v -> FactBase v -> Facts v
+queryFB' cs v fb = queryFB (Context cs v) fb
+
+queryFB'' :: Ord v => [(ClassId,MethodId,PC)] -> ClassId -> MethodId -> v -> FactBase v -> Facts v
+queryFB'' ploc cn mn v = queryFB' cs v
+  where cs = CallString (Call cn mn) [CallSite cn1 mn1 pc1 | (cn1,mn1,pc1) <- ploc]
+
+{-data CallString = Call ClassId MethodId PC CallString | Nil PC-}
 
 --queryCS :: Ord v => CallString -> Context v -> FactBase v -> QueryV v -> Query
 --queryCS (Nil pc)             ctx fb queryv = runQueryV (value ctx fb pc) queryv
@@ -85,22 +128,22 @@ lookupx k m = errmsg `fromMaybe` M.lookup k m
 addTransition :: Transition v -> St m v ()
 addTransition t = modify (\st -> st{transitions = t:transitions st})
 
-pushCall :: Context v -> St m v ()
-pushCall ctx = modify (\st -> st{callStack = ctx:callStack st})
+pushCallingContext :: Context v -> St m v ()
+pushCallingContext ctx = modify (\st -> st{callStack = ctx:callStack st})
 
-pushCall' :: Eq v => Context v -> St m v ()
-pushCall' ctx = modify (\st -> st{callStack = k (callStack st)})
+pushCallingContext' :: Eq v => Context v -> St m v ()
+pushCallingContext' ctx = modify (\st -> st{callStack = k (callStack st)})
   where k cs = if ctx `elem` cs then cs else cs ++ [ctx]
 
-topCall :: St m v (Context v)
-topCall = do
+topCallingContext :: St m v (Context v)
+topCallingContext = do
   xs <- gets callStack
   case xs of
     (c:_) -> return c
     []     -> error "assertion error: empty call stack"
 
-popCall :: St m v (Context v)
-popCall = do
+popCallingContext :: St m v (Context v)
+popCallingContext = do
   xs <- gets callStack
   case xs of
     (c:cs) -> modify (\st -> st{callStack=cs}) >> return c
@@ -145,12 +188,26 @@ analyse flow p cn mn = evalState analyseM st0
     analyseM = do
       let 
         val0 = setup (transfer flow) p cn mn
-        ctx0 = Context cn mn val0
+        ctx0 = Context (CallString (Call cn mn) []) val0
       setupContext flow ctx0
       analyseCallStack flow
       fb <- gets facts
       return (fromJust (M.lookup ctx0 fb), fb)
     st0 = mkInitState p
+
+setupContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
+{-setupContext _ ctx | trace (">>> setupContext" ++ show ctx) False = undefined-}
+setupContext (Flow lat _) ctx@(Context _ v) = do
+  let Call cn mn = currentCall ctx
+  md <- getsMethod cn mn
+  let bottom  = bot lat
+  updateFacts ctx (initFacts md bottom)
+  updateFact ctx entryPC v
+  pushPC ctx entryPC 
+  pushCallingContext ctx
+  where 
+    initFacts md val = Facts $ A.listArray bounds (cycle [val])
+      where bounds = A.bounds $ methodInstructions md
 
 mkInitState :: Program -> FlowState m v
 {-mkInitState _ | trace ">>> mkInitState" False = undefined-}
@@ -164,22 +221,11 @@ mkInitState p = FlowState {
   , program     = p
 }
 
-setupContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
-{-setupContext _ ctx | trace (">>> setupContext" ++ show ctx) False = undefined-}
-setupContext (Flow lat _) ctx@(Context cn mn v) = do
-  md <- getsMethod cn mn
-  let bottom  = bot lat
-  updateFacts ctx (initFacts md bottom)
-  updateFact ctx entryPC v
-  pushPC ctx entryPC
-  pushCall ctx
-  where 
-    initFacts md val = Facts $ A.listArray bounds (cycle [val])
-      where bounds = A.bounds $ methodInstructions md
 
 initContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
 {-initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined-}
-initContext (Flow lat tran) ctx@(Context cn mn v) = do
+initContext (Flow lat tran) ctx@(Context _ v) = do
+  let Call cn mn = currentCall ctx
   md <- getsMethod cn mn
   p <- gets program
   let 
@@ -189,7 +235,7 @@ initContext (Flow lat tran) ctx@(Context cn mn v) = do
   updateFacts ctx (initFacts md bottom)
   updateFact ctx entryPC val
   pushPC ctx entryPC
-  pushCall ctx
+  pushCallingContext ctx
   where 
     initFacts md val = Facts $ A.listArray bounds (cycle [val])
       where bounds = A.bounds $ methodInstructions md
@@ -209,16 +255,17 @@ analyseContext flow ctx = do
   if not $ null wl
     then popPC ctx >>= analyseInstruction flow ctx
     else do
-      popCall
+      popCallingContext
       callers <- filter ((==ctx) . snd) `liftM` gets transitions
       let callingCtxs = [(ctx',pc) | ((ctx',pc),_) <- callers]
       forM_ callingCtxs (uncurry pushPC)
-      forM_ callingCtxs (pushCall' . fst)
+      forM_ callingCtxs (pushCallingContext' . fst)
       analyseCallStack flow
        
 analyseInstruction :: (Show v,Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> St m v ()
 {-analyseInstruction _ _ _ | trace ">>> analyseInstruction" False = undefined-}
-analyseInstruction flow ctx@(Context cn mn _) pc = do
+analyseInstruction flow ctx@(Context _ _) pc = do
+  let Call cn mn = currentCall ctx
   ins <- getsInstruction cn mn pc
   newVal <- if isMethodCall ins
     then analyseCall' flow ctx ins pc
@@ -273,18 +320,18 @@ updateValue flow@(Flow lat _) ctx pc ins (Just newVal) = do
 
 interpretInstruction :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> Instruction -> St m v (Maybe v)
 {-interpretInstruction _ (Context cn mn _) pc ins | trace (">>> interpretInstruction " ++ show (cn,mn,pc,ins)) False = undefined-}
-interpretInstruction (Flow _ tran) ctx pc ins = do
+interpretInstruction (Flow _ tran) ctx@(Context cs _) pc ins = do
   st <- get
   let
     prog     = program st
     fbase    = facts st
     curVal   = value ctx fbase pc
-  return . Just $ transf tran prog ins (curVal,curVal) curVal
+  return . Just $ transf tran prog (cs,pc) ins (curVal,curVal) curVal
 
 processCall :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
 {-processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined-}
-processCall flow@(Flow lat _) callingCtx cn mn v = do
-  let currentCtx = Context cn mn v
+processCall flow@(Flow lat _) callingCtx@(ctx,pc) cn mn v = do
+  let currentCtx = pushCall ctx cn mn pc
   addTransition (callingCtx, currentCtx)
   fsM <- getsFactsM currentCtx
   case fsM of

@@ -91,10 +91,10 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
     push = (:) 
     
     {-tyTransferf p _ ins tyf | trace (show ins ++ "\n" ++ show tyf) False = undefined-}
-    tyTransferf p ins _ (TyFact i j (loc:locs) (stk:stks)) = 
+    tyTransferf p _ ins _ (TyFact i j (loc:locs) (stk:stks)) = 
       let (j',loc',stk') = tyTransferf' p j loc stk ins
       in  TyFact i j' (loc':locs) (stk':stks)
-    tyTransferf _ ins _ tyf = error $ show ins ++ show tyf
+    tyTransferf _ _ ins _ tyf = error $ show ins ++ show tyf
     tyTransferf' p j loc stk ins = case ins of
       Load i         -> (j+1,loc, lookup' loc i `push` stk)
       Store i        -> let (ty,stk') = popx stk
