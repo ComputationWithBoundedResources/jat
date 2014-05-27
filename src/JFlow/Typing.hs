@@ -19,7 +19,7 @@ import Jinja.Program
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 
-import Debug.Trace
+--import Debug.Trace
 
 
 -- Notes:
@@ -90,7 +90,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
     popx (x:xs)   = (x,xs)
     push = (:) 
     
-    {-tyTransferf p _ ins tyf | trace (show ins ++ "\n" ++ show tyf) False = undefined-}
+    {-tyTransferf p _ ins _ tyf | trace (show tyf ++ "\n" ++ show ins) False = undefined-}
     tyTransferf p _ ins _ (TyFact i j (loc:locs) (stk:stks)) = 
       let (j',loc',stk') = tyTransferf' p j loc stk ins
       in  TyFact i j' (loc':locs) (stk':stks)
@@ -127,6 +127,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
         params = methodParams md
         locals = replicate (maxLoc md) Void
         
+    --tyProject p cn mn nparams _ (TyFact i _ locs (stk:stks)) | traceShow (stk:stks) False = undefined
     tyProject p cn mn nparams _ (TyFact i _ locs (stk:stks)) =
       TyFact (i+1) (-1) ((this:params++locals):locs) ([]:stk':stks)
       where

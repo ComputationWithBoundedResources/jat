@@ -14,6 +14,7 @@ import JFlow.Data
 import qualified Data.Set as S
 import Data.Either
 import Text.PrettyPrint.ANSI.Leijen hiding (empty)
+--import Debug.Trace
 
 
 data NId =
@@ -105,7 +106,7 @@ ptmap :: (PtGr -> PtGr) -> PointsToFact -> PointsToFact
 ptmap m (PtFact gr) = PtFact (m gr)
 
 mayAlias :: PointsToFact -> Var -> Var -> Bool
-mayAlias (PtFact gr) x y = S.null $ edgesFrom (var x) gr `S.intersection` edgesFrom (var y) gr
+mayAlias (PtFact gr) x y = not . S.null $ nodes (var x) gr `S.intersection` nodes (var y) gr
 
 instance Pretty PointsToFact where
   pretty (PtFact gr) = 
@@ -203,12 +204,13 @@ ptTransfer = Transfer ptTransferf ptSetup ptProject ptExtend
         k x   = maybe x id (lookup x table)
 
     ptExtend _ _ nparams w _ (PtFact gr) =
-      PtFact $ S.filter (\(REdge x _) -> k x) ((rl `assign` rs) gr)
+      PtFact $ S.filter k2 ((rl `assign` rs) gr)
       where
         (i,j) = hasIndexQ w
         (rs,rl) = (StkVar (i+1) 0, StkVar i (j -nparams))
         k (StkVar i2 _) = i2 <= i
         k (LocVar i2 _) = i2 <= i
-
+        k2 (REdge x _) = k x
+        k2 _           = True
   
 

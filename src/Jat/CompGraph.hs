@@ -34,7 +34,7 @@ import qualified Control.Exception as E
 import qualified Data.GraphViz.Attributes.Complete as GV
 import qualified Data.Text.Lazy as T
 import Data.List ((\\))
-import Debug.Trace
+--import Debug.Trace
 
 -- finding instance/merge nodes for backjumps
 -- assumptions: 

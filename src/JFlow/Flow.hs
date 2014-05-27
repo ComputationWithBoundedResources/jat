@@ -11,7 +11,7 @@ import Control.Monad.State hiding (join)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, fromMaybe)
-{-import Debug.Trace-}
+--import Debug.Trace
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 
@@ -55,8 +55,8 @@ type FactBase v = ContextMap v (Facts v)
 currentCall :: Context v -> Call
 currentCall (Context (CallString c _) _) = c
 
-pushCall :: Context v -> ClassId -> MethodId -> PC -> Context v
-pushCall (Context cs v) ncn nmn pc = (Context (k cs) v)
+pushCall :: Context v -> ClassId -> MethodId -> PC -> v -> Context v
+pushCall (Context cs _) ncn nmn pc v = (Context (k cs) v)
   where k (CallString (Call cn mn) cs) = CallString (Call ncn nmn) (CallSite cn mn pc:cs)
 
 popCall :: Context v -> Context v
@@ -223,7 +223,7 @@ mkInitState p = FlowState {
 
 
 initContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
-{-initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined-}
+--initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined
 initContext (Flow lat tran) ctx@(Context _ v) = do
   let Call cn mn = currentCall ctx
   md <- getsMethod cn mn
@@ -331,7 +331,7 @@ interpretInstruction (Flow _ tran) ctx@(Context cs _) pc ins = do
 processCall :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
 {-processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined-}
 processCall flow@(Flow lat _) callingCtx@(ctx,pc) cn mn v = do
-  let currentCtx = pushCall ctx cn mn pc
+  let currentCtx = pushCall ctx cn mn pc v
   addTransition (callingCtx, currentCtx)
   fsM <- getsFactsM currentCtx
   case fsM of

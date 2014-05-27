@@ -21,6 +21,8 @@ import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 
+--import Debug.Trace
+
 data Reaches = Var:~>:Var deriving (Eq,Ord)
 type Reaching = S.Set Reaches
 
@@ -94,7 +96,7 @@ filter' f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
 normalize :: (Var -> Var  -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
 normalize shTypes cyType ac = reduce $ filter' (\(v1:~>:v2) -> shTypes v1 v2) cyType ac
 
-racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w) => Flow RACFact w
+racFlow :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w, Show w) => Flow RACFact w
 racFlow = Flow racLattice racTransfer
 
 racLattice :: SemiLattice RACFact
@@ -105,7 +107,7 @@ racLattice = SemiLattice racName racBot racJoin
     racJoin _ = union
 
 
-racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w) => Transfer RACFact w
+racTransfer :: (HasIndexQ w, HasTypeQ w, MayShareQ w, MaySharesWithQ w, MayAliasQ w, Show w) => Transfer RACFact w
 racTransfer = Transfer racTransferf racSetup racProject racExtend
   where
     normalize' p w = normalize shTypes cyType

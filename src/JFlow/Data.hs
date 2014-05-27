@@ -30,9 +30,16 @@ instance Pretty ClassId where
   pretty (ClassId cn) = string cn
 
 -- callstring
-data Call       = Call ClassId MethodId deriving (Eq,Ord,Show)
-data CallSite   = CallSite ClassId MethodId PC deriving (Eq,Ord,Show)
+data Call       = Call ClassId MethodId deriving (Eq,Ord)
+data CallSite   = CallSite ClassId MethodId PC deriving (Eq,Ord)
 data CallString = CallString Call [CallSite] deriving (Eq,Ord,Show)
+
+instance Show Call where
+  show (Call cn (MethodId mn)) = show $ pretty cn <> char '.' <> string mn
+
+instance Show CallSite where
+  show (CallSite cn (MethodId mn) pc) = show $ pretty cn <> char '.' <> string mn <> char '.' <> int pc
+
 
 data SemiLattice v = SemiLattice {
     name :: String

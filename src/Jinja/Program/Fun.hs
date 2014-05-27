@@ -23,12 +23,17 @@ module Jinja.Program.Fun
   , field
   , theLeastCommonSupClass
   , leastCommonSupClass
-  , properReachableClasses
+
+  -- type based shape properties
+  , RefKind (..)
   , reachableClasses
+  , properReachableClasses
+
+  , isAcyclicClass
+  , areSharingClasses
+  , areReachingClasses
 
   , isAcyclicType
-  {-, isAcyclicType'-}
-  , isTreeShapedType
   , areSharingTypes
   , areReachingTypes
   , areRelatedTypes
@@ -172,16 +177,34 @@ leastCommonSupClass p cn dn = meet cns dns
     meet (c:_) (d:_) | c == d  = Just c
     meet (_:cs) []             = meet cs dns
     meet cs (_:ds)             = meet cs ds
+
+
+-- shape properties
+-- we refine type information if obtained from an instance or class variable
+data RefKind =
+  InstanceKind ClassId
+  | ClassVarKind ClassId 
+  | VariableKind ClassId 
+  deriving Eq
+
+ofClass :: RefKind -> ClassId
+ofClass (InstanceKind cn) = cn
+ofClass (ClassVarKind cn) = cn
+ofClass (VariableKind cn) = cn
+
+fieldClasses :: Program -> ClassId -> [ClassId]
+fieldClasses p cn = [tp | (_,_,RefType tp) <- hasFields p cn]
     
 -- | Returns all reachable classes wrt. to subclasses and fieldtables.
-reachableClasses :: Program -> ClassId -> S.Set ClassId
-reachableClasses p cn = reachableClasses' p S.empty (S.singleton cn) 
+reachableClasses :: Program -> RefKind -> S.Set ClassId
+reachableClasses p (InstanceKind cn) = reachableClasses' p (S.singleton cn) (S.fromList $ fieldClasses p cn)
+reachableClasses p cn                = reachableClasses' p S.empty (S.singleton $ ofClass cn)
 
 -- | Same as reachableClasses but the queried 'Class' is only member of the
 -- returned list if it is reachable from another class.
-properReachableClasses :: Program -> ClassId -> S.Set ClassId
-properReachableClasses p cn = reachableClasses' p S.empty (S.unions . map initial $ subClassesOf p cn)
-  where initial dn = S.fromList [tp | (_,_,RefType tp) <- hasFields p dn]
+properReachableClasses :: Program -> RefKind -> S.Set ClassId
+properReachableClasses p (InstanceKind cn) = reachableClasses' p S.empty (S.fromList $ fieldClasses p cn)
+properReachableClasses p cn                = reachableClasses' p S.empty (S.unions . map (S.fromList . fieldClasses p) $ subClassesOf p $ ofClass cn)
 
 reachableClasses' :: Program -> S.Set ClassId -> S.Set ClassId -> S.Set ClassId
 reachableClasses' p acc new = 
@@ -198,49 +221,73 @@ reachableClasses' p acc new =
     fix s1 s2 = S.size s1 == S.size s2
 
 
--- TODO: in computationgraph static type analysis can be refined if object is not abstract
 
-{-isAcyclicType :: Program -> Type -> Bool-}
-{-isAcyclicType p (RefType cn) = not $ cn `S.member` properReachableClasses p cn-}
-{-isAcyclicType _ _            = True-}
+-- checks if type is acyclic
+isAcyclicClass :: Program -> RefKind -> Bool
+isAcyclicClass p (InstanceKind cn) = cn `S.notMember` properReachableClasses p (InstanceKind cn)
+isAcyclicClass p (ClassVarKind cn) = all  (isAcyclicClass p . InstanceKind) $ subClassesOf p cn
+isAcyclicClass p (VariableKind cn) = all' (isAcyclicClass p . InstanceKind) $ reachableClasses p (VariableKind cn)
+  where all' f = S.foldr (\a -> (f a &&)) True
 
--- like isAcyclicType but also checks if subtypes are acyclic
-isAcyclicType :: Program -> Type -> Bool
-isAcyclicType p (RefType cn) = S.foldr (\dn -> (acyclic dn &&)) True (reachableClasses p cn)
-  where acyclic dn = dn `S.notMember` properReachableClasses p dn
-isAcyclicType _ _            = True
 
-isTreeShapedType :: Program -> Type -> Bool
-isTreeShapedType p ty | isAcyclicType p ty = False
-isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]
+areSharingClasses :: Program -> RefKind -> RefKind -> Bool
+areSharingClasses p cn1 cn2 = not . S.null $ cns1 `S.intersection` cns2
   where
-    isTreeShaped' _ [] = True
-    isTreeShaped' visited (cn':cns) | cn' `S.member` visited = isTreeShaped' visited cns
-    isTreeShaped' visited (cn':cns) = treeShaped cn' && isTreeShaped' visited' (clazzes cn' ++ cns)
-      where visited' = cn' `S.insert` visited
+    cns1 = reachableClasses p cn1
+    cns2 = reachableClasses p cn2
 
-    clazzes cn'       = subClassesOf p cn' ++ hasRefFields cn'
-    hasRefFields cn'  = [ tp | (_,_,RefType tp) <- hasFields p cn']
-    treeShaped cn'    = case reaches of
-      []     -> True
-      (x:xs) -> foldl S.intersection x xs == S.empty
-      where reaches = reachableClasses p `fmap` hasRefFields cn'
-isTreeShapedType _ _ = False
+areReachingClasses :: Program -> RefKind -> RefKind -> Bool
+areReachingClasses p cn1 cn2 = not . S.null $ cns1 `S.intersection` cns2
+  where
+    cns1 = properReachableClasses p cn1
+    cns2 = case cn2 of
+      (InstanceKind cn) -> S.singleton cn
+      _                 -> S.fromList $ subClassesOf p $ ofClass cn2
 
-areSharingTypes :: Program -> Type -> Type -> Bool
-areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2
-  where 
-    tys1 = reachableClasses p cn1
-    tys2 = reachableClasses p cn2
-areSharingTypes _ _ _                         = False
+{-isTreeShapedType :: Program -> Type -> Bool-}
+{-isTreeShapedType p ty | isAcyclicType p ty = False-}
+{-isTreeShapedType p (RefType cn) = isTreeShaped' S.empty [cn]-}
+  {-where-}
+    {-isTreeShaped' _ [] = True-}
+    {-isTreeShaped' visited (cn':cns) | cn' `S.member` visited = isTreeShaped' visited cns-}
+    {-isTreeShaped' visited (cn':cns) = treeShaped cn' && isTreeShaped' visited' (clazzes cn' ++ cns)-}
+      {-where visited' = cn' `S.insert` visited-}
+
+    {-clazzes cn'       = subClassesOf p cn' ++ hasRefFields cn'-}
+    {-hasRefFields cn'  = [ tp | (_,_,RefType tp) <- hasFields p cn']-}
+    {-treeShaped cn'    = case reaches of-}
+      {-[]     -> True-}
+      {-(x:xs) -> foldl S.intersection x xs == S.empty-}
+      {-where reaches = reachableClasses p `fmap` hasRefFields cn'-}
+{-isTreeShapedType _ _ = False-}
+
+{-areSharingTypes :: Program -> Type -> Type -> Bool-}
+{-areSharingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2-}
+  {-where -}
+    {-tys1 = reachableClasses p cn1-}
+    {-tys2 = reachableClasses p cn2-}
+{-areSharingTypes _ _ _                         = False-}
 
 -- cn <= cn1, cn' <= cn2 and cn ->+ cn'
+{-areReachingTypes :: Program -> Type -> Type -> Bool-}
+{-areReachingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2-}
+  {-where-}
+    {-tys1 = properReachableClasses p cn1-}
+    {-tys2 = S.fromList $ subClassesOf p cn2-}
+{-areReachingTypes _ _ _                         = False-}
+
+isAcyclicType :: Program -> Type -> Bool
+isAcyclicType p (RefType cn) = isAcyclicClass p (VariableKind cn)
+isAcyclicType _ _            = True
+
+areSharingTypes :: Program -> Type -> Type -> Bool
+areSharingTypes p (RefType cn1) (RefType cn2) = areSharingClasses p (VariableKind cn1) (VariableKind cn2)
+areSharingTypes p _ _                         = False
+
 areReachingTypes :: Program -> Type -> Type -> Bool
-areReachingTypes p (RefType cn1) (RefType cn2) = not . S.null $ tys1 `S.intersection` tys2
-  where
-    tys1 = properReachableClasses p cn1
-    tys2 = S.fromList $ subClassesOf p cn2
-areReachingTypes _ _ _                         = False
+areReachingTypes p (RefType cn1) (RefType cn2) = areReachingClasses p (VariableKind cn1) (VariableKind cn2)
+areReachingTypes p _ _                         = False
+
 
 areRelatedTypes :: Program -> Type -> Type -> Bool
 areRelatedTypes _ BoolType BoolType           = True

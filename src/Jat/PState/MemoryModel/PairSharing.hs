@@ -35,7 +35,7 @@ import Data.Array as A
 import qualified JFlow.Instances as F
 import qualified JFlow.Flow as F
 
-import Debug.Trace
+--import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.PairSharing"
@@ -87,21 +87,28 @@ liftNS' f = f . nShares
 
 
 initSh :: P.Program -> P.ClassId -> P.MethodId -> PairSharing
-{-initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)-}
-  {-where (fs,fb) = F.analyse F.pFlow p cn mn-}
-initSh p cn mn = trace (show (fs,fb)) $ Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
+--initSh p cn mn = trace (show (fs,fb)) $ Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
+initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
   where (fs,fb) = F.analyse (F.pFlowP p) p cn mn
 
 sharing :: Sh i -> PairSharing
 sharing (PState _ _ sh) = sh
 
-tyOf :: Sh i -> Address -> P.Type
-tyOf st q = P.RefType . className $ lookupH q (heap st)
 
-maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeShares p st q r = 
-  P.areSharingTypes p (tyOf st q) (tyOf st r)
-  && maybeSharesSh st q r
+-- properties
+isAcyclicType :: P.Program -> Sh i -> Address -> Bool
+isAcyclicType p st = P.isAcyclicClass p . refKindOf st
+
+acyclicSh :: Sh i -> Address -> Bool
+acyclicSh st q = any k (F.acyclicVarsP . fact $ sharing st)
+  where k x = q `elem` reachableV x st
+
+acyclic :: P.Program -> Sh i -> Address -> Bool
+acyclic p st q = isAcyclicType p st q || acyclicSh st q
+
+
+areSharingTypes :: P.Program -> Sh i -> Address -> Address -> Bool
+areSharingTypes p st q r = P.areSharingClasses p (refKindOf st q) (refKindOf st r)
 
 maybeSharesSh :: Sh i -> Address -> Address -> Bool
 maybeSharesSh st q r = any pairShares (F.sharingVarsP . fact $ sharing st)
@@ -113,10 +120,12 @@ maybeSharesSh st q r = any pairShares (F.sharingVarsP . fact $ sharing st)
         xReaches = reachableV x st
         yReaches = reachableV y st
 
-maybeReaches :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeReaches p st q r = 
-  P.areReachingTypes p (tyOf st q) (tyOf st r)
-  && maybeReachesSh p st q r
+maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
+maybeShares p st q r = areSharingTypes p st q r || maybeSharesSh st q r
+
+
+areReachingTypes :: P.Program -> Sh i -> Address -> Address -> Bool
+areReachingTypes p st q r = P.areReachingClasses p (refKindOf st q) (refKindOf st r)
 
 maybeReachesSh :: P.Program -> Sh i -> Address -> Address -> Bool
 maybeReachesSh p st q r = 
@@ -124,14 +133,9 @@ maybeReachesSh p st q r =
   {-&& if q `elem` reachable r (heap st) then not (acyclic p st q) else True-}
   where pairReaches (x,y) = q `elem` reachableV x st && r `elem` reachableV y st
 
-acyclic :: P.Program -> Sh i -> Address -> Bool
-acyclic p st q = 
-  P.isAcyclicType p (tyOf st q) 
-  || acyclicSh st q
+maybeReaches :: P.Program -> Sh i -> Address -> Address -> Bool
+maybeReaches p st q r = areReachingTypes p st q r && maybeReachesSh p st q r
 
-acyclicSh :: Sh i -> Address -> Bool
-acyclicSh st q = any k (F.acyclicVarsP . fact $ sharing st)
-  where k x = q `elem` reachableV x st
 
 isValidStateAC :: Sh i -> Bool
 isValidStateAC st@(PState hp _ _) = not $ any (acyclicSh st) nonac

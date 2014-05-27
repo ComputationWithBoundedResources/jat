@@ -146,5 +146,4 @@ instance IsAcyclicQ PFactP  where
 instance MayAliasQ PFactP where
   mayAliasQ (_:>:pt:*:_:*:_) x y = mayAliasQ pt x y
 
-pFlowP :: Program-> Flow PFactP PFactP
 pFlowP p = mkFlow p tyFlow $ mkFlow' p ptFlow $ mkFlow' p shFlow racFlow

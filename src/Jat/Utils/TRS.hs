@@ -34,7 +34,7 @@ import qualified Data.Graph.Inductive as Gr
 import qualified Data.Set as S
 import qualified Data.Map as M
 
-import Debug.Trace
+--import Debug.Trace
 
 prettyITRS = undefined
 toITRS = undefined
@@ -102,7 +102,7 @@ simplifyTRS gr = combination (map toF . reverse . filter isSimple $ Gr.topsort g
     isSimple i = not $ any (>i) $ Gr.pre gr i
 
 combination :: [PA.PAFun] -> [PARule] -> [PARule]
-combination fs rules | trace (show ("combination", fs, length rules)) False = undefined
+--combination fs rules | trace (show ("combination", fs, length rules)) False = undefined
 combination fs rules = foldl (clean) rules fs
   where
     clean rs f
@@ -122,7 +122,7 @@ combination fs rules = foldl (clean) rules fs
     toF f = filter k where k (r,_) = root (R.rhs r) == f
     foT f = filter k where k (r,_) = root (R.lhs r) == f
 
-    cleanF tof fot rules | trace (show (length tof,length fot,length rules)) False = undefined
+    --cleanF tof fot rules | trace (show (length tof,length fot,length rules)) False = undefined
     cleanF tof fot rules = rules `fromMaybe` (((rules \\ (tof ++ fot)) ++) `liftM` combineAll tof fot)
     
 

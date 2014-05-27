@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 import qualified Data.Set as S
 
-import Debug.Trace
+--import Debug.Trace
 
 newtype AcyclicFact = AcFact AC  deriving (Eq,Ord)
 data AC = AcTop | Ac (S.Set Var) deriving (Eq,Ord)
@@ -76,8 +76,8 @@ acTransfer = Transfer acTransferf acSetup acProject acExtend
         if isAcyclic' p cn fn 
           {-|| (val `S.member` ac && not (shares val ref))-}
           {-|| (val `S.member` ac && (maybe False ((cn `S.notMember`) . reachableClasses p) valty))-}
-        then trace (show ("val",fn,cn)) ac
-        else trace (show ("nval",fn,cn)) $ ac `S.difference` sharesWith ref (S.elems ac) q
+        then ac
+        else ac `S.difference` sharesWith ref (S.elems ac) q
         where 
           (val,ref) = (StkVar i (j+2), StkVar i (j+1))
           shares    = mayShareQ q

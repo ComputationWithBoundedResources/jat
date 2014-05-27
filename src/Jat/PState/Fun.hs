@@ -31,6 +31,8 @@ module Jat.PState.Fun
   , typeV
   , reachableV
   , programLocation
+  , tyOf
+  , refKindOf
   )
 where
 
@@ -57,7 +59,7 @@ import qualified Data.Map as M
 import Data.Maybe (fromJust, maybe)
 import Safe (at)
 
-import Debug.Trace
+--import Debug.Trace
 
 -- | Returns a (concrete) 'Object' of the given class.
 mkInstance :: IntDomain i => P.Program -> P.ClassId -> Object i
@@ -415,5 +417,17 @@ reachableV var st = case valueV var st of
 programLocation :: PState i a -> [(P.ClassId,P.MethodId,P.PC)]
 programLocation (PState _ frms _)  = [(cn,mn,pc) | Frame _ _ cn mn pc <- frms]
 programLocation (EState _)         = []
+
+
+-- | Returns the type of an address.
+tyOf :: PState i a -> Address -> P.Type
+tyOf st q = P.RefType . className $ lookupH q (heap st)
+
+
+-- | Returns the kind of an address.
+refKindOf :: PState i a -> Address -> P.RefKind
+refKindOf st q = case lookupH q (heap st) of
+  Instance cn _ -> P.InstanceKind cn
+  AbsVar cn     -> P.ClassVarKind cn
 
 
