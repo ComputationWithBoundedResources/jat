@@ -76,7 +76,6 @@ run opts p cn mn =
     else do
     let 
       evalM = case domain opts of
-        {-Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain PairSharing))-}
         Sharing   -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain PairSharing))
         UnSharing -> theOutput opts p (mkJGraph cn mn :: Jat (MkJGraph SignedIntDomain UnSharing))
       evaluationM = do
@@ -86,24 +85,14 @@ run opts p cn mn =
     return (cn,mn, res)
 
 theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> JatM m (MkJGraph i a) -> JatM m String 
-theOutput opts p gM =
-  {-let (simpGr,simpTRS) = -}
-          {-case simplify opts of-}
-            {-WithNarrowing       -> (id, simplifyRHS . simplifyRHS . simplifyRHS)-}
-            {-WithNarrowingAndSCC -> (simplifySCC, simplifyRHS)-}
-            {-_                   -> (id, id)-}
-  do
-    g <- gM
-    (gr,rs) <- mkJGraph2TRS g
-    return $case format opts of
-      TRS  -> (display . prettyTRS $ rs)
-      CTRS  -> (display . prettyCTRS $ toCTRS gr rs)
-      {-TRS  -> (display $ prettyTRS rs)-}
-      DOT  -> (dot2String $ mkJGraph2Dot g)
-      {-TRS  -> (display . prettyTRS . normaliseCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
-      {-ITRS -> (display . prettyITRS . toITRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
-      {-CTRS -> (display . prettyCTRS . toCTRS . simpTRS)      `liftM` (gM >>= mkJGraph2TRS . simpGr)-}
-      {-PRG  -> return (display $ pretty p)-}
+theOutput opts p gM = do
+  g <- gM
+  (gr,rs) <- mkJGraph2TRS g
+  return $case format opts of
+    TRS  -> display . prettyTRS $ rs
+    CTRS -> display . prettyCTRS $ toCTRS gr rs
+    DOT  -> dot2String $ mkJGraph2Dot g
+    PRG  -> display $ pretty p
 
 runAll :: Options -> Program -> [IO (ClassId, MethodId, Either E.SomeException String)]
 runAll opts p = map (uncurry $ run opts p) (methods p) 

@@ -19,7 +19,7 @@ import Jinja.Program
 import Data.Maybe (fromMaybe)
 import Text.PrettyPrint.ANSI.Leijen
 
---import Debug.Trace
+import Debug.Trace
 
 
 -- Notes:
@@ -163,14 +163,4 @@ instance HasIndexQ TypingFact where
 
 instance HasTypeQ TypingFact where
   hasTypeQ = hasType
-
---tyQueryV :: QueryV TypingFact
---tyQueryV = defaultQueryV {hasIndex = tyHasIndex, hasStkIndex = tyHasStkIndex, hasType = tyHasType}
-  --where
-    --[>tyHasIndex (TyFact i j _ _) | trace ("tyHasIndex: " ++ show (i,j)) False = undefined<]
-    --tyHasIndex (TyFact i j _ _)                = Just (i,j)
-    --tyHasStkIndex (TyFact _ _ locs _) i        = Just . length $ reverse locs `lookup'` i
-    --[>tyHasType tyf var | trace ("tyHasType: " ++ show tyf ++ show var) False = undefined<]
-    --tyHasType (TyFact _ _ locs _) (LocVar i j) = Just $ (reverse locs `lookup'` i) `lookup'` j
-    --tyHasType (TyFact _ _ _ stks) (StkVar i j) = Just $ reverse (reverse stks `lookup'` i) `lookup'` j
 

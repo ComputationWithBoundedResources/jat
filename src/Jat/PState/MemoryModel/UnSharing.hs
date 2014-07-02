@@ -50,7 +50,6 @@ merror msg = error $ mname ++ msg
 -- + take only annotations into account which are common in both
 
 
-
 data MayShare = Int :><: Int deriving Show
 data MayAlias = Int :=?: Int deriving Show
 data MayGraph = NT Int deriving (Eq,Ord,Show)
@@ -94,24 +93,6 @@ nullify q (UnSharing ma ms mt) =
       mt' = (\(NT q1) -> q /= q1) `S.filter` mt
   in  UnSharing ma' ms' mt'
 
---nullify2 :: Address -> Address -> UnSharing -> UnSharing
---nullify2 q r (UnSharing ma ms mt) = 
-  --let ma' = (/= q:=?:r) `S.filter` ma
-      --ms' = (/= q:><:r) `S.filter` ms
-      --mt' = (\(NT q1) -> q1 /= q && q1 /= q) `S.filter` mt
-  --in  UnSharing ma' ms' mt'
-
---mapValuesUS :: (AbstrValue i -> AbstrValue i) -> (Address -> Address) -> US i -> US i
---mapValuesUS f1 f2 (PState hp frms (UnSharing ma ms mt)) =
-  --let hp'   = mapValuesH f1 hp
-      --frms' = mapValuesFS f1 frms
-      --us'   = UnSharing (fmap (mamap f2) ma) (fmap (msmap f2) ms) (fmap (mtmap f2) mt)
-  --in  PState hp' frms' us'
-  --where
-    --mamap f (q:=?:r) = f q:=?:f r
-    --msmap f (q:><:r) = f q:><:f r
-    --mtmap f (NT q) = NT (f q)
---mapValuesUS _ _ st  = st
 
 substituteUS :: Eq i => AbstrValue i -> AbstrValue i -> US i -> US i
 substituteUS v1 v2 st = case v1 of
@@ -710,13 +691,11 @@ normalizeUS (PState hp frms (UnSharing ma ms mt)) = PState hp' frms (UnSharing m
 normalizeUS st = st
 
        
-state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> PState i UnSharing -> PState i UnSharing -> Int -> JatM m PATerm
-state2TRSUS m st1@(PState _ _ (UnSharing _ ms _)) st2@(PState hp _ (UnSharing _ _ mt)) = 
-  pState2TRS isSpecial isJoinable m st2
+state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> Side -> US i -> US i -> Int -> JatM m PATerm
+state2TRSUS m side st1@(PState _ _ (UnSharing _ ms _)) st2@(PState hp _ (UnSharing _ _ mt)) = 
+  pState2TRS isSpecial isJoinable m side st2
   where
     isSpecial adr        = isCyclic adr hp || isNotTreeShaped  adr hp || NT adr `S.member` mt
     isJoinable adr1 adr2 = (adr1:><:adr2) `S.member` ms
-state2TRSUS m _ st = pState2TRS undefined undefined m st
+state2TRSUS m side _ st = pState2TRS undefined undefined m side st
   
-
-

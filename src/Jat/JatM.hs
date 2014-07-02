@@ -9,6 +9,7 @@ module Jat.JatM
   , evalJat
   , getProgram
   , freshVarIdx
+  , nextVarIdx
   , freshKey
   , module Control.Monad
   )
@@ -68,4 +69,8 @@ freshVarIdx = do
   let i = varcounter st
   put $ st{ varcounter=i+1 }
   return i
+
+-- | Returns the next variable counter, but does not increment it.
+nextVarIdx :: Monad m => JatM m Int
+nextVarIdx = gets varcounter
 

@@ -67,16 +67,6 @@ isBFun (T.Fun (BConst _) _) = True
 isBFun (T.Fun b _)          = b `elem` [And,Or,Not]
 isBFun  _                   = False
 
---isITerm :: PATerm -> Bool
---isITerm (T.Fun f _ )     = isIFun f
---isITerm (T.Var (IVar _ _)) = True
-
---isRFun :: PAFun -> Bool
---isRFun r = r `elem` [Lt, Lte, Gt, Gte, Eq,Neq]
-  
---isBFun :: PAFun -> Bool
---isBFun r = r `elem` [Not, Or, And]
-
 
 vmap :: (Int -> Int) -> PAVar -> PAVar
 vmap f (UVar s i) = UVar s (f i)
@@ -209,90 +199,3 @@ prettyPATerm (T.Var v) = case v of
   IVar s i -> PP.char 'i' <> PP.text s <> PP.int i
   BVar s i -> PP.char 'b' <> PP.text s <> PP.int i
 
-
-{-vars :: Constraint -> [String]-}
-{-vars (CVar v)    = [v]-}
-{-vars (Not c)     = vars c-}
-{-vars (And c1 c2) = vars c1 ++ vars c2-}
-{-vars (Or c1 c2)  = vars c1 ++ vars c2-}
-{-vars (MAnd c1 c2) = vars c1 ++ vars c2-}
-{-vars (MOr c1 c2)  = vars c1 ++ vars c2-}
-{-vars (Ass c1 c2) = vars c1 ++ vars c2-}
-{-vars (Eq c1 c2)  = vars c1 ++ vars c2-}
-{-vars (Neq c1 c2) = vars c1 ++ vars c2-}
-{-vars (Gte c1 c2) = vars c1 ++ vars c2-}
-{-vars (Add c1 c2) = vars c1 ++ vars c2-}
-{-vars (Sub c1 c2) = vars c1 ++ vars c2-}
-{-vars _           = []-}
-
-{--- | Map over variables.-}
-{-mapvars :: (Constraint -> Constraint) -> Constraint -> Constraint-}
-{-mapvars f v@(CVar _) = f v-}
-{-mapvars f	(Not c)     = Not $ mapvars f c-}
-{-mapvars f	(And c1 c2) = And (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Or c1 c2)  = Or  (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(MAnd c1 c2) = MAnd (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(MOr c1 c2)  = MOr  (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Ass c1 c2) = Ass (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Eq c1 c2)  = Eq  (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Neq c1 c2) = Neq (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Gte c1 c2) = Gte (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Add c1 c2) = Add (mapvars f c1) (mapvars f c2)-}
-{-mapvars f	(Sub c1 c2) = Sub (mapvars f c1) (mapvars f c2)-}
-{-mapvars _ c           = c-}
-
-{--- | Assignment constructor.-}
-{-mkcon :: (Atom a, Atom b, Atom c) => -}
-  {-a -> (Constraint -> Constraint -> Constraint) -> b -> c -> Constraint-}
-{-mkcon i f j k = atom i `Ass` (atom j `f` atom k)-}
-
-{--- | Class for defining an atom.-}
-{-class Atom a where-}
-  {-atom :: a -> Constraint-}
-
-{--- | Boolean simmplification.-}
-{-[>simplify :: Constraint -> Constraint<]-}
-{-[>simplify c@(Not c') = case simplify c' of<]-}
-  {-[>BConst True -> bot<]-}
-  {-[>BConst False -> top<]-}
-  {-[>c'' -> Not c''<]-}
-{-[>simplify (And c1 c2) = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst True, BConst True) -> BConst True<]-}
-  {-[>(BConst False, _)          -> BConst True<]-}
-  {-[>(_, BConst False)          -> BConst True<]-}
-  {-[>(c1', c2')                 -> And c1' c2'<]-}
-{-[>simplify (Or c1 c2) = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst False, BConst False) -> BConst False<]-}
-  {-[>(BConst True, _)          -> BConst True<]-}
-  {-[>(_, BConst True)          -> BConst True<]-}
-  {-[>(c1', c2')                 -> Or c1' c2'<]-}
-{-[>simplify (MAnd c1 c2) = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst True, BConst True) -> BConst True<]-}
-  {-[>(BConst False, _)          -> BConst True<]-}
-  {-[>(_, BConst False)          -> BConst True<]-}
-  {-[>(c1', c2')                 -> MAnd c1' c2'<]-}
-{-[>simplify (MOr c1 c2) = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst False, BConst False) -> BConst False<]-}
-  {-[>(BConst True, _)          -> BConst True<]-}
-  {-[>(_, BConst True)          -> BConst True<]-}
-  {-[>(c1', c2')                -> MOr c1' c2'<]-}
-{-[>simplify v@(CVar _) = v<]-}
-{-[>simplify (Ass c1 c2) = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst True, BConst True)   -> BConst True<]-}
-  {-[>(BConst False, BConst False) -> BConst True<]-}
-  {-[>(BConst True, BConst False)  -> BConst False<]-}
-  {-[>(BConst False, BConst True)  -> BConst False<]-}
-  {-[>(c1',c2')                    -> Ass c1' c2'<]-}
-{-[>simplify (Eq c1 c2)  = case (simplify c1, simplify c2) of<]-}
-  {-[>(BConst True, BConst True) -> BConst True<]-}
-  {-[>(BConst False, BConst False) -> BConst True<]-}
-  {-[>(BConst True, BConst False) -> BConst False<]-}
-  {-[>(BConst False, BConst True) -> BConst False<]-}
-  {-[>(c1', c2')<]-}
-    {-[>| c1 == c2  -> BConst True<]-}
-    {-[>| otherwise -> Eq c1' c2'<]-}
-{-[>simplify (Neq c1 c2) = Neq (simplify c1) (simplify c2)<]-}
-{-[>simplify (Gte c1 c2) = Gte (simplify c1) (simplify c2)<]-}
-{-[>simplify (Add c1 c2) = Add (simplify c1) (simplify c2)<]-}
-{-[>simplify (Sub c1 c2) = Sub (simplify c1) (simplify c2)<]-}
-{-[>simplify c           = c<]-}

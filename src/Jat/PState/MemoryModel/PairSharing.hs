@@ -433,25 +433,17 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
       ns2' = PS.renameWithLookup (`lookup` lk) ns2
       lk   = uncurry intersect $ unzip [ ((p,r),(q,r)) | (C p q, r) <-  M.toList cor, r `elem` addresses hp]
 
-{-unifiesObjectsM :: IntDomain i => P.Program -> PState i Sharing -> PState i Sharing -> Object i -> Object i -> Morph Bool-}
-{-[>unifiesOjects b p s t o1 o2 | trace (">>> unifiesO\n" ++ (show $ pretty o1 <+> pretty o2)) False = undefined<]-}
-{-unifiesObjectsM p s t (Instance cn ft) (Instance cn' ft') = (cn == cn' &&) `liftM`  unifiesFTablesM p s t ft ft'-}
-{-unifiesObjectsM p _ _ (AbsVar cn) (Instance cn' _)        = return $ P.isSuper p cn cn'-}
-{-unifiesObjectsM p _ _ (AbsVar cn) (AbsVar cn')            = return $ P.isSuper p cn cn'-}
-{-unifiesObjectsM _ _ _ _ _                                 = return False-}
 
-{-unifiesFTablesM :: IntDomain i => P.Program -> PState i Sharing -> PState i Sharing -> FieldTable i -> FieldTable i -> Morph Bool-}
-{-unifiesFTablesM p s t ft ft' = and `liftM` zipWithM (unifiesValuesM p s t) (elemsFT ft) (elemsFT ft')-}
-
-state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Sh i -> Sh i -> Int -> JatM m PATerm
-state2TRSSH m st1@PState{} st2@PState{} n = getProgram >>= \p -> pState2TRS (isSpecial p) (maybeReaches' p) m st2 n
+state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Side -> Sh i -> Sh i -> Int -> JatM m PATerm
+state2TRSSH m side st1@PState{} st2@PState{} n = 
+  getProgram >>= \p -> pState2TRS (isSpecial p) (maybeReaches' p) m side st2 n
   where
     {-isSpecial p adr = isCyclic adr hp || isNotTreeShaped  adr hp || not (treeShaped p st adr)-}
     isSpecial p adr = not (acyclic p st2 adr)
     maybeReaches' p q r = case lookupH q (heap st1) of
       (AbsVar _) -> maybeReaches p st1 q r
       _          -> False
-state2TRSSH m _ st n = pState2TRS undefined undefined m st n
+state2TRSSH m side _ st n = pState2TRS undefined undefined m side st n
 
 normalizeSH :: Sh i -> Sh i
 normalizeSH (PState hp frms sh) = PState hp' frms (const (PS.filter k $ nShares sh) `liftNS` sh)
@@ -461,6 +453,4 @@ normalizeSH (PState hp frms sh) = PState hp' frms (const (PS.filter k $ nShares 
      refsH  = addresses hp'
      k (q:/=:r) = q `elem` refsH && r `elem` refsH
 normalizeSH st = st
-
-
 

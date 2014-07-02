@@ -161,10 +161,3 @@ shTransfer = Transfer shTransferf shSetup shProject shExtend
         k (StkVar i2 _) = i2 <= i
         k (LocVar i2 _) = i2 <= i
 
---shQueryV :: QueryV SharingFact
---shQueryV = defaultQueryV {mayShare = shMayShare, maySharesWith = shMaySharesWith}
-  --where 
-    --shMayShare      (ShFact sh) x y = Just $ (x:><:y) `PS.member` sh
-    --shMaySharesWith (ShFact sh) x   = Just $ x `PS.pairsWith` sh
-
-

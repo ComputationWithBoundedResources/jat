@@ -308,7 +308,3 @@ singleReachingField :: Program -> ClassId -> (ClassId,FieldId) -> Type -> Bool
 singleReachingField p cn (dn,fn) ty = and [ areReachingTypes p ty' ty | (fn',dn',ty') <- fds, dn' /= dn || fn' /= fn]
   where fds = concatMap (hasFields p) $ subClassesOf p cn
 
-
-
-
-

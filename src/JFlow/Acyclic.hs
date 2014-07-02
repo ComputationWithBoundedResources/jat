@@ -119,4 +119,3 @@ acQueryV = defaultQueryV{ isAcyclic = acIsAcyclic }
     acIsAcyclic (AcFact AcTop) _   = Just True
     acIsAcyclic (AcFact (Ac ac)) x = Just $ x `S.member` ac
 
-

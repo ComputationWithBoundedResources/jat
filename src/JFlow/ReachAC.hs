@@ -205,4 +205,3 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
         k1 (x:~>:y)     = k x && k y
         k2 x            = k x && k x
 
-

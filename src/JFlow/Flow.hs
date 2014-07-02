@@ -293,6 +293,7 @@ analyseCall' flow@(Flow lat tran)  ctx (Invoke mn n) pc = do
       {-return . Just $ let r = extend tran p q cn n val rval in trace ("EXT:" ++ show (cn,n,val,rval,r)) r-}
       let rval   = foldl1 joinf rvals
       return . Just $ extend tran p cn n val val rval
+    NullType -> error "Flow.analyseCall: Type is definitely Null: NullPointerException"
     _ -> error "Flow.analyseCall': unexpected type"
 
 

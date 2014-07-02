@@ -16,11 +16,9 @@ import System.Environment (getArgs)
 import System.Exit
 import System.IO
 
--- TODO: should define funcitons if common interface
-                                    --
 -- | A computation graph can be returned as Dot graph or as TRSs.
-data Format = DOT | TRS | ITRS | CTRS | P | PRG deriving (Show,Read)
-data Domain = Sharing | UnSharing deriving (Show,Read)
+data Format   = DOT | TRS | CTRS | PRG deriving (Show,Read)
+data Domain   = Sharing | UnSharing deriving (Show,Read)
 data Simplify = WithNarrowingAndSCC | WithNone | WithNarrowing deriving (Show,Read)
 
 -- | The options for the arguments.
@@ -45,7 +43,7 @@ defaultOptions = Options {
   , cname       = Nothing
   , mname       = Nothing
   , timeout     = 10 * 1000000
-  , format      = DOT
+  , format      = TRS
   , simplify    = WithNone
   , domain      = Sharing
   , interactive = False
@@ -60,11 +58,11 @@ options = [
       (ReqArg (\arg opt -> return opt {output = writeFile arg}) "FILE")  
       "output file"
   , Option "f" ["format"]
-      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "DOT|TRS|ITRS|CTRS|PRG")
+      (ReqArg (\arg opt -> return opt {format = read arg :: Format}) "TRS|CTRS|DOT|PRG")
       "output format"
-  , Option "s" ["simplify"]
-      (ReqArg (\arg opt -> return opt {simplify = read arg :: Simplify}) "WithNarrowingAndSCC|WithNarrowing|WithNone")
-      "output simplify"
+  {-, Option "s" ["simplify"]-}
+      {-(ReqArg (\arg opt -> return opt {simplify = read arg :: Simplify}) "WithNarrowingAndSCC|WithNarrowing|WithNone")-}
+      {-"output simplify"-}
   , Option "d" ["domain"]
       (ReqArg (\arg opt -> return opt {domain = read arg :: Domain}) "Sharing|UnSharing")
       "heap domain"

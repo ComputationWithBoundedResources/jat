@@ -264,14 +264,14 @@ mkJGraph2TRS (MkJGraph gr _) = do
   return (gr,rs)
   where
     {-rule _ (k,k',_) | trace (show (k,k')) False = undefined-}
-    rule _ (k,k',InstanceLabel) = ruleM (ts s s k) (ts s s k') []
+    rule _ (k,k',InstanceLabel) = ruleM (tsl s s k) (tsr s s k') []
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (ts t t k) (ts t t k') []
+    rule _ (k,k',RefinementLabel con) = ruleM (tsl t t k) (tsr t t k') []
       where t = lookupN k'
     rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of
-        Just q  -> ruleM (ts s s k) (tsStar q s t k') (mkCon con)
-        Nothing -> ruleM (ts s s k) (ts s t k') (mkCon con)
+        Just q  -> ruleM (tsl s s k) (tsStar q s t k') (mkCon con)
+        Nothing -> ruleM (tsl s s k) (tsr s t k') (mkCon con)
       where s = lookupN k
             t = lookupN k'
 
@@ -285,8 +285,9 @@ mkJGraph2TRS (MkJGraph gr _) = do
 
     lookupN k = errmsg `fromMaybe` lookup k lnodes
     errmsg    = error "Jat.CompGraph.mkGraph2TRS: unexpected key"
-    ts        = state2TRS Nothing
-    tsStar q  = state2TRS (Just q)
+    tsl       = state2TRS Nothing LHS
+    tsr       = state2TRS Nothing RHS
+    tsStar q  = state2TRS (Just q) RHS
 
     mkCon con = if isTop con then [] else [con]
 

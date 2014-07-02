@@ -1,12 +1,9 @@
 module JFlow.Utility where
 
-
-
 -- pipe operator
 infixl 1 |>
 (|>) :: b -> (b -> c) -> c
 (|>) = flip ($) 
-
 
 -- finite version of zip with
 safeZipWith :: (a -> b -> c) -> [a] -> [b] -> [c]

@@ -14,6 +14,11 @@ import qualified Jinja.Program as P
 
 import qualified Data.Rewriting.Term as TRS (Term (..)) 
 
+data Side = LHS | RHS
+instance Show Side where
+  show LHS = "l"
+  show RHS = "r"
+
 -- | Provides the interface for heap related operations.
 class Pretty a => MemoryModel a where
   new       :: (Monad m, IntDomain i) => PState i a -> P.ClassId -> JatM m (PStep(PState i a))
@@ -33,12 +38,11 @@ class Pretty a => MemoryModel a where
 
   normalize :: PState i a -> PState i a
   -- TODO: refactor
-  state2TRS :: (Monad m, IntDomain i) => Maybe Address -> PState i a -> PState i a -> Int -> JatM m PATerm
+  state2TRS :: (Monad m, IntDomain i) => Maybe Address -> Side -> PState i a -> PState i a -> Int -> JatM m PATerm
 
   update :: P.Program -> P.PC -> P.Instruction -> PState i a ->  PState i a
   update _ _ = const id
 
   preprocess :: P.Program -> P.PC -> P.Instruction -> PState i a ->  PState i a
   preprocess _ _ = const id
-
 

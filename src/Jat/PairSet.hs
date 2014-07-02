@@ -23,16 +23,13 @@ module Jat.PairSet
   , singleton
   , insert
   , insert'
-  {-, inserts-}
   , delete
   , delete'
-  {-, deletes'-}
   , union
   , difference
   , intersection
   , isSubsetOf
-  {-, restrict-}
-  {-, rename-}
+  --, rename
   , pairsWith
   , closure
   )

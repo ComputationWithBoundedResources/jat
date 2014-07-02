@@ -58,6 +58,7 @@ import Data.List (inits)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, maybe)
 import Safe (at)
+import Control.Monad.State
 
 --import Debug.Trace
 
@@ -225,17 +226,24 @@ mkPutField us2 st@(PState hp (Frame loc fstk fcn mn pc :frms) us1) cn fn =
         in  PState hp' (Frame loc stk fcn mn (pc+1):frms) uso
 mkPutField _ _ _ _ = error "Jat.PState.Fun.mkPutField: unexpected case."
 
--- TODO:
--- currently a new referene for every sepcial is inserted in lhs and rhs implying that it could alter in any step
+
 -- | Returns the cTRS representation of a state, given functions for checking cyclicity and joinability.
 pState2TRS :: (Monad m, IntDomain i, Pretty a) => 
   (Address -> Bool)
   -> (Address -> Address -> Bool)
   -> Maybe Address
+  -> Side
   -> PState i a -> Int -> JatM m PA.PATerm
-pState2TRS isSpecial maybeReaches m st@(PState hp frms _) k =
-  PA.ufun ('f':show k)  `liftM` mapM tval (concatMap elemsF frms)
+pState2TRS isSpecial maybeReaches m side st@(PState hp frms _) k = do
+  key <- nextVarIdx
+  return $ PA.ufun ('f':show k)  $ evalState (mapM tval (concatMap elemsF frms)) [key..]
+  {-return $ PA.ufun ('f':show k)  $ evalState (return []) [key..]-}
   where
+    fresh = do
+      i:is <- get
+      put is
+      return i
+
     nullterm = PA.ufun "null" []
     var cn key = PA.uvar (map toLower cn) key
     
@@ -252,9 +260,9 @@ pState2TRS isSpecial maybeReaches m st@(PState hp frms _) k =
       Nothing -> taddr' r
 
     taddr' r | isSpecial r = do
-      key <- freshVarIdx
+      key <- fresh
       let cn = className $ lookupH r hp
-      return $ var ('c':showcn cn) key
+      return $ var ('c':show side ++ showcn cn) key
     taddr' r =
       case lookupH r hp of
         AbsVar cn      -> return $ var (showcn cn) r
@@ -262,15 +270,15 @@ pState2TRS isSpecial maybeReaches m st@(PState hp frms _) k =
 
     
     {-taddrStar q r | trace (">> taddrStar" ++ show (q,r,maybeReaches r q, st)) False = undefined-}
-    taddrStar q r 
+    taddrStar q r
       | maybeReaches r q = do
-        key <- freshVarIdx
+        key <- fresh
         let cn = className $ lookupH r hp
-        return $ var ('x':showcn cn) key
+        return $ var ('x':show side ++ showcn cn) key
       | otherwise = taddr' r
     showcn = show . pretty
 
-pState2TRS _ _ _ (EState  ex) _ = return $ PA.ufun (show ex) []
+pState2TRS _ _ _ _ (EState  ex) _ = return $ PA.ufun (show ex) []
   
 
 
