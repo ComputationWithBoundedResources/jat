@@ -13,13 +13,13 @@ where
 
 
 import Jinja.Program
+import Jat.Utils.Pretty
 
 import JFlow.Data
 
 import Prelude
 import qualified Data.Set as S
 import Data.Maybe (fromMaybe)
-import Text.PrettyPrint.ANSI.Leijen
 
 --import Debug.Trace
 
@@ -44,8 +44,8 @@ type Cyclic = S.Set Var
 maybeCyclic :: Var -> Cyclic -> Bool
 maybeCyclic = S.member
 
-isAcyclic' :: Var -> Cyclic -> Bool
-isAcyclic' = S.notMember
+--isAcyclic' :: Var -> Cyclic -> Bool
+--isAcyclic' = S.notMember
 
 data RACFact = RACFact Reaching Cyclic  deriving (Eq,Ord)
 
@@ -88,7 +88,7 @@ union (RACFact rs1 cs1) (RACFact rs2 cs2) = RACFact (rs1 `S.union` rs2) (cs1 `S.
 
 delete :: Var -> RACFact -> RACFact
 delete x (RACFact rs cs) = RACFact (x `rdelete` rs) (x `S.delete` cs)
-  where rdelete x = S.filter (\(y:~>:z) -> x /= y && x /= z)
+  where rdelete x1 = S.filter (\(y:~>:z) -> x1 /= y && x1 /= z)
 
 filter' :: (Reaches -> Bool) -> (Var -> Bool) -> RACFact -> RACFact
 filter' f g (RACFact rs cs) = RACFact (S.filter f rs) (S.filter g cs)
@@ -129,7 +129,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
       let (i,j) = hasIndexQ w in racTransferf' p ins (w',w) rac i j
     racTransferf' p ins (w',w) rac@(RACFact rs cs) i j = case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) rac
-      Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` ((x `assign` y) rac)
+      Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` (x `assign` y) rac
       Push _          -> rac
       Pop             -> StkVar i j `delete` rac
       IAdd            -> rac
@@ -144,7 +144,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
       CmpNeq          -> StkVar i (j+1) `delete` (StkVar i j `delete` rac)
       New _           -> rac
 
-      {-CheckCast _     -> normalize p q rac-}
+      CheckCast _     -> error "JFlow.ReachAC.CheckCast: not implemented" -- normalize p q rac
       GetField fn cn  ->
         if isPrimitiveType $ snd (field p cn fn)
           then x `delete` rac
@@ -175,8 +175,8 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
               lhs = ref `elem` (val `reaches` rs1) || val `alias` ref || maybeCyclic val cs1
               rhs = aliasWith val ++ val `reachable` rs
 
-          isAcyclic'' p cn fn = isAcyclicType p (snd $ field p cn fn)
-          hasType  = hasTypeQ w
+          isAcyclic'' p1 cn1 fn1 = isAcyclicType p (snd $ field p1 cn1 fn1)
+          --hasType  = hasTypeQ w
           mayAlias = mayAliasQ w
           mayShare = mayShareQ w
           alias x y   = x `talias` y && x `mayShare` y  && x `mayAlias` y
@@ -190,10 +190,10 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
 
     racSetup _ _ _ = RACFact S.empty S.empty
 
-    racProject _ _ _ nparams w = rename to
+    racProject _ _ _ nparams w = rename toV
       where
-        (i,j)  = hasIndexQ w
-        to z = z `fromMaybe` lookup z (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
+        (i,j) = hasIndexQ w
+        toV z = z `fromMaybe` lookup z (zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]])
 
     racExtend _ _ nparams w _ ac =
       filter' k1 k2 $ (rl `assign` rs) ac

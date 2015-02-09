@@ -30,7 +30,6 @@ import Jat.Utils.Pretty ((<>),(<+>))
 import qualified Jat.Utils.Pretty as PP
 
 import Prelude hiding (and,or,not)
-import qualified Data.Char as Ch
 
 data PAFun = 
     UFun String
@@ -94,25 +93,26 @@ toDNF :: PATerm -> [PATerm]
 toDNF = distribute . pushNot
   where
     distribute (T.Fun Or ts)  = concatMap distribute ts
-    distribute (T.Fun And ts) = [T.Fun And ts' | ts' <- sequence $ map distribute ts]
+    distribute (T.Fun And ts) = [T.Fun And ts' | ts' <- mapM distribute ts]
     distribute t = [t]
     
 
 
 pushNot :: PATerm -> PATerm
 pushNot (T.Fun Not [t]) = pushNot' t where
-  pushNot' (T.Fun And ts)  = T.Fun Or $ map pushNot' ts
-  pushNot' (T.Fun Or ts)   = T.Fun And $ map pushNot' ts
-  pushNot' (T.Fun Not [t]) = t
-  pushNot' (T.Fun Lt ts)   = T.Fun Gte ts
-  pushNot' (T.Fun Lte ts)  = T.Fun Gt ts
-  pushNot' (T.Fun Gte ts)  = T.Fun Lt ts
-  pushNot' (T.Fun Gt ts)   = T.Fun Lte ts
-  pushNot' (T.Fun Eq ts)   = T.Fun Neq ts
-  pushNot' (T.Fun Neq ts)  = T.Fun Eq ts
-  pushNot' (T.Fun (BConst True) []) = bot
+  pushNot' (T.Fun And ts)            = T.Fun Or $ map pushNot' ts
+  pushNot' (T.Fun Or ts)             = T.Fun And $ map pushNot' ts
+  pushNot' (T.Fun Not [s])           = s
+  pushNot' (T.Fun Lt ts)             = T.Fun Gte ts
+  pushNot' (T.Fun Lte ts)            = T.Fun Gt ts
+  pushNot' (T.Fun Gte ts)            = T.Fun Lt ts
+  pushNot' (T.Fun Gt ts)             = T.Fun Lte ts
+  pushNot' (T.Fun Eq ts)             = T.Fun Neq ts
+  pushNot' (T.Fun Neq ts)            = T.Fun Eq ts
+  pushNot' (T.Fun (BConst True) [])  = bot
   pushNot' (T.Fun (BConst False) []) = top
-  pushNot' v@(T.Var b) = T.Fun Not [v]
+  pushNot' v@(T.Var _)               = T.Fun Not [v]
+  pushNot' _                         = error "Jat.Constraints: the impossible happened"
 pushNot (T.Fun And ts) = T.Fun And (map pushNot ts)
 pushNot (T.Fun Or ts)  = T.Fun Or (map pushNot ts)
 pushNot t = t
@@ -124,7 +124,7 @@ normalise = ineq . lhs
       | isRFun c = T.Fun (revf f) [t2,t1]
     lhs t = t
     ineq (T.Fun Gt [t1,t2]) = gte t1 (add t2 $ int 1)
-    ineq (T.Fun Lt [t1,t2]) = T.Fun Lte  [t1,(sub t2 $ int 1)]
+    ineq (T.Fun Lt [t1,t2]) = T.Fun Lte  [t1, sub t2 (int 1)]
     ineq t = t
     revf Lt = Gt
     revf Gt = Lt
@@ -169,7 +169,7 @@ instance PP.Pretty PATerm where
 prettyPATerm :: PATerm -> PP.Doc
 prettyPATerm (T.Fun f ts) = case f of
   UFun s -> PP.text s <> args ts where
-    args ts = PP.encloseSep PP.lparen PP.rparen PP.comma [prettyPATerm ti | ti <- ts]
+    args ts1 = PP.encloseSep PP.lparen PP.rparen PP.comma [prettyPATerm ti | ti <- ts1]
   IConst i 
     | null ts   -> PP.int i 
     | otherwise -> errorx
@@ -191,8 +191,8 @@ prettyPATerm (T.Fun f ts) = case f of
   where 
     binary s [t1,t2] = PP.parens $ prettyPATerm t1 <+> PP.text s <+> prettyPATerm t2
     binary _ _       = errorx
-    unary s [t] = PP.text "not" <> PP.parens (prettyPATerm t)
-    unary s _   = errorx
+    unary _ [t] = PP.text "not" <> PP.parens (prettyPATerm t)
+    unary _ _   = errorx
     errorx = error "prettyCTerm: malformed tmer"
 prettyPATerm (T.Var v) = case v of
   UVar s i -> PP.text s <> PP.int i

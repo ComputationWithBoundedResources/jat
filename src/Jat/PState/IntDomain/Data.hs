@@ -10,7 +10,6 @@ import Jat.PState.Step
 import Jat.PState.AbstrDomain 
 import Jat.PState.BoolDomain 
 import Jat.Utils.Pretty
-import Jat.PState.AbstrDomain
 
 
 -- | Provides the interface for int operations.

@@ -1,21 +1,11 @@
 -- | This module exports State related modules.
-module Jat.PState
-  (
-    module Jat.PState.Data
-  , module Jat.PState.Fun
-  , module Jat.PState.Step
-  , module Jat.PState.Semantics
-  , module Jat.PState.BoolDomain
-  , module Jat.PState.IntDomain
-  , module Jat.PState.MemoryModel
-  )
-where
+module Jat.PState (module M) where
 
-import Jat.PState.Data
-import Jat.PState.Fun
-import Jat.PState.Step
-import Jat.PState.Semantics
-import Jat.PState.BoolDomain
-import Jat.PState.IntDomain
-import Jat.PState.MemoryModel
+import Jat.PState.Data as M
+import Jat.PState.Fun as M
+import Jat.PState.Step as M
+import Jat.PState.Semantics as M 
+import Jat.PState.BoolDomain as M
+import Jat.PState.IntDomain as M
+import Jat.PState.MemoryModel as M
 

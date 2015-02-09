@@ -12,7 +12,6 @@ import Jat.PState.Step
 import Jat.Utils.Pretty (Pretty)
 import qualified Jinja.Program as P
 
-import qualified Data.Rewriting.Term as TRS (Term (..)) 
 
 data Side = LHS | RHS
 instance Show Side where

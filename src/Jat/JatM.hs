@@ -17,6 +17,7 @@ where
 
 import Jinja.Program (Program)
 
+import Control.Applicative
 import Control.Monad.State.Lazy
 import Control.Monad (liftM,liftM2,foldM,mapM,sequence)
 import Control.Monad.Identity
@@ -24,7 +25,7 @@ import Control.Monad.Identity
 
 -- | The Jat monad.
 newtype JatM m a = JatM (StateT JatST m a)
-     deriving (Functor, Monad, MonadIO, MonadState JatST)
+     deriving (Functor, Applicative, Monad, MonadIO, MonadState JatST)
 
 -- | The Jat monad with base Idenitity.
 type Jat a = JatM Identity a

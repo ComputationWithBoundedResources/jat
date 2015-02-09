@@ -19,23 +19,21 @@ executable jat
 
   hs-source-dirs:
     src
-  build-depends:       
-    term-rewriting == 0.*,
-
-    base == 4.*,
-    containers >= 0.5,
-    parsec >= 3.1,
-    mtl >= 2.1,
+  build-depends:
     ansi-wl-pprint == 0.6.*,
-    array >= 0.4,
-    graphviz >= 2999.16,
-    fgl == 5.4.*,
-    set-monad == 0.1.*,
-    text == 0.11.*,
-    safe >= 0.3.4
+    array          == 0.5.*,
+    base           == 4.*,
+    containers     == 0.5.*,
+    fgl            == 5.5.*,
+    graphviz       >= 2999.16,
+    mtl            == 2.1.*,
+    parsec         == 3.1.*,
+    safe           == 0.3.*,
+    set-monad      == 0.2.*,
+    text           == 1.2.*,
+
+    term-rewriting == 0.*
 
   ghc-options:
-    -O2 -funbox-strict-fields -threaded
-    
-
+    -j -Wall -fno-warn-unused-do-bind -fno-warn-orphans -funbox-strict-fields -threaded -rtsopts -with-rtsopts=-N
 

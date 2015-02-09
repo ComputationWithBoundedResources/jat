@@ -7,13 +7,14 @@ module JFlow.PointsTo
   )
 where
 
+import Data.Maybe (fromMaybe)
+
 import Jinja.Program
+import Jat.Utils.Pretty hiding (empty)
 
 import JFlow.Data
 
 import qualified Data.Set as S
-import Data.Either
-import Text.PrettyPrint.ANSI.Leijen hiding (empty)
 --import Debug.Trace
 
 
@@ -35,11 +36,11 @@ nids = S.fold k S.empty
     k (Right n) = S.insert n
     k _         = id
 
-vids :: PtNodes -> S.Set Var
-vids = S.fold k S.empty
-  where
-    k (Left v) = S.insert v
-    k _        = id
+--vids :: PtNodes -> S.Set Var
+--vids = S.fold k S.empty
+  --where
+    --k (Left v) = S.insert v
+    --k _        = id
 
 var :: Var -> PtNode
 var = Left
@@ -83,7 +84,7 @@ nodes :: PtNode -> PtGr -> PtNodes
 nodes n gr = to `S.map` edgesFrom n gr
 
 nodes' :: PtNode -> (ClassId,FieldId) -> PtGr -> PtNodes
-nodes' (Left v) _ _ = S.empty
+nodes' (Left _) _ _    = S.empty
 nodes' (Right n) fn gr = S.foldr k S.empty gr
   where
     k (NEdge n1 fn1 n')
@@ -102,8 +103,8 @@ newtype PointsToFact = PtFact PtGr deriving (Eq,Ord)
 instance MayAliasQ PointsToFact where mayAliasQ = mayAlias
 
 
-ptmap :: (PtGr -> PtGr) -> PointsToFact -> PointsToFact
-ptmap m (PtFact gr) = PtFact (m gr)
+--ptmap :: (PtGr -> PtGr) -> PointsToFact -> PointsToFact
+--ptmap m (PtFact gr) = PtFact (m gr)
 
 mayAlias :: PointsToFact -> Var -> Var -> Bool
 mayAlias (PtFact gr) x y = not . S.null $ nodes (var x) gr `S.intersection` nodes (var y) gr
@@ -153,7 +154,7 @@ ptTransfer = Transfer ptTransferf ptSetup ptProject ptExtend
       where
         gen 
           | isPrimitiveType ft = S.empty
-          | otherwise          = S.fromList $ [NEdge n1 fn n2 | n1 <- n1s, n2 <- n2s]
+          | otherwise          = S.fromList [NEdge n1 fn n2 | n1 <- n1s, n2 <- n2s]
         n1s = S.toList . nids $ nodes (var x) pt
         n2s = S.toList . nids $ nodes (var y) pt
 
@@ -168,7 +169,7 @@ ptTransfer = Transfer ptTransferf ptSetup ptProject ptExtend
     -- index (i,j) after operation
     ptTransferf p ploc ins (_,w) gr =
       let (i,j) = hasIndexQ w in ptTransferf' p ploc ins w gr i j
-    ptTransferf' p ploc ins w (PtFact gr) i j = PtFact $ case ins of
+    ptTransferf' p ploc ins _ (PtFact gr) i j = PtFact $ case ins of
       Load n          -> (StkVar i j `assign` LocVar i n) gr
       Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in (x `assign` y) gr
       Push _          -> gr 
@@ -197,11 +198,11 @@ ptTransfer = Transfer ptTransferf ptSetup ptProject ptExtend
         params = zip [1..] (methodParams md)
         gr     = REdge (LocVar 0 0) (ParamId 0) : [REdge (LocVar 0 i) (ParamId i) | (i, RefType _) <- params]
 
-    ptProject _ _ _ nparams w (PtFact gr) = PtFact (rename k id gr)
+    ptProject _ _ _ nparams w (PtFact gr) = PtFact (rename f id gr)
       where
         (i,j) = hasIndexQ w
         table = zip [StkVar i k | k <- [j,j-1..]] [LocVar (i+1) k | k <- [nparams,nparams-1..0]]
-        k x   = maybe x id (lookup x table)
+        f x   = x `fromMaybe` lookup x table
 
     ptExtend _ _ nparams w _ (PtFact gr) =
       PtFact $ S.filter k2 ((rl `assign` rs) gr)

@@ -11,15 +11,14 @@ module JFlow.Typing
   )
 where
 
+import Jat.Utils.Pretty
+
 import JFlow.Data
 import JFlow.Utility (safeZipWith)
 
 import Jinja.Program
 
 import Data.Maybe (fromMaybe)
-import Text.PrettyPrint.ANSI.Leijen
-
-import Debug.Trace
 
 
 -- Notes:
@@ -85,9 +84,13 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
   where
     set 0 y (_:xs) = y: xs
     set n y (x:xs) = x: set (n-1) y xs
+    set _ _ _      = error "JFlow.Typing.set:the impossible happened"
     pop (_:xs)    = xs
+    pop _         = error "JFlow.Typing.pop: the impossible happened"
     pop2 (_:_:xs) = xs
+    pop2 _        = error "JFlow.Typing.pop2: the impossible happened"
     popx (x:xs)   = (x,xs)
+    popx _        = error "JFlow.Typing.popx: the impossible happened"
     push = (:) 
     
     {-tyTransferf p _ ins _ tyf | trace (show tyf ++ "\n" ++ show ins) False = undefined-}
@@ -147,7 +150,7 @@ tyTransfer = Transfer tyTransferf tySetup tyProject tyExtend
 
 lookup' :: [a] -> Int -> a
 lookup' (x:_) 0  = x
-lookup' (x:xs) i = lookup' xs (i-1)
+lookup' (_:xs) i = lookup' xs (i-1)
 lookup' _ i      = error $ "Typing.lookup" ++ show i
 
 

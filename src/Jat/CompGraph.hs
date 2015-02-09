@@ -266,7 +266,7 @@ mkJGraph2TRS (MkJGraph gr _) = do
     {-rule _ (k,k',_) | trace (show (k,k')) False = undefined-}
     rule _ (k,k',InstanceLabel) = ruleM (tsl s s k) (tsr s s k') []
       where s = lookupN k
-    rule _ (k,k',RefinementLabel con) = ruleM (tsl t t k) (tsr t t k') []
+    rule _ (k,k',RefinementLabel _) = ruleM (tsl t t k) (tsr t t k') []
       where t = lookupN k'
     rule p (k,k',EvaluationLabel con _) = 
       case maybePutField p s of

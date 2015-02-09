@@ -34,7 +34,7 @@ topEvaluation a = evaluation a top
 
 -- | Performs an refinement step  constrained with top .
 topRefinement :: [b] -> Step a b
-topRefinement bs = Refinement $ zip bs (cycle [top])
+topRefinement bs = Refinement $ zip bs (repeat top)
 
 map2 :: (a -> c) -> (b -> d) -> Step a b -> Step c d
 map2 f _ (Evaluation (a,c))  = Evaluation (f a,c)

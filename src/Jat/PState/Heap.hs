@@ -159,16 +159,13 @@ isCyclic :: Address -> Heap i -> Bool
 isCyclic adr hp = 
   let gr = toGraph hp 
   in  any (adr `elem`) $ filter (not . isTrivialCycle gr) $ Gr.scc gr
-  where
-    notTrivial gr [n] | n `notElem` Gr.suc gr n = False
-    notTrivial _   _                            = True
 
 -- | Like isCyclic but checks successors also
 isCyclic' :: Address -> Heap i -> Bool
-isCyclic' adr hp = not . null $ filter (not . isTrivialCycle gr) $ Gr.scc gr
+isCyclic' _ hp = not . null $ filter (not . isTrivialCycle gr) $ Gr.scc gr
   where gr = toGraph hp
 
---isTrivialCycle :: Gr.Gr a b -> [a] -> Bool
+isTrivialCycle :: Gr.Gr a b -> [Gr.Node] -> Bool
 isTrivialCycle gr [n] | n `notElem` Gr.suc gr n = True
 isTrivialCycle _   _                            = False
 

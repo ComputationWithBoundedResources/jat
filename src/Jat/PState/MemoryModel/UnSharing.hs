@@ -24,7 +24,6 @@ import Jat.Utils.Pretty
 import Jat.Utils.Fun
 import qualified Jinja.Program as P
 
-import qualified Data.Rewriting.Term as TRS (Term (..)) 
 
 import Data.Set.Monad (Set)
 import qualified Data.Set.Monad as S
@@ -421,7 +420,7 @@ leqUS p st1 st2
 
     -- (a-d)
     --checkValues ps | trace ("CV" ++ show ps) False = undefined
-    checkValues pths = all checkPath pths
+    checkValues = all checkPath 
       where
         --checkPath path   | trace ("cv: " ++ show path) False = undefined
         checkPath path   = checkValue (pval1 path) (pval2 path)
@@ -692,7 +691,7 @@ normalizeUS st = st
 
        
 state2TRSUS :: (Monad m, IntDomain i) => Maybe Address -> Side -> US i -> US i -> Int -> JatM m PATerm
-state2TRSUS m side st1@(PState _ _ (UnSharing _ ms _)) st2@(PState hp _ (UnSharing _ _ mt)) = 
+state2TRSUS m side (PState _ _ (UnSharing _ ms _)) st2@(PState hp _ (UnSharing _ _ mt)) = 
   pState2TRS isSpecial isJoinable m side st2
   where
     isSpecial adr        = isCyclic adr hp || isNotTreeShaped  adr hp || NT adr `S.member` mt

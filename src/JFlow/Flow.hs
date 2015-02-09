@@ -4,7 +4,6 @@ import Jinja.Program
 
 import JFlow.Data
 
-import Data.List (find)
 import Data.Array (Array)
 import qualified Data.Array as A
 import Control.Monad.State hiding (join)
@@ -56,23 +55,23 @@ currentCall :: Context v -> Call
 currentCall (Context (CallString c _) _) = c
 
 pushCall :: Context v -> ClassId -> MethodId -> PC -> v -> Context v
-pushCall (Context cs _) ncn nmn pc v = (Context (k cs) v)
-  where k (CallString (Call cn mn) cs) = CallString (Call ncn nmn) (CallSite cn mn pc:cs)
+pushCall (Context cs _) ncn nmn pc = Context (k cs)
+  where k (CallString (Call cn mn) csx) = CallString (Call ncn nmn) (CallSite cn mn pc:csx)
 
 popCall :: Context v -> Context v
 popCall (Context cs v) = Context (k cs) v
   where
-    k (CallString _ [])                     = error "Flow.popCall: location out of pounds"
-    k (CallString _ (CallSite cn mn _ :cs)) = CallString (Call cn mn) cs
+    k (CallString _ [])                      = error "Flow.popCall: location out of pounds"
+    k (CallString _ (CallSite cn mn _ :csx)) = CallString (Call cn mn) csx
 
 queryFB :: Ord v => Context v -> FactBase v -> Facts v
 queryFB ctx fb = error "Flow.queryFB: undefined context" `fromMaybe` M.lookup ctx fb
 
 queryFB' :: Ord v => CallString -> v -> FactBase v -> Facts v
-queryFB' cs v fb = queryFB (Context cs v) fb
+queryFB' cs v = queryFB (Context cs v)
 
 queryFB'' :: Ord v => [(ClassId,MethodId,PC)] -> ClassId -> MethodId -> v -> FactBase v -> Facts v
-queryFB'' ploc cn mn v = queryFB' cs v
+queryFB'' ploc cn mn = queryFB' cs
   where cs = CallString (Call cn mn) [CallSite cn1 mn1 pc1 | (cn1,mn1,pc1) <- ploc]
 
 {-data CallString = Call ClassId MethodId PC CallString | Nil PC-}
@@ -206,7 +205,7 @@ setupContext (Flow lat _) ctx@(Context _ v) = do
   pushPC ctx entryPC 
   pushCallingContext ctx
   where 
-    initFacts md val = Facts $ A.listArray bounds (cycle [val])
+    initFacts md val = Facts $ A.listArray bounds (repeat val)
       where bounds = A.bounds $ methodInstructions md
 
 mkInitState :: Program -> FlowState m v
@@ -237,7 +236,7 @@ initContext (Flow lat tran) ctx@(Context _ v) = do
   pushPC ctx entryPC
   pushCallingContext ctx
   where 
-    initFacts md val = Facts $ A.listArray bounds (cycle [val])
+    initFacts md val = Facts $ A.listArray bounds (repeat val)
       where bounds = A.bounds $ methodInstructions md
 
 analyseCallStack :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> St m v ()
@@ -255,7 +254,7 @@ analyseContext flow ctx = do
   if not $ null wl
     then popPC ctx >>= analyseInstruction flow ctx
     else do
-      popCallingContext
+      _ <- popCallingContext
       callers <- filter ((==ctx) . snd) `liftM` gets transitions
       let callingCtxs = [(ctx',pc) | ((ctx',pc),_) <- callers]
       forM_ callingCtxs (uncurry pushPC)
@@ -285,17 +284,17 @@ analyseCall' flow@(Flow lat tran)  ctx (Invoke mn n) pc = do
     RefType cn -> do
       let
         subtys = subClassesOf p cn
-        joinf            = join lat p
+        mergef            = merge lat p
         processCall' fcn = processCall flow (ctx,pc) fcn mn val
       rvals <- mapM processCall' subtys
       {-let rvals' = map (reproject tran cn n) rvals-}
-      {-let rval   = let r = foldl1 joinf rvals in trace ("RET:" ++ show (rvals,r)) r -}
+      {-let rval   = let r = foldl1 mergef rvals in trace ("RET:" ++ show (rvals,r)) r -}
       {-return . Just $ let r = extend tran p q cn n val rval in trace ("EXT:" ++ show (cn,n,val,rval,r)) r-}
-      let rval   = foldl1 joinf rvals
+      let rval   = foldl1 mergef rvals
       return . Just $ extend tran p cn n val val rval
     NullType -> error "Flow.analyseCall: Type is definitely Null: NullPointerException"
     _ -> error "Flow.analyseCall': unexpected type"
-
+analyseCall' _ _ _ _ = error "Flow.analyseCall: the impossible happened"
 
 
 updateValue :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> Instruction -> Maybe v -> St m v ()
@@ -303,15 +302,15 @@ updateValue flow _ _ _ Nothing = analyseCallStack flow
 updateValue flow@(Flow lat _) ctx pc ins (Just newVal) = do
   st <- get
   let
-    joinf    = join lat (program st)
+    mergef    = merge lat (program st)
     fbase    = facts st
     vsuccs   = foldr (\spc -> let 
                                 oldVal = value ctx fbase spc
-                                {-joinVal = let r = newVal `joinf` oldVal in trace ("MRG:" ++ show (spc,oldVal,newVal,r)) r-}
-                                joinVal = newVal `joinf` oldVal
+                                {-mergeVal = let r = newVal `mergef` oldVal in trace ("MRG:" ++ show (spc,oldVal,newVal,r)) r-}
+                                mergeVal = newVal `mergef` oldVal
                               in
-                              if oldVal /= joinVal
-                                 then ((spc,joinVal):)
+                              if oldVal /= mergeVal
+                                 then ((spc,mergeVal):)
                                  else id) [] (successors ins pc)
   {-mapM_ (\(lpc,v) -> trace (">update: " ++ show (lpc,v)) $ updateFact ctx lpc v) vsuccs-}
   mapM_ (uncurry $ updateFact ctx) vsuccs
@@ -343,8 +342,8 @@ processCall flow@(Flow lat _) callingCtx@(ctx,pc) cn mn v = do
       let 
         returns = fst . unzip $ filter (isReturn . snd) (zip [0..] (A.elems $ methodInstructions md))
         values  = foldr (\i -> ((unFacts fs A.! i) :)) [] returns
-        joinf   = join lat p
-      return $ foldr1 joinf values
+        mergef  = merge lat p
+      return $ foldr1 mergef values
 
 
 

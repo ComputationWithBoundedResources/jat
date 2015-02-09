@@ -88,7 +88,7 @@ theOutput :: (Monad m, IntDomain i, MemoryModel a) => Options -> P.Program -> Ja
 theOutput opts p gM = do
   g <- gM
   (gr,rs) <- mkJGraph2TRS g
-  return $case format opts of
+  return $ case format opts of
     TRS  -> display . prettyTRS $ rs
     CTRS -> display . prettyCTRS $ toCTRS gr rs
     DOT  -> dot2String $ mkJGraph2Dot g

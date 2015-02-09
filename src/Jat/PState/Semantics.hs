@@ -16,7 +16,6 @@ import Jat.PState.Data
 import Jat.PState.Frame
 import Jat.PState.IntDomain
 import Jat.PState.MemoryModel
-import Jat.Utils.Pretty (pretty)
 import Jat.PState.Step
 import qualified Jinja.Program as P
 
@@ -111,11 +110,12 @@ execIfFalse i frm@(Frame loc stk cn mn pc) = case stk of
   BoolVal b1:vs -> do
     eva <- ifFalse b1
     return $ case eva of
-      Evaluation (b,c) -> topEvaluation $ Frame loc vs cn mn (pc + if b == constant True  then 1 else i)
+      Evaluation (b,_) -> topEvaluation $ Frame loc vs cn mn (pc + if b == constant True  then 1 else i)
       Refinement rs    -> Refinement $ map (\(r,c) -> (mapValuesF (k r) frm, c)) rs
+      _                -> error "Jat.PState.execIfFalse: the impossible happened"
       where
         k r (BoolVal b) = BoolVal $ r b
-        k r v           = v
+        k _ v           = v
   _            -> error "Jat.PState.Semantics.execIfFalse: invalid stack."
   {-BoolVal b1:vs -> liftStep eval refine `liftM` ifFalse b1-}
     {-where-}

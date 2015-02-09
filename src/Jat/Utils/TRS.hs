@@ -16,14 +16,12 @@ import Jat.Utils.Pretty
 import qualified Jat.Constraints as PA
 
 import qualified Data.Rewriting.Rule as R
-import qualified Data.Rewriting.Rules as RS
 import qualified Data.Rewriting.Term as T
 import qualified Data.Rewriting.Substitution as S
 import qualified Data.Rewriting.Substitution.Type as ST
 
 import Data.List as L
-import Data.Char as C
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe)
 import Control.Monad (liftM)
 import qualified Data.Graph.Inductive as Gr
 import qualified Data.Set as S
@@ -47,8 +45,8 @@ rvars (r,cs) = R.vars r ++ concatMap T.vars cs
 rmap :: (f -> f')-> (v -> v')-> (R.Rule f v, [T.Term f v])-> (R.Rule f' v', [T.Term f' v'])
 rmap f g (R.Rule l r, cs) = (R.Rule (T.map f g l) (T.map f g r), map (T.map f g) cs)
 
-rmap' :: (f -> f')-> (v -> v')-> R.Rule f v -> R.Rule f' v'
-rmap' f g (R.Rule l r) = R.Rule (T.map f g l) (T.map f g r)
+--rmap' :: (f -> f')-> (v -> v')-> R.Rule f v -> R.Rule f' v'
+--rmap' f g (R.Rule l r) = R.Rule (T.map f g l) (T.map f g r)
 
 
 
@@ -63,12 +61,12 @@ header rules =
 footer :: Doc
 footer = rparen
 
-components :: JGraph i a -> ([Gr.Node], [[Gr.Node]])
-components gr = (map head sccs, sccs ++ Gr.components (Gr.delNodes (concat sccs) gr))
-  where
-    sccs  = filter k $ Gr.scc gr
-    k [n] = n `elem` Gr.suc gr n
-    k _   = True
+--components :: JGraph i a -> ([Gr.Node], [[Gr.Node]])
+--components gr = (map head sccs, sccs ++ Gr.components (Gr.delNodes (concat sccs) gr))
+  --where
+    --sccs  = filter k $ Gr.scc gr
+    --k [n] = n `elem` Gr.suc gr n
+    --k _   = True
 
 root :: T.Term f v -> f
 root (R.Fun f _) = f
@@ -97,13 +95,13 @@ combination fs rules = foldl (clean) rules fs
         tof = toF f rs
         fot = foT f rs
 
-    funs rs = nub $ map (\(r,_) -> root (R.lhs r)) rs
+    --funs rs = nub $ map (\(r,_) -> root (R.lhs r)) rs
     regular (r,cs) = all (`elem` T.vars (R.lhs r) ++ concatMap T.vars cs) (T.vars (R.rhs r))
     toF f = filter k where k (r,_) = root (R.rhs r) == f
     foT f = filter k where k (r,_) = root (R.lhs r) == f
 
     --cleanF tof fot rules | trace (show (length tof,length fot,length rules)) False = undefined
-    cleanF tof fot rules = rules `fromMaybe` (((rules \\ (tof ++ fot)) ++) `liftM` combineAll tof fot)
+    cleanF tof fot rs = rs `fromMaybe` (((rs \\ (tof ++ fot)) ++) `liftM` combineAll tof fot)
     
 
     combineAll :: [PARule] -> [PARule] -> Maybe [PARule]
@@ -160,14 +158,15 @@ toCTRS gr = id
     apply  sigma r      = (R.Rule (sigma $ R.lhs r) (sigma $ R.rhs r))
     apply' sigma (r,cs) = ((R.Rule (sigma $ R.lhs r) (sigma $ R.rhs r)), map sigma cs)
     singleton (T.Var v) t = S.apply . ST.fromMap $ M.insert v t M.empty
+    singleton _ _         = error "Jat.Utils.TRS.toCTRS: the impossible happened"
     -- f(x) -> f(x')[x'=x+1] --> f(x) -> f(x+1)
-    substituteIFun cr@(r,[]) = cr
+    substituteIFun cr@(_,[]) = cr
     substituteIFun cr@(r,[T.Fun PA.Ass [v, t]])
       | PA.isVar v && PA.isIFun t = (apply (singleton v t) r, [])
       | otherwise   = cr
     substituteIFun _ = error "substituteIFun: unexpected rule"
     -- [b1 = f1, b2 = b1 && f] --> [b2 = f1 && f2]
-    substituteBVar  cr@(r,cs) = substituteBVar' (r,[]) cs
+    substituteBVar  (r,cs)    = substituteBVar' (r,[]) cs
     substituteBVar' (r,cs) [] = (r,reverse cs)
     substituteBVar' (r,cs) (d@(T.Fun PA.Ass [v@(T.Var w),t]):ds)
       | PA.isBVar v 
@@ -177,16 +176,16 @@ toCTRS gr = id
       where sigma = singleton v t
     substituteBVar' (r,cs) (d:ds) = substituteBVar' (r,d:cs) ds
     -- [b1 = f] --> [True = f], [False = f]
-    instantiateBVar cr@(r,cs) = [apply' (mkMap m) cr | m <- maps bvars]
+    instantiateBVar cr@(_,cs) = [apply' (mkMap m) cr | m <- maps bvars]
       where 
         bvars = foldr k [] cs
-        k d@(T.Fun PA.Ass [v@(T.Var w),t])
+        k (T.Fun PA.Ass [v@(T.Var w),_])
           | PA.isBVar v = (w:)
           | otherwise   = id
         k _             = id
         maps bs = sequence $ map (\v -> [(v,PA.top), (v,PA.bot)]) bs
         mkMap   = S.apply . ST.fromMap . M.fromList
-    unknownSat (r,cs) = not $ any (PA.isBot) cs
+    unknownSat (_,cs) = not $ any (PA.isBot) cs
     toConstraints (r,cs) = (r, map k cs)
       where 
         k d@(T.Fun PA.Ass [b,t]) 
@@ -238,8 +237,8 @@ prettyCTRSTerm (T.Fun f ts) = case f of
   PA.Neq -> fun "/=" ts
   PA.Ass -> fun ":=" ts
   where
-    fun s ts = char '@' <> text s <> args ts
-    args ts = encloseSep lparen rparen comma [prettyCTRSTerm ti | ti <- ts]
+    fun s ss = char '@' <> text s <> args ss
+    args ss  = encloseSep lparen rparen comma [prettyCTRSTerm si | si <- ss]
 prettyCTRSTerm (T.Var v) = case v of
   PA.UVar s i -> text s <> int i
   PA.IVar s i -> char 'i' <> text s <> int i
@@ -249,7 +248,7 @@ prettyCTRSTerm (T.Var v) = case v of
 mgu :: (Eq f, Ord v) => R.Term f v -> R.Term f v -> Maybe (S.Subst f v)
 mgu l = S.unifyRef l
 
-substitutevars :: (Eq f, Ord v) => S.Subst f v => T.Term f v -> T.Term f v
+substitutevars :: (Eq f, Ord v) => S.Subst f v -> T.Term f v -> T.Term f v
 substitutevars s = S.apply s
 
 -- old mgu

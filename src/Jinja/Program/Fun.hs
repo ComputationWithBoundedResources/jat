@@ -282,11 +282,11 @@ isAcyclicType _ _            = True
 
 areSharingTypes :: Program -> Type -> Type -> Bool
 areSharingTypes p (RefType cn1) (RefType cn2) = areSharingClasses p (VariableKind cn1) (VariableKind cn2)
-areSharingTypes p _ _                         = False
+areSharingTypes _ _ _                         = False
 
 areReachingTypes :: Program -> Type -> Type -> Bool
 areReachingTypes p (RefType cn1) (RefType cn2) = areReachingClasses p (VariableKind cn1) (VariableKind cn2)
-areReachingTypes p _ _                         = False
+areReachingTypes _ _ _                         = False
 
 
 areRelatedTypes :: Program -> Type -> Type -> Bool

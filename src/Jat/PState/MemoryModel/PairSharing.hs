@@ -24,8 +24,6 @@ import Jat.Utils.Pretty
 import Jat.Utils.Fun
 import qualified Jinja.Program as P
 
-import qualified Data.Rewriting.Term as TRS (Term (..)) 
-
 import Data.Maybe ( fromMaybe)
 import qualified Data.Map as M
 import Control.Monad.State
@@ -93,6 +91,7 @@ initSh p cn mn = Sh PS.empty fb [fs] (F.unFacts fs A.! 0)
 
 sharing :: Sh i -> PairSharing
 sharing (PState _ _ sh) = sh
+sharing _               = error "Jat.PState.MemoryModel.PairSharing.sharing: the impossible happened"
 
 
 -- properties
@@ -128,7 +127,7 @@ areReachingTypes :: P.Program -> Sh i -> Address -> Address -> Bool
 areReachingTypes p st q r = P.areReachingClasses p (refKindOf st q) (refKindOf st r)
 
 maybeReachesSh :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeReachesSh p st q r = 
+maybeReachesSh _ st q r = 
   any pairReaches (F.reachingVarsP . fact $ sharing st)
   {-&& if q `elem` reachable r (heap st) then not (acyclic p st q) else True-}
   where pairReaches (x,y) = q `elem` reachableV x st && r `elem` reachableV y st
@@ -154,6 +153,7 @@ unShare p qs rs st@(PState hp frms sh) =
   where 
     elements    = PS.fromList [ q:/=:r | q <- qs, r <- rs, q /= r, related q r ]
     related q r = P.areRelatedTypes p (tyOf st q) (tyOf st r)
+unShare _ _ _ _ = error "Jat.PState.MemoryModel.PairSharingunShare: the impossible happened"
 
 updateSH :: P.Program -> P.PC -> P.Instruction -> Sh i -> Sh i
 updateSH _ _ _ st@(PState _ [] _) = st
@@ -219,6 +219,7 @@ putFieldSH st@PState{} cn fn = case opstk $ frame st of
                               else topEvaluation $ EState IllegalStateException
                           stp -> stp
   _                  -> merror ".getField: unexpected case."
+putFieldSH _ _ _ = error "Jat.PState.MemoryModel.PairSharing.putFieldSH: the impossible happened"
 
 
 invokeSH :: (Monad m, IntDomain i) => Sh i -> P.MethodId -> Int -> JatM m (PStep(Sh i))
@@ -262,6 +263,7 @@ instanceRefinement p st@(PState hp frms sh) adr = do
       where mkInstanceM (hp1,obt1) = let hp2 = updateH adr obt1 hp1 in PState hp2 frms sh
     nullM      = return $ substituteSh st
     substituteSh st1 = liftNS (PS.delete' adr) `liftSh` substitute (RefVal adr) Null st1
+instanceRefinement _ _ _ = error "Jat.PState.MemoryModel.PairSharing.instanceRefinement: the impossible happened"
 
 tryEqualityRefinement :: (Monad m, IntDomain i) => Sh i -> Address -> JatM m (Maybe(PStep(Sh i)))
 tryEqualityRefinement st@(PState hp _ _) q = do
@@ -269,6 +271,7 @@ tryEqualityRefinement st@(PState hp _ _) q = do
   case find (maybeEqual p st q) (addresses hp) of
     Just r  -> Just `liftM` equalityRefinement st q r
     Nothing -> return Nothing
+tryEqualityRefinement _ _ = error "Jat.PState.MemoryModel.PairSharing.tryEqualityRefinement: the impossible happened"
 
 -- rename also TreeShaped q
 equalityRefinement :: (Monad m, IntDomain i) => Sh i -> Address -> Address -> JatM m (PStep(Sh i))
@@ -278,6 +281,7 @@ equalityRefinement st@(PState hp frms sh) q r = do
   where
     mkEqual  = liftNS (PS.renameWithLookup (`lookup` [(r,q)]))`liftSh` substitute (RefVal r) (RefVal q) st
     mkNequal = PState hp frms (PS.insert (r:/=:q) `liftNS` sh)
+equalityRefinement _ _ _ = error "Jat.PState.MemoryModel.PairSharing.equalityRefinement: the impossible happened"
 
 maybeEqual :: IntDomain i => P.Program -> Sh i -> Address -> Address -> Bool
 maybeEqual p st q r = 
@@ -416,6 +420,7 @@ leqSH p (PState hp1 frms1 sh1) (PState hp2 frms2 sh2) =
 
     {-leqFtM :: FieldTable i -> FieldTable i -> Morph i Bool-}
     leqFtM ft ft' = and `liftM` zipWithM leqValM (elemsFT ft) (elemsFT ft')
+leqSH _ _ _ = error "Jat.PState.MemoryModel.PairSharing.leqSH: the impossible happened"
 
 -- Todo: take correlation into account
 joinSH :: (Monad m, IntDomain i) => Sh i -> Sh i -> JatM m (Sh i)
@@ -432,6 +437,7 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
       ns1' = PS.renameWithLookup (`lookup` lk) ns1 
       ns2' = PS.renameWithLookup (`lookup` lk) ns2
       lk   = uncurry intersect $ unzip [ ((p,r),(q,r)) | (C p q, r) <-  M.toList cor, r `elem` addresses hp]
+joinSH _ _ = error "Jat.PState.MemoryModel.PairSharing.joinSH: the impossible happened"
 
 
 state2TRSSH :: (Monad m, IntDomain i) => Maybe Address -> Side -> Sh i -> Sh i -> Int -> JatM m PATerm

@@ -50,14 +50,11 @@ import Jat.JatM
 import qualified Jinja.Program as P
 import Jat.Utils.Pretty
 
-import qualified Data.Rewriting.Term as TRS (Term (..)) 
-
 import Data.Char (toLower)
 import qualified Data.Array as A
 import Data.List (inits)
 import qualified Data.Map as M
-import Data.Maybe (fromJust, maybe)
-import Safe (at)
+import Data.Maybe (fromJust)
 import Control.Monad.State
 
 --import Debug.Trace
@@ -114,7 +111,7 @@ mergeStates' :: (Monad m, MemoryModel a, IntDomain i) => P.Program -> PState i a
 mergeStates' _ st1 st2 _ | not (isSimilar st1 st2) = error "Jat.PState.Fun.mergeStates: non-similar states."
 mergeStates' p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
   (st,frms3) <- wideningFs Corr{unCorr=M.empty, unHeap=emptyH} frms1 frms2
-  return $ (PState (unHeap st) frms3 ann, unCorr st)
+  return (PState (unHeap st) frms3 ann, unCorr st)
     where
       wideningF st (Frame loc1 stk1 cn mn pc) (Frame loc2 stk2 _ _ _) = do
         (st1,loc3) <- joinValM st loc1 loc2
@@ -234,19 +231,18 @@ pState2TRS :: (Monad m, IntDomain i, Pretty a) =>
   -> Maybe Address
   -> Side
   -> PState i a -> Int -> JatM m PA.PATerm
-pState2TRS isSpecial maybeReaches m side st@(PState hp frms _) k = do
+pState2TRS isSpecial maybeReaches m side (PState hp frms _) k = do
   key <- nextVarIdx
-  return $ PA.ufun ('f':show k)  $ evalState (mapM tval (concatMap elemsF frms)) [key..]
+  return $ PA.ufun ('f':show k)  $ evalState (mapM tval (concatMap elemsF frms)) key
   {-return $ PA.ufun ('f':show k)  $ evalState (return []) [key..]-}
   where
-    fresh = do
-      i:is <- get
-      put is
-      return i
+    fresh :: State Int Int
+    fresh = modify succ >> get 
 
     nullterm = PA.ufun "null" []
-    var cn key = PA.uvar (map toLower cn) key
+    var cn   = PA.uvar (map toLower cn)
     
+    tval :: AbstrDomain i b => AbstrValue i -> State Int PA.PATerm
     tval Null        = return nullterm
     tval Unit        = return nullterm
     tval (RefVal r)  = taddr r

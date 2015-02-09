@@ -13,11 +13,10 @@ where
 
 import Jinja.Program
 import qualified Jat.PairSet as PS
+import Jat.Utils.Pretty
 
 import JFlow.Data
 
-import Text.PrettyPrint.ANSI.Leijen
-{-import Debug.Trace-}
 
 
 
