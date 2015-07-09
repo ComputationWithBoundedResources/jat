@@ -1,9 +1,8 @@
 JAT (Jinja Analysation Tool)
 ============================
 
-Provides a complexity preserving transformation from Jinja bytecode to term
-rewrite system.  Further informations can be obtained
-[here](http://cl-informatik.uibk.ac.at/cbr/jat).
+Provides a complexity reflecting transformatioin from Jinja bytecode to
+(constraint) term rewrite system.
 
 EXAMPLE USAGE
 =============
