@@ -1,33 +1,33 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | This module provides functionality for constrained Term rewrite systems (cTRS).
 module Jat.Utils.TRS
   (
-    prettyTRS
+    PARule
+  , prettyTRS
   , simplifyTRS
   , toCTRS
   , prettyCTRS
-  )
+  , prettyITS
+  ) where
 
-where
 
-import Jat.CompGraph
-import Jat.Utils.Pretty
-import qualified Jat.Constraints as PA
+import           Jat.CompGraph
+import qualified Jat.Constraints                  as PA
+import           Jat.Utils.Pretty
 
-import qualified Data.Rewriting.Rule as R
-import qualified Data.Rewriting.Term as T
-import qualified Data.Rewriting.Substitution as S
+import qualified Data.Rewriting.Rule              as R
+import qualified Data.Rewriting.Substitution      as S
 import qualified Data.Rewriting.Substitution.Type as ST
+import qualified Data.Rewriting.Term              as T
 
-import Data.List as L
-import Data.Maybe (fromMaybe)
-import Control.Monad (liftM)
-import qualified Data.Graph.Inductive as Gr
-import qualified Data.Set as S
-import qualified Data.Map as M
+import           Control.Monad                    (liftM)
+import qualified Data.Graph.Inductive             as Gr
+import           Data.List                        as L
+import qualified Data.Map                         as M
+import           Data.Maybe                       (fromMaybe)
+import qualified Data.Set                         as S
 
---import Debug.Trace
 
 type PARule = (R.Rule PA.PAFun PA.PAVar, [PA.PATerm])
 
@@ -45,10 +45,6 @@ rvars (r,cs) = R.vars r ++ concatMap T.vars cs
 rmap :: (f -> f')-> (v -> v')-> (R.Rule f v, [T.Term f v])-> (R.Rule f' v', [T.Term f' v'])
 rmap f g (R.Rule l r, cs) = (R.Rule (T.map f g l) (T.map f g r), map (T.map f g) cs)
 
---rmap' :: (f -> f')-> (v -> v')-> R.Rule f v -> R.Rule f' v'
---rmap' f g (R.Rule l r) = R.Rule (T.map f g l) (T.map f g r)
-
-
 
 header :: [PARule] -> Doc
 header rules =
@@ -61,16 +57,16 @@ header rules =
 footer :: Doc
 footer = rparen
 
---components :: JGraph i a -> ([Gr.Node], [[Gr.Node]])
---components gr = (map head sccs, sccs ++ Gr.components (Gr.delNodes (concat sccs) gr))
-  --where
-    --sccs  = filter k $ Gr.scc gr
-    --k [n] = n `elem` Gr.suc gr n
-    --k _   = True
-
 root :: T.Term f v -> f
 root (R.Fun f _) = f
 root (R.Var _)   = error "simplify.root: unexpected variable"
+
+-- | A pretty printer for a list of constrained term rewrite rule.
+prettyTRS :: [(R.Rule PA.PAFun PA.PAVar, [PA.PATerm])] -> Doc
+prettyTRS crules =
+  header crules
+  <$> vsep (map prettyPARule crules)
+  <$> footer
 
 simplifyTRS :: JGraph i a -> [PARule] -> [PARule]
 simplifyTRS gr = combination (map toF . reverse . filter isSimple $ Gr.topsort gr)
@@ -102,17 +98,17 @@ combination fs rules = foldl (clean) rules fs
 
     --cleanF tof fot rules | trace (show (length tof,length fot,length rules)) False = undefined
     cleanF tof fot rs = rs `fromMaybe` (((rs \\ (tof ++ fot)) ++) `liftM` combineAll tof fot)
-    
+
 
     combineAll :: [PARule] -> [PARule] -> Maybe [PARule]
     {-combineAll rs1 rs2 = sequence $ [combine r1 r2 | r1 <- rs1, r2 <- rs2]-}
     combineAll rs1 rs2 = Just [r | Just r <- [combine r1 r2 | r1 <- rs1, r2 <- rs2]]
 
     combine :: PARule -> PARule -> Maybe PARule
-    combine (R.Rule l1 r1,cs1) (R.Rule l2 r2, []) 
+    combine (R.Rule l1 r1,cs1) (R.Rule l2 r2, [])
       | r1 == l2 = Just (R.Rule l1 r2, cs1)
     combine s t = do
-      let 
+      let
         (R.Rule l1 r1, c1) = rmap id Left s
         (R.Rule l2 r2, c2) = rmap id Right t
       mu <- mgu r1 l2
@@ -123,7 +119,7 @@ combination fs rules = foldl (clean) rules fs
       return $ normalizevars (R.Rule l3 r3, c3)
 
     normalizevars (R.Rule l r, cs) =
-      let 
+      let
         (ml,il,l') = norm (M.empty,0,l)
         (mr,ir,r') = norm (ml,il,r)
         (_,_,cs')  = norms (mr,ir,cs)
@@ -169,15 +165,15 @@ toCTRS gr = id
     substituteBVar  (r,cs)    = substituteBVar' (r,[]) cs
     substituteBVar' (r,cs) [] = (r,reverse cs)
     substituteBVar' (r,cs) (d@(T.Fun PA.Ass [v@(T.Var w),t]):ds)
-      | PA.isBVar v 
-        && PA.isRFun t 
+      | PA.isBVar v
+        && PA.isRFun t
         && w `L.notElem` R.vars r = substituteBVar' (r,cs) (map sigma ds)
       | otherwise                 = substituteBVar' (r,d:cs) ds
       where sigma = singleton v t
     substituteBVar' (r,cs) (d:ds) = substituteBVar' (r,d:cs) ds
     -- [b1 = f] --> [True = f], [False = f]
     instantiateBVar cr@(_,cs) = [apply' (mkMap m) cr | m <- maps bvars]
-      where 
+      where
         bvars = foldr k [] cs
         k (T.Fun PA.Ass [v@(T.Var w),_])
           | PA.isBVar v = (w:)
@@ -187,8 +183,8 @@ toCTRS gr = id
         mkMap   = S.apply . ST.fromMap . M.fromList
     unknownSat (_,cs) = not $ any (PA.isBot) cs
     toConstraints (r,cs) = (r, map k cs)
-      where 
-        k d@(T.Fun PA.Ass [b,t]) 
+      where
+        k d@(T.Fun PA.Ass [b,t])
           | PA.isTop b = t
           | PA.isBot b = PA.not t
           | otherwise = d
@@ -198,7 +194,7 @@ toCTRS gr = id
       where css = PA.toDNF (T.Fun PA.And cs)
     nfilterTop (r,cs) = (r,filter (not . PA.isTop) cs)
     flattenAnd (r,cs) = (r,concatMap k cs)
-      where 
+      where
         k (T.Fun PA.And ts) = concatMap k ts
         k t = [t]
     expandEq (r,cs) = [(r,cs') | cs' <- sequence (map k cs)]
@@ -216,26 +212,26 @@ prettyCTRS crules =
 
 prettyCTRSRule :: PARule -> Doc
 prettyCTRSRule (R.Rule l r,[]) = prettyCTRSTerm l <+> text "->" <+> prettyCTRSTerm r
-prettyCTRSRule (R.Rule l r,cs) = prettyCTRSTerm l <+> text "->" <+> prettyCTRSTerm r <+> text "<=" <+> pts
+prettyCTRSRule (R.Rule l r,cs) = prettyCTRSTerm l <+> text "->" <+> prettyCTRSTerm r <+> text ":|:" <+> pts
   where pts = text "@and" <> encloseSep lparen rparen comma [prettyCTRSTerm c | c <- cs]
 
 prettyCTRSTerm :: PA.PATerm -> Doc
 prettyCTRSTerm (T.Fun f ts) = case f of
-  PA.UFun s -> text s <> args ts where
+  PA.UFun s   -> text s <> args ts where
   PA.IConst i -> char '@' <> int i <> parens empty
   PA.BConst b -> bool b <> parens empty
-  PA.Add -> fun "+" ts
-  PA.Sub -> fun "-" ts
-  PA.Not -> fun "not" ts
-  PA.And -> fun "&&" ts
-  PA.Or  -> fun "||" ts
-  PA.Lt  -> fun "<" ts
-  PA.Lte -> fun "=<" ts
-  PA.Gte -> fun ">=" ts
-  PA.Gt  -> fun ">" ts
-  PA.Eq  -> fun "==" ts
-  PA.Neq -> fun "/=" ts
-  PA.Ass -> fun ":=" ts
+  PA.Add      -> fun "+" ts
+  PA.Sub      -> fun "-" ts
+  PA.Not      -> fun "not" ts
+  PA.And      -> fun "&&" ts
+  PA.Or       -> fun "||" ts
+  PA.Lt       -> fun "<" ts
+  PA.Lte      -> fun "=<" ts
+  PA.Gte      -> fun ">=" ts
+  PA.Gt       -> fun ">" ts
+  PA.Eq       -> fun "==" ts
+  PA.Neq      -> fun "/=" ts
+  PA.Ass      -> fun ":=" ts
   where
     fun s ss = char '@' <> text s <> args ss
     args ss  = encloseSep lparen rparen comma [prettyCTRSTerm si | si <- ss]
@@ -244,59 +240,48 @@ prettyCTRSTerm (T.Var v) = case v of
   PA.IVar s i -> char 'i' <> text s <> int i
   PA.BVar s i -> char 'b' <> text s <> int i
 
-  
 mgu :: (Eq f, Ord v) => R.Term f v -> R.Term f v -> Maybe (S.Subst f v)
 mgu l = S.unifyRef l
 
 substitutevars :: (Eq f, Ord v) => S.Subst f v -> T.Term f v -> T.Term f v
 substitutevars s = S.apply s
 
--- old mgu
-{-type Substitution a b = R.Term a b -> R.Term a b-}
-
-{-maptvars :: (R.Term a b-> R.Term a b) -> R.Term a b -> R.Term a b-}
-{-maptvars f (R.Fun a ts)  = R.Fun a (map (maptvars f) ts)-}
-{-maptvars f v           = f v-}
-
-{-substitutevars :: Substitution a b -> R.Term a b -> R.Term a b-}
-{-substitutevars = maptvars-}
-
-{-emptysubstitution :: Substitution a b-}
-{-emptysubstitution = id-}
-
-{-compose :: Substitution a b -> Substitution a b -> Substitution a b-}
-{-compose sigma tau = tau . sigma-}
-
-{-mgu :: R.Term a b -> R.Term a b -> Maybe (Substitution a b)-}
-{-mgu t1 t2 = unifyterms [t1] [t2]-}
-
-{-unifyterms :: [R.Term a b] -> [R.Term a b] -> Maybe (Substitution a b)-}
-{-unifyterms = unifyts (Just emptysubstitution)-}
-  {-where-}
-    {-unifyt (R.Var x) (R.Var y) | x == y = Just id-}
-    {-unifyt (R.Var v1) f      | v1 `elem` T.vars f = Nothing-}
-    {-unifyt v1@(R.Var _) f = Just (\t -> if t == v1 then f else t)-}
-
-    {-unifyt f (R.Var y) = unifyt (R.Var y) f-}
-
-    {-unifyt (R.Fun f1 ts1) (R.Fun f2 ts2)-}
-      {-| f1 == f2 = unifyts (Just emptysubstitution) ts1 ts2-}
-      {-| otherwise = Nothing-}
-        
-    {-unifyts s0M [] [] = s0M-}
-    {-unifyts s0M (t1:ts1) (t2:ts2) = do-}
-      {-let subst = substitutevars-}
-      {-s0 <- s0M-}
-      {-s1 <- unifyt (subst s0 t1) (subst s0 t2)-}
-      {-let s2 = return $ compose s0 s1-}
-      {-unifyts s2 ts1 ts2-}
-    {-unifyts _ ts1 ts2 = error $ "unifyterms: unexpected case: " ++ show (ts1,ts2)-}
-
-
--- | A pretty printer for a list of constrained term rewrite rule.
-prettyTRS :: [(R.Rule PA.PAFun PA.PAVar, [PA.PATerm])] -> Doc
-prettyTRS crules =
-  header crules
-  <$> vsep (map prettyPARule crules)
+prettyITS :: String -> [PARule] -> Doc
+prettyITS main rs =
+  text "(GOAL COMPLEXITY)"
+  <$> text ("(STARTTERM (FUNCTIONSYMBOLS " ++ main ++ "))")
+  <$> header rs
+  <$> vsep (map prettyITSRule rs)
   <$> footer
+
+prettyITSRule :: PARule -> Doc
+prettyITSRule (R.Rule l r,[]) = prettyITSTerm l <+> text "->" <+> prettyITSTerm r
+prettyITSRule (R.Rule l r,cs) = prettyITSTerm l <+> text "->" <+> prettyITSTerm r <+> text ":|:" <+> pts
+  where pts = encloseSep empty empty (text " && ") [prettyITSTerm c | c <- cs]
+
+prettyITSTerm :: PA.PATerm -> Doc
+prettyITSTerm (T.Fun f ts) = case f of
+  PA.UFun s   -> text s <> args ts where
+  PA.IConst i -> int i
+  PA.BConst b -> bool b
+  PA.Add      -> fun "+" ts
+  PA.Sub      -> fun "-" ts
+  PA.Not      -> fun "not" ts
+  PA.And      -> fun "&&" ts
+  PA.Or       -> fun "||" ts
+  PA.Lt       -> fun "<" ts
+  PA.Lte      -> fun "=<" ts
+  PA.Gte      -> fun ">=" ts
+  PA.Gt       -> fun ">" ts
+  PA.Eq       -> fun "=" ts
+  PA.Neq      -> fun "/=" ts
+  PA.Ass      -> fun ":=" ts
+  where
+    fun s ss = encloseSep empty empty (space <> text s <> space) (map prettyITSTerm ss)
+    args []  = empty
+    args ss  = encloseSep lparen rparen comma [prettyITSTerm si | si <- ss]
+prettyITSTerm (T.Var v) = case v of
+  PA.UVar s i -> text s <> int i
+  PA.IVar s i -> char 'i' <> text s <> int i
+  PA.BVar s i -> char 'b' <> text s <> int i
 
