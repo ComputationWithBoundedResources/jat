@@ -77,8 +77,9 @@ parseClass = do
   let super = if super' /= "<None>" then Just super' else Nothing
   fpool <- parseFieldPool
   mpool <- parseMethodPool
-  return (ClassId cname, Class (ClassId cname) (ClassId `liftM` super) fpool mpool undefined undefined undefined)
+  return (ClassId cname, Class (ClassId cname) (ClassId `liftM` super) fpool mpool err err err)
   <?> "parser:class"
+  where err = error "not initialised: initP"
 
 parseFieldPool :: Parser FieldPool
 parseFieldPool = do
