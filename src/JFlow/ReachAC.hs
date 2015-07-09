@@ -153,6 +153,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
           x = StkVar i j
           rs' = S.fromList [ y :~>: x | y <- maySharesWithQ w x]
 
+      PutField _  _  | hasTypeQ w' (StkVar i (j+1)) == NullType -> RACFact S.empty S.empty
       PutField fn cn  -> delete val . delete ref $ RACFact rs1 cs1 `union` RACFact rs' cs'
         where
           (val,ref)   = (StkVar i (j+2), StkVar i (j+1))
