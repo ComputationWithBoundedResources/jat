@@ -36,7 +36,7 @@ instance MemoryModel Primitive where
   initMem   = initMemx
 
   leq       = leqx
-  join      = joinx
+  lub      = joinx
 
   normalize = undefined
   state2TRS = undefined
@@ -81,8 +81,8 @@ joinx st1 st2 = do
 
     Unit       `joinV` v          = return v
     Null       `joinV` Null       = return Null
-    BoolVal b1 `joinV` BoolVal b2 = BoolVal `liftM` (b1 `AD.join` b2)
-    IntVal i1  `joinV` IntVal i2  = IntVal  `liftM` (i1 `AD.join` i2)
+    BoolVal b1 `joinV` BoolVal b2 = BoolVal `liftM` (b1 `AD.lub` b2)
+    IntVal i1  `joinV` IntVal i2  = IntVal  `liftM` (i1 `AD.lub` i2)
     _          `joinV` _          = error "Jat.PState.MemoryModel.Primitive: not supported."
 
 

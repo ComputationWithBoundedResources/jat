@@ -26,8 +26,8 @@ import Jat.Utils.Pretty hiding (bool)
 data BoolDomain = Boolean Bool | AbstrBoolean Int deriving (Show,Eq,Ord)
 
 instance AbstrDomain BoolDomain Bool where
-  join (Boolean i) (Boolean j) | i == j  = return $ Boolean i
-  join _ _                               = freshBool
+  lub (Boolean i) (Boolean j) | i == j  = return $ Boolean i
+  lub _ _                               = freshBool
 
   top                    = freshBool
   isTop (AbstrBoolean _) = True

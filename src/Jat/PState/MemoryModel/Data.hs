@@ -31,9 +31,9 @@ class Pretty a => MemoryModel a where
   initMem   :: (Monad m, IntDomain i) => P.ClassId -> P.MethodId -> JatM m (PState i a)
 
   leq       :: IntDomain i => P.Program -> PState i a -> PState i a -> Bool
-  join      :: (Monad m, IntDomain i) =>  PState i a -> PState i a -> JatM m (PState i a)
+  lub      :: (Monad m, IntDomain i) =>  PState i a -> PState i a -> JatM m (PState i a)
   widening  :: (Monad m, IntDomain i) =>  PState i a -> PState i a -> JatM m (PState i a)
-  widening  = join
+  widening  = lub
 
   normalize :: PState i a -> PState i a
   -- TODO: refactor

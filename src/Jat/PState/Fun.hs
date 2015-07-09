@@ -127,10 +127,10 @@ mergeStates' p (PState hp1 frms1 _) (PState hp2 frms2 _) ann = do
 
       --joinVal _ i j | trace (show (pretty i<> pretty j)) False = undefined
       joinVal st (IntVal i) (IntVal j)   = do
-        k <- i `AD.join` j
+        k <- i `AD.lub` j
         return (st, IntVal k)
       joinVal st (BoolVal a) (BoolVal b) = do
-        c <- a `AD.join` b
+        c <- a `AD.lub` b
         return (st, BoolVal c)
       joinVal st (RefVal q) (RefVal r) = 
         case correlation q r `M.lookup` unCorr st of

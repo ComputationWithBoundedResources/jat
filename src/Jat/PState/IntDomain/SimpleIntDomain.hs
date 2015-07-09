@@ -23,8 +23,8 @@ freshInt :: Monad m => JatM m SimpleIntDomain
 freshInt = do {i<-freshVarIdx; return $ AbsInteger i} 
 
 instance AbstrDomain SimpleIntDomain Int where
-  join (Integer i) (Integer j) | i == j  = return $ Integer i
-  join _ _                               = freshInt
+  lub (Integer i) (Integer j) | i == j  = return $ Integer i
+  lub _ _                               = freshInt
 
   top                  = freshInt
   isTop (AbsInteger _) = True

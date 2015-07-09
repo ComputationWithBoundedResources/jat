@@ -194,10 +194,10 @@ execNew = new
 
 execGetField :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> P.ClassId -> P.FieldId -> JatM m (PStep (PState i a))
 execGetField (PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) _ (P.FieldId "randI") = do
-  rand <- IntVal `liftM` (constant 0 `AD.join` constant 666)
+  rand <- IntVal `liftM` (constant 0 `AD.lub` constant 666)
   return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
 execGetField (PState hp (Frame loc (_:stk) fcn mn pc: frms) ann) _ (P.FieldId "randB") = do
-  rand <- BoolVal `liftM` (constant True `AD.join` constant False)
+  rand <- BoolVal `liftM` (constant True `AD.lub` constant False)
   return . topEvaluation $ PState hp (Frame loc (rand:stk) fcn mn (pc+1):frms) ann
 execGetField st cn fn = getField st cn fn
 

@@ -134,7 +134,7 @@ instance MemoryModel UnSharing where
   initMem   = initMemUS
 
   leq       = leqUS
-  join      = joinUS
+  lub      = joinUS
 
   normalize = normalizeUS
   state2TRS = state2TRSUS

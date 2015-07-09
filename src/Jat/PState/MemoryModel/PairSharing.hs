@@ -178,7 +178,7 @@ instance MemoryModel PairSharing where
   initMem   = initMemSH
 
   leq       = leqSH
-  join      = joinSH
+  lub       = joinSH
 
   normalize = normalizeSH
   state2TRS = state2TRSSH

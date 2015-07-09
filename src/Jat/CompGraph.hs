@@ -25,7 +25,7 @@ import qualified Jinja.Program as P
 
 import Data.Rewriting.Rule (Rule (..))
 
-import Control.Monad.State hiding (join)
+import Control.Monad.State (liftIO)
 import Data.Graph.Inductive as Gr
 import Data.GraphViz.Types.Canonical
 import Data.Maybe (fromMaybe)
@@ -107,7 +107,7 @@ leq' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a ->
 leq' ctx1 ctx2 = getProgram >>= \p -> return $ leq p (state' ctx1) (state' ctx2)
 
 join' :: (Monad m, IntDomain i, MemoryModel a) => JContext i a -> JContext i a -> JatM m (PState i a)
-join' ctx1 ctx2 = join (state' ctx1) (state' ctx2)
+join' ctx1 ctx2 = lub (state' ctx1) (state' ctx2)
 
 
 -- if a similar predecessor can be found then try to make an instance node, if not possible join the nodes
