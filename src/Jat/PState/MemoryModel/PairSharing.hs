@@ -127,9 +127,9 @@ areReachingTypes :: P.Program -> Sh i -> Address -> Address -> Bool
 areReachingTypes p st q r = P.areReachingClasses p (refKindOf st q) (refKindOf st r)
 
 maybeReachesSh :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeReachesSh _ st q r = 
+maybeReachesSh p st q r = 
   any pairReaches (F.reachingVarsP . fact $ sharing st)
-  {-&& if q `elem` reachable r (heap st) then not (acyclic p st q) else True-}
+  && if q `elem` reachable r (heap st) then not (acyclic p st q) else True -- TODO: is this sound (necessary for flatten example)
   where pairReaches (x,y) = q `elem` reachableV x st && r `elem` reachableV y st
 
 maybeReaches :: P.Program -> Sh i -> Address -> Address -> Bool
