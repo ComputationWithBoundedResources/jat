@@ -15,8 +15,9 @@ module Jat.Constraints
   , ufun, int, bool
   , uvar, ivar, bvar
   , prettyPATerm
-  , isVar,isIVar,isBVar
-  , isRFun, isIFun, isBFun
+  , isVar,isUVar, isIVar,isBVar
+  , isUFun, isRFun, isIFun, isBFun
+  , isUTerm
   , toDNF
   , pushNot
   , normalise
@@ -48,15 +49,19 @@ data PAVar =
   | BVar String Int
   deriving (Show,Eq,Ord)
 
-isVar,isIVar,isBVar :: PATerm -> Bool
+isVar,isUVar, isIVar,isBVar :: PATerm -> Bool
 isVar (T.Var _)           = True
 isVar _                   = False
+isUVar (T.Var (UVar _ _)) = True
+isUVar _                  = False
 isIVar (T.Var (IVar _ _)) = True
 isIVar _                  = False
 isBVar (T.Var (BVar _ _)) = True
 isBVar _                  = False
 
-isRFun,isIFun,isBFun :: PATerm -> Bool
+isRFun,isUFun, isIFun,isBFun :: PATerm -> Bool
+isUFun (T.Fun (UFun _) _)   = True
+isUFun _                    = False
 isRFun (T.Fun f _)          = f `elem` [Lt, Lte, Gt, Gte, Eq,Neq]
 isRFun _                    = False
 isIFun (T.Fun (IConst _) _) = True
@@ -66,6 +71,8 @@ isBFun (T.Fun (BConst _) _) = True
 isBFun (T.Fun b _)          = b `elem` [And,Or,Not]
 isBFun  _                   = False
 
+isUTerm :: PATerm -> Bool
+isUTerm t = isUFun t || isUVar t
 
 vmap :: (Int -> Int) -> PAVar -> PAVar
 vmap f (UVar s i) = UVar s (f i)
