@@ -35,7 +35,10 @@ import qualified Data.Map as M
 
 -- | A 'Program' is the static representation of a JBC file, complemented with
 -- additional useful information.
-data Program = P ClassPool deriving (Eq,Show,Read)
+data Program = P ClassPool deriving (Eq,Read)
+
+instance Show Program where
+  show = show . pretty
 
 -- | Internal type for storing classes.
 type ClassPool   = M.Map ClassId Class
