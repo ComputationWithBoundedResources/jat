@@ -1,32 +1,95 @@
 name:          jat
-version:       1.1.0
+version:       1.2.0
 stability:     experimental
-author:        Michael Schaper <michael.schaper@uibk.ac.at>
+author:        Georg Moser, Michael Schaper
 maintainer:    Michael Schaper <michael.schaper@uibk.ac.at>
-license:       LGPL
-license-file:  COPYING.LESSER
-synopsis:      An Analyzation tool for Jinja Bytecode 
+license:       BSD3
+license-file:  LICENSE
+synopsis:      Jinja bytecode Analysation Tool
 description:
   This tool proviedes a complexity preserving transformation from Jinja
   Bytecode in constrained term rewrite systems (cTRS).
-  
-cabal-version:       >=1.8
-build-type:          Simple
+build-type:    Simple
+cabal-version: >=1.8
 
 executable jat
   main-is:             
     Main.hs
-
   hs-source-dirs:
     src
   build-depends:
     ansi-wl-pprint == 0.6.*,
     array          == 0.5.*,
     base           == 4.*,
-    containers     == 0.5.*,
+    containers     >= 0.5 && < 0.6,
     fgl            == 5.5.*,
     graphviz       >= 2999.16,
-    mtl            == 2.1.*,
+    mtl            >= 2.1 && <= 2.3,
+    parsec         == 3.1.*,
+    safe           == 0.3.*,
+    set-monad      == 0.2.*,
+    text           == 1.2.*,
+
+    term-rewriting == 0.*
+  ghc-options:
+    -j -Wall -fno-warn-unused-do-bind -fno-warn-orphans -funbox-strict-fields -threaded -rtsopts -with-rtsopts=-N
+
+library
+  hs-source-dirs:
+    src
+  exposed-modules:
+    Jat.Constraints
+    Jat.PState.Data
+    Jat.PState.MemoryModel
+    Jat.PState.AbstrDomain
+    Jat.PState.IntDomain.Data
+    Jat.PState.IntDomain.SimpleIntDomain
+    Jat.PState.IntDomain.SignedIntDomain
+    Jat.PState.Semantics
+    Jat.PState.IntDomain
+    Jat.PState.Heap
+    Jat.PState.Step
+    Jat.PState.Object
+    Jat.PState.AbstrValue
+    Jat.PState.BoolDomain
+    Jat.PState.MemoryModel.Data
+    Jat.PState.MemoryModel.UnSharing
+    Jat.PState.MemoryModel.PairSharing
+    Jat.PState.MemoryModel.Primitive
+    Jat.PState.Frame
+    Jat.PState.Fun
+    Jat.Utils.Pretty
+    Jat.Utils.Version
+    Jat.Utils.Dot
+    Jat.Utils.Args
+    Jat.Utils.TRS
+    Jat.Utils.Fun
+    Jat.CompGraph
+    Jat.JatM
+    Jat.PairSet
+    Jat.PState
+    JFlow.Data
+    -- JFlow.Acyclic
+    JFlow.ReachAC
+    JFlow.Instances
+    JFlow.Utility
+    JFlow.PairSharing
+    -- JFlow.TreeShaped
+    JFlow.Flow
+    JFlow.PointsTo
+    JFlow.Typing
+    Jinja.Program
+    Jinja.Program.Data
+    Jinja.Program.Parser
+    Jinja.Program.Fun
+  build-depends:
+    base           == 4.*,
+    ansi-wl-pprint >= 0.6 && < 0.7,
+    array          == 0.5.*,
+    containers     >= 0.5 && < 0.6,
+    fgl            == 5.5.*,
+    graphviz       >= 2999.16,
+    mtl            >= 2.1 && <= 2.3,
     parsec         == 3.1.*,
     safe           == 0.3.*,
     set-monad      == 0.2.*,
@@ -35,5 +98,4 @@ executable jat
     term-rewriting == 0.*
 
   ghc-options:
-    -j -Wall -fno-warn-unused-do-bind -fno-warn-orphans -funbox-strict-fields -threaded -rtsopts -with-rtsopts=-N
-
+    -j -Wall -fno-warn-unused-do-bind -fno-warn-orphans -funbox-strict-fields -rtsopts -with-rtsopts=-N
