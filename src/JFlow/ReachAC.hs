@@ -182,7 +182,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
           mayShare = mayShareQ w
           alias x y   = x `talias` y && x `mayShare` y  && x `mayAlias` y
           talias x y  = areRelatedTypes p (hasTypeQ w' x) (hasTypeQ w' y)
-          aliasWith x = filter (talias x) $ maySharesWithQ w x
+          aliasWith x = filter (\y -> x `talias` y && x `mayAlias` y) $ maySharesWithQ w x
 
 
 
