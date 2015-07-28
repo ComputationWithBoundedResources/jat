@@ -120,7 +120,7 @@ maybeSharesSh st q r = any pairShares (F.sharingVarsP . fact $ sharing st)
         yReaches = reachableV y st
 
 maybeShares :: P.Program -> Sh i -> Address -> Address -> Bool
-maybeShares p st q r = areSharingTypes p st q r || maybeSharesSh st q r
+maybeShares p st q r = areSharingTypes p st q r && maybeSharesSh st q r
 
 
 areReachingTypes :: P.Program -> Sh i -> Address -> Address -> Bool
