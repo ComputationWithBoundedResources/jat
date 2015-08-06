@@ -128,7 +128,10 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
     racTransferf p _ ins (w',w) rac =
       let (i,j) = hasIndexQ w in racTransferf' p ins (w',w) rac i j
     racTransferf' p ins (w',w) rac@(RACFact rs cs) i j = case ins of
-      Load n          -> (StkVar i j `assign` LocVar i n) rac
+      Load n          -> 
+        if isPrimitiveType $ hasTypeQ w' (LocVar i n)
+          then rac
+          else (StkVar i j `assign` LocVar i n) rac
       Store n         -> let (x,y) = (LocVar i n, StkVar i (j+1)) in  y `delete` (x `assign` y) rac
       Push _          -> rac
       Pop             -> StkVar i j `delete` rac
