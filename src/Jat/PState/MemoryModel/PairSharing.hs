@@ -7,6 +7,8 @@ module Jat.PState.MemoryModel.PairSharing
   )
 where
 
+import qualified Control.Applicative as A
+
 import Jat.Constraints (PATerm)
 import Jat.JatM
 import qualified Jat.PairSet as PS
@@ -27,13 +29,13 @@ import qualified Jinja.Program as P
 import Data.Maybe ( fromMaybe)
 import qualified Data.Map as M
 import Control.Monad.State
-import Data.List (find, intersect)
+import Data.List (find)
 import Data.Array as A
 
 import qualified JFlow.Instances as F
 import qualified JFlow.Flow as F
 
---import Debug.Trace
+-- import Debug.Trace
 
 mname :: String
 mname = "Jat.PState.MemoryModel.PairSharing"
@@ -433,10 +435,16 @@ joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
       sh = sharing st1
   return $ PState hp frms (const ns `liftNS` sh)
   where
-    joinNS hp cor ns1 ns2 = PS.intersection ns1' ns2' where
-      ns1' = PS.renameWithLookup (`lookup` lk) ns1 
-      ns2' = PS.renameWithLookup (`lookup` lk) ns2
-      lk   = uncurry intersect $ unzip [ ((p,r),(q,r)) | (C p q, r) <-  M.toList cor, r `elem` addresses hp]
+    joinNS hp cor ns1 ns2 = PS.fromList $ do
+      let
+        (lk1,lk2) = unzip [ ((r,p),(r,q)) | (C p q, r) <-  M.toList cor ]
+        qs        = addresses hp
+      q1 <- qs
+      q2 <- qs
+      guard $ q1 < q2
+      guard $ maybe False (`PS.member` ns1) ((:/=:) A.<$> lookup q1 lk1 A.<*> lookup q2 lk1)
+      guard $ maybe False (`PS.member` ns2) ((:/=:) A.<$> lookup q1 lk2 A.<*> lookup q2 lk2)
+      return $ q1 :/=: q2
 joinSH _ _ = error "Jat.PState.MemoryModel.PairSharing.joinSH: the impossible happened"
 
 
