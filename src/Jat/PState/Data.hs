@@ -18,7 +18,7 @@ where
 
 import Jat.PState.Frame
 import Jat.PState.Heap
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 import qualified Jinja.Program as P
 
 -- | The abstract State.
@@ -77,5 +77,5 @@ instance Pretty PException where
 instance (Pretty i, Pretty a) => Pretty (PState i a) where
   pretty (EState ex)          = pretty ex
   pretty (PState hp frms ann) =
-    vsep (map pretty frms) <$> pretty hp <$> pretty ann
+    vsep (map pretty frms) PP.<$> pretty hp PP.<$> pretty ann
 

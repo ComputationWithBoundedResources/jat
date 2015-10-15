@@ -14,7 +14,7 @@ module Jat.Utils.TRS
 
 import           Jat.CompGraph
 import qualified Jat.Constraints                  as PA
-import           Jat.Utils.Pretty
+import           Jat.Utils.Pretty as PP
 
 import qualified Data.Rewriting.Rule              as R
 import qualified Data.Rewriting.Substitution      as S
@@ -49,7 +49,7 @@ rmap f g (R.Rule l r, cs) = (R.Rule (T.map f g l) (T.map f g r), map (T.map f g)
 header :: [PARule] -> Doc
 header rules =
   lparen <> text "VAR" <+> prettyvars (allvars rules) <> rparen
-  <$> lparen <> text "RULES"
+  PP.<$> lparen <> text "RULES"
   where
     prettyvars = cat . punctuate space . map (PA.prettyPATerm . T.Var)
     allvars    = S.toList . foldl (\s -> S.union s . S.fromList . rvars) S.empty
@@ -65,8 +65,8 @@ root (R.Var _)   = error "simplify.root: unexpected variable"
 prettyTRS :: [(R.Rule PA.PAFun PA.PAVar, [PA.PATerm])] -> Doc
 prettyTRS crules =
   header crules
-  <$> vsep (map prettyPARule crules)
-  <$> footer
+  PP.<$> vsep (map prettyPARule crules)
+  PP.<$> footer
 
 simplifyTRS :: JGraph i a -> [PARule] -> [PARule]
 simplifyTRS gr = combination (map toF . reverse . filter isSimple $ Gr.topsort gr)
@@ -207,8 +207,8 @@ toCTRS gr = id
 prettyCTRS :: [PARule] -> Doc
 prettyCTRS crules =
   header crules
-  <$> vsep (map prettyCTRSRule crules)
-  <$> footer
+  PP.<$> vsep (map prettyCTRSRule crules)
+  PP.<$> footer
 
 prettyCTRSRule :: PARule -> Doc
 prettyCTRSRule (R.Rule l r,[]) = prettyCTRSTerm l <+> text "->" <+> prettyCTRSTerm r
@@ -249,10 +249,10 @@ substitutevars s = S.apply s
 prettyITS :: String -> [PARule] -> Doc
 prettyITS main rs =
   text "(GOAL COMPLEXITY)"
-  <$> text ("(STARTTERM (FUNCTIONSYMBOLS " ++ main ++ "))")
-  <$> header rs
-  <$> vsep (map prettyITSRule rs)
-  <$> footer
+  PP.<$> text ("(STARTTERM (FUNCTIONSYMBOLS " ++ main ++ "))")
+  PP.<$> header rs
+  PP.<$> vsep (map prettyITSRule rs)
+  PP.<$> footer
 
 prettyITSRule :: PARule -> Doc
 prettyITSRule (R.Rule l r,[]) = prettyITSTerm l <+> text "->" <+> prettyITSTerm r

@@ -11,6 +11,7 @@ module JFlow.Typing
   )
 where
 
+import Prelude hiding ((<$>))
 import Jat.Utils.Pretty
 
 import JFlow.Data

@@ -29,6 +29,7 @@ where
 
 import Jat.Utils.Pretty
 
+import Prelude hiding ((<$>))
 import Data.Array
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M

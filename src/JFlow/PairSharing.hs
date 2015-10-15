@@ -11,9 +11,10 @@ module JFlow.PairSharing
   )
 where
 
+import Prelude hiding ((<$>))
 import Jinja.Program
 import qualified Jat.PairSet as PS
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 
 import JFlow.Data
 
@@ -78,7 +79,7 @@ instance MaySharingVarsQ SharingFact where maySharingVarsQ = maySharingVars
 instance Pretty SharingFact where
   pretty (ShFact sh) = 
     string "ShFact"
-    <$> list (map pretty (PS.elems sh :: [Share]))
+    PP.<$> list (map pretty (PS.elems sh :: [Share]))
 
 instance Show SharingFact where
   show = show . pretty

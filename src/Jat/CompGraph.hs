@@ -20,7 +20,7 @@ import Jat.JatM
 import Jat.PState
 import Jat.Utils.Dot
 import Jat.Utils.Fun
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 import qualified Jinja.Program as P
 
 import Data.Rewriting.Rule (Rule (..))
@@ -224,7 +224,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
       DotNode {
         nodeID = k
       , nodeAttributes = [
-          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k <$> pretty st)
+          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k PP.<$> pretty st)
         , GV.Shape GV.BoxShape
         ]
       }
@@ -232,7 +232,7 @@ mkJGraph2Dot (MkJGraph g ctxs) =
       DotNode {
         nodeID = -k
       , nodeAttributes = [
-          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k <$> pretty st)
+          GV.Label (GV.StrLabel . T.pack . display $ text "s" <> int k PP.<$> pretty st)
         , GV.Shape GV.BoxShape
         ]
       }

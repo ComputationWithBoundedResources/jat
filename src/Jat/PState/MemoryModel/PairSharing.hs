@@ -22,7 +22,7 @@ import Jat.PState.IntDomain
 import Jat.PState.MemoryModel.Data
 import Jat.PState.Object
 import Jat.PState.Step
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 import Jat.Utils.Fun
 import qualified Jinja.Program as P
 
@@ -60,7 +60,7 @@ type Sh i = PState i PairSharing
 
 instance Pretty PairSharing where 
   pretty sh@(Sh _ _ _ f) =
-    hsep (map pretty $ nShares' sh) <$>
+    hsep (map pretty $ nShares' sh) PP.<$>
     string ( show f)
 
 instance Show PairSharing where show = show . pretty

@@ -20,7 +20,7 @@ import Jat.PState.IntDomain
 import Jat.PState.MemoryModel.Data
 import Jat.PState.Object
 import Jat.PState.Step
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 import Jat.Utils.Fun
 import qualified Jinja.Program as P
 
@@ -119,8 +119,8 @@ adr `mayAliasWith` (UnSharing ma _ _) =
 instance Pretty UnSharing where
   pretty (UnSharing ma ms mg) =
     (hsep . map pretty $ S.elems ma)
-    <$> (hsep . map pretty $ S.elems ms)
-    <$> (hsep . map pretty $ S.elems mg)
+    PP.<$> (hsep . map pretty $ S.elems ms)
+    PP.<$> (hsep . map pretty $ S.elems mg)
 
 instance MemoryModel UnSharing where
   new       = newUS

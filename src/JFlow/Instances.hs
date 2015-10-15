@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module JFlow.Instances where
 
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 
 import JFlow.Data
 import JFlow.Typing
@@ -24,10 +24,10 @@ data a :>: b = a :>: b deriving (Eq, Ord)
 data a :*: b = a :*: b deriving (Eq, Ord)
 
 instance (Pretty a, Pretty b) => Pretty (a:>:b) where
-  pretty (a:>:b) = hang 2 $ text "Fact:" <$> pretty a <$> pretty b
+  pretty (a:>:b) = hang 2 $ text "Fact:" PP.<$> pretty a PP.<$> pretty b
 
 instance (Pretty a, Pretty b) => Pretty (a:*:b) where
-  pretty (a:*:b) = pretty a <$> pretty b
+  pretty (a:*:b) = pretty a PP.<$> pretty b
 
 mkFlow :: Program -> Flow v (v :>: v1) -> Flow v1 (v :>: v1) -> Flow (v :>: v1) (v :>: v1)
 mkFlow p (Flow lat1 tran1) (Flow lat2 tran2) = Flow lat3 tran3

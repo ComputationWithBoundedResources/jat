@@ -22,7 +22,7 @@ where
 import Jat.PState.IntDomain
 import Jat.PState.AbstrValue 
 import qualified Jinja.Program as P
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 
 import Prelude hiding (lookup, init)
 --import qualified Data.Sequence as S 
@@ -95,7 +95,7 @@ lookupS i ls = lookupS' i ls
 
 
 instance (Pretty i) => Pretty (Frame i) where
-  pretty (Frame loc stk cn mn pc) = text (show pc) `sepx` pretty cn `sepx` pretty mn <$> prettyLoc `sepx` prettyStk
+  pretty (Frame loc stk cn mn pc) = text (show pc) `sepx` pretty cn `sepx` pretty mn PP.<$> prettyLoc `sepx` prettyStk
     where
       sepx d f  = d <+> text "|" <+> f
       prettyLoc = encloseSep lbracket rbracket comma (map pretty $ elemsL loc)

@@ -13,7 +13,7 @@ where
 
 
 import Jinja.Program
-import Jat.Utils.Pretty
+import Jat.Utils.Pretty as PP
 
 import JFlow.Data
 
@@ -70,8 +70,8 @@ instance IsAcyclicQ RACFact       where isAcyclicQ = isAcyclic
 instance Pretty RACFact where
   pretty (RACFact rs cs) = 
     string "RACFact"
-    <$> list (map pretty (S.elems rs))
-    <$> list (map (\v -> char '&' <> pretty v) (S.elems cs))
+    PP.<$> list (map pretty (S.elems rs))
+    PP.<$> list (map (\v -> char '&' <> pretty v) (S.elems cs))
 instance Show RACFact where
   show = show . pretty
 

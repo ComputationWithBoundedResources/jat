@@ -1,7 +1,7 @@
 JAT (Jinja Analysation Tool)
 ============================
 
-Provides a complexity reflecting transformatioin from Jinja bytecode to
+Provides a complexity preserving transformation from Jinja bytecode to
 (constraint) term rewrite system.
 
 EXAMPLE USAGE

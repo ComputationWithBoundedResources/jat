@@ -7,6 +7,7 @@ module JFlow.PointsTo
   )
 where
 
+import Prelude hiding ((<$>))
 import Data.Maybe (fromMaybe)
 
 import Jinja.Program
