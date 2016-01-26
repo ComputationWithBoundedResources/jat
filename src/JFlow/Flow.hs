@@ -10,7 +10,7 @@ import Control.Monad.State hiding (join)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, fromMaybe)
---import Debug.Trace
+-- import Debug.Trace
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 
@@ -181,7 +181,7 @@ value ctx fb pc = unFacts (lookupx ctx fb) A.! pc
 ------
 
 analyse :: (Show v,Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Program -> ClassId -> MethodId -> (Facts v, FactBase v)
-{-analyse _ _ _ _ | trace ">>> analyse" False = undefined-}
+-- analyse _ _ _ _ | trace ">>> analyse" False = undefined
 analyse flow p cn mn = evalState analyseM st0
   where
     analyseM = do
@@ -195,7 +195,7 @@ analyse flow p cn mn = evalState analyseM st0
     st0 = mkInitState p
 
 setupContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
-{-setupContext _ ctx | trace (">>> setupContext" ++ show ctx) False = undefined-}
+-- setupContext _ ctx | trace (">>> setupContext" ++ show ctx) False = undefined
 setupContext (Flow lat _) ctx@(Context _ v) = do
   let Call cn mn = currentCall ctx
   md <- getsMethod cn mn
@@ -209,7 +209,7 @@ setupContext (Flow lat _) ctx@(Context _ v) = do
       where bounds = A.bounds $ methodInstructions md
 
 mkInitState :: Program -> FlowState m v
-{-mkInitState _ | trace ">>> mkInitState" False = undefined-}
+-- mkInitState _ | trace ">>> mkInitState" False = undefined
 mkInitState p = FlowState {
 
     facts       = M.empty
@@ -222,7 +222,7 @@ mkInitState p = FlowState {
 
 
 initContext :: (Show v, Ord v) => Flow v v -> Context v -> St m v ()
---initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined
+-- initContext _ ctx | trace (">>> initContext" ++ show ctx) False = undefined
 initContext (Flow lat tran) ctx@(Context _ v) = do
   let Call cn mn = currentCall ctx
   md <- getsMethod cn mn
@@ -240,7 +240,7 @@ initContext (Flow lat tran) ctx@(Context _ v) = do
       where bounds = A.bounds $ methodInstructions md
 
 analyseCallStack :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> St m v ()
-{-analyseCallStack flow = trace ">>> analyseCallStack" $ do-}
+-- analyseCallStack flow = trace ">>> analyseCallStack" $ do
 analyseCallStack flow = do
   stk <- gets callStack
   case stk of
@@ -248,7 +248,7 @@ analyseCallStack flow = do
     (ctx:_) -> analyseContext flow ctx
 
 analyseContext :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> St m v ()
-{-analyseContext flow ctx = trace ">>> analyseContext" $ do-}
+-- analyseContext flow ctx = trace ">>> analyseContext" $ do
 analyseContext flow ctx = do
   wl  <- getsWorklist ctx
   if not $ null wl
@@ -262,7 +262,7 @@ analyseContext flow ctx = do
       analyseCallStack flow
        
 analyseInstruction :: (Show v,Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> St m v ()
-{-analyseInstruction _ _ _ | trace ">>> analyseInstruction" False = undefined-}
+-- analyseInstruction _ _ _ | trace ">>> analyseInstruction" False = undefined
 analyseInstruction flow ctx@(Context _ _) pc = do
   let Call cn mn = currentCall ctx
   ins <- getsInstruction cn mn pc
@@ -287,9 +287,9 @@ analyseCall' flow@(Flow lat tran)  ctx (Invoke mn n) pc = do
         mergef            = merge lat p
         processCall' fcn = processCall flow (ctx,pc) fcn mn val
       rvals <- mapM processCall' subtys
-      {-let rvals' = map (reproject tran cn n) rvals-}
-      {-let rval   = let r = foldl1 mergef rvals in trace ("RET:" ++ show (rvals,r)) r -}
-      {-return . Just $ let r = extend tran p q cn n val rval in trace ("EXT:" ++ show (cn,n,val,rval,r)) r-}
+      -- let rvals' = map (project tran cn n) rvals
+      -- let rval   = let r = foldl1 mergef rvals in trace ("RET:" ++ show (rvals,r)) r 
+      -- return . Just $ let r = extend tran p cn n val val rval in trace ("EXT:" ++ show (cn,n,val,rval,r)) r
       let rval   = foldl1 mergef rvals
       return . Just $ extend tran p cn n val val rval
     NullType -> error "Flow.analyseCall: Type is definitely Null: NullPointerException"
@@ -306,20 +306,20 @@ updateValue flow@(Flow lat _) ctx pc ins (Just newVal) = do
     fbase    = facts st
     vsuccs   = foldr (\spc -> let 
                                 oldVal = value ctx fbase spc
-                                {-mergeVal = let r = newVal `mergef` oldVal in trace ("MRG:" ++ show (spc,oldVal,newVal,r)) r-}
+                                -- mergeVal = let r = newVal `mergef` oldVal in trace ("MRG:" ++ show (spc,oldVal,newVal,r)) r
                                 mergeVal = newVal `mergef` oldVal
                               in
                               if oldVal /= mergeVal
                                  then ((spc,mergeVal):)
                                  else id) [] (successors ins pc)
-  {-mapM_ (\(lpc,v) -> trace (">update: " ++ show (lpc,v)) $ updateFact ctx lpc v) vsuccs-}
+  -- mapM_ (\(lpc,v) -> trace (">update: " ++ show (lpc,v)) $ updateFact ctx lpc v) vsuccs
   mapM_ (uncurry $ updateFact ctx) vsuccs
   pushPCs ctx $ fst . unzip $ vsuccs
   analyseCallStack flow
 
 
 interpretInstruction :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> Context v -> PC -> Instruction -> St m v (Maybe v)
-{-interpretInstruction _ (Context cn mn _) pc ins | trace (">>> interpretInstruction " ++ show (cn,mn,pc,ins)) False = undefined-}
+-- interpretInstruction _ (Context cs mn) pc ins | trace (">>> interpretInstruction " ++ show (cs,mn,pc,ins)) False = undefined
 interpretInstruction (Flow _ tran) ctx@(Context cs _) pc ins = do
   st <- get
   let
@@ -329,7 +329,7 @@ interpretInstruction (Flow _ tran) ctx@(Context cs _) pc ins = do
   return . Just $ transf tran prog (cs,pc) ins (curVal,curVal) curVal
 
 processCall :: (Show v, Ord v, HasIndexQ v, HasTypeQ v) => Flow v v -> AnnotatedContext v -> ClassId -> MethodId -> v -> St m v v
-{-processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined-}
+-- processCall _ ctx cn mn v | trace (">>> processCall " ++ show (ctx,cn,mn,v)) False = undefined
 processCall flow@(Flow lat _) callingCtx@(ctx,pc) cn mn v = do
   let currentCtx = pushCall ctx cn mn pc v
   addTransition (callingCtx, currentCtx)
