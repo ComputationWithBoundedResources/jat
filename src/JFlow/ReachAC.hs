@@ -147,7 +147,7 @@ racTransfer = Transfer racTransferf racSetup racProject racExtend
       CmpNeq          -> StkVar i (j+1) `delete` (StkVar i j `delete` rac)
       New _           -> rac
 
-      CheckCast _     -> error "JFlow.ReachAC.CheckCast: not implemented" -- normalize p q rac
+      CheckCast _     -> normalize' p w rac -- error "JFlow.ReachAC.CheckCast: not implemented" -- normalize p q rac
       GetField fn cn  ->
         if isPrimitiveType $ snd (field p cn fn)
           then x `delete` rac

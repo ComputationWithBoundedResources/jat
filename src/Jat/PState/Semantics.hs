@@ -17,10 +17,12 @@ import Jat.PState.Frame
 import Jat.PState.IntDomain
 import Jat.PState.MemoryModel
 import Jat.PState.Step
+import Jat.PState.Heap (lookupH)
+import Jat.PState.Object (className)
 import qualified Jinja.Program as P
 
---import Jat.Utils.Pretty hiding (equals)
---import Debug.Trace
+import Jat.Utils.Pretty hiding (equals)
+-- import Debug.Trace
 
 -- | Constructs the initial state for a given class name and method name.
 mkInitialState :: (Monad m, IntDomain i, MemoryModel a) => P.ClassId -> P.MethodId -> JatM m (PState i a)
@@ -31,8 +33,8 @@ exec :: (Monad m, IntDomain i, MemoryModel a) => PState i a -> JatM m (PStep (PS
 exec st@(PState _ (Frame _ _ cn mn pc :_) _) = do
   p <- getProgram
   let ins = P.instruction p cn mn pc
-  --st2 <- execInstruction st pc (trace (">>> exec: " ++ show ins) ins)
-  --return $ trace ("<<< exec" ++ show (liftPStep (show . pretty) st2)) st2
+  -- st2 <- execInstruction st pc (trace (">>> exec: " ++ show ins) ins)
+  -- return $ trace ("<<< exec" ++ show (liftPStep (show . pretty) st2)) st2
   execInstruction st pc ins
   
 exec (PState _ [] _) = error "Jat.PState.Semantics.exec: empty stk."
@@ -53,7 +55,7 @@ execInstruction st@(PState{}) pc ins = do
     P.ISub           -> execISub      `applyF` st
     P.BAnd           -> execBAnd      `applyF` st
     P.BOr            -> execBOr       `applyF` st
-    P.CheckCast _    -> error "checkCast not implemented"
+    P.CheckCast c    -> execCheckCast c st -- error "checkCast not implemented"
     P.BNot           -> execBNot    `applyF` st
     P.ICmpGeq        -> execICmpGeq `applyF` st
     -- inter frame operations
@@ -142,6 +144,8 @@ execBAnd, execBOr :: Monad m => Frame i -> JatM m (PStep (Frame i))
 execBAnd = execBinBoolOp (.&&.)
 execBOr  = execBinBoolOp (.||.)
 
+
+
 execBNot :: Monad m => Frame i -> JatM m (PStep (Frame i))
 execBNot (Frame loc stk cn mn pc) = case stk of
   BoolVal b :vs -> liftPStep (\notb -> Frame loc (BoolVal notb :vs) cn mn (pc+1)) `liftM` (.!) b
@@ -157,6 +161,17 @@ execBinIntCmp cmp (Frame loc stk cn mn pc) = case stk of
 
 execICmpGeq :: (Monad m, IntDomain i) => Frame i -> JatM m (PStep (Frame i))
 execICmpGeq = execBinIntCmp (>=.)
+
+execCheckCast :: (Monad m, IntDomain i,MemoryModel a) => P.ClassId -> PState i a -> JatM m (PStep (PState i a))
+execCheckCast cas (PState hp (Frame loc stk cn mn pc:frms) ann) = return . topEvaluation $ case stk of
+  RefVal a :_ -> 
+    if className (lookupH a hp) == cas
+      then PState hp (Frame loc stk cn mn (pc+1):frms) ann
+      else EState NullPointerException
+  Null :_ -> EState NullPointerException
+  Unit :_ -> EState NullPointerException
+  _ -> error "Jat.PState.Semantics.checkCast: invalid stack."
+execCheckCast _ _ = error "Jat.PState.Semantics.checkCast: invalid state."
 
 execCmpEq :: (Monad m, IntDomain i,MemoryModel a) => PState i a -> JatM m (PStep (PState i a))
 execCmpEq st@(PState hp (Frame loc stk cn mn pc:frms) ann) = case stk of
