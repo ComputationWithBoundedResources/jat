@@ -428,7 +428,7 @@ leqSH _ _ _ = error "Jat.PState.MemoryModel.PairSharing.leqSH: the impossible ha
 joinSH :: (Monad m, IntDomain i) => Sh i -> Sh i -> JatM m (Sh i)
 joinSH st1@(PState _ _ sh1) st2@(PState _ _ sh2) = do
   p <- getProgram
-  (PState hp frms _, cor)  <- mergeStates' p st1 st2 undefined
+  ~(PState hp frms _, cor)  <- mergeStates' p st1 st2 undefined
   let ns = joinNS hp cor (nShares sh1) (nShares sh2)
   {-let ns = joinNS cor (PS.empty) (PS.empty)-}
       {-ns = PS.empty-}

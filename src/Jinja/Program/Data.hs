@@ -192,7 +192,7 @@ subClassesf p@(P cp) cn = filter (isSuper p cn) (M.keys cp)
 
 hasFieldzf :: Program -> [ClassId] -> [(FieldId, ClassId, Type)]
 hasFieldzf p = concatMap (\cn' -> fds cn' . fieldPool $ classOf p cn')
-  where fds cn = M.fold (\lfd lfdt -> (fieldName lfd, cn,fieldType lfd):lfdt) []
+  where fds cn = M.foldr (\lfd lfdt -> (fieldName lfd, cn,fieldType lfd):lfdt) []
 
 
 -- pretty

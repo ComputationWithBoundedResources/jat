@@ -1,9 +1,0 @@
-flags: {}
-packages:
-- '.'
-extra-deps:
-- multiset-0.2.2
-- union-find-array-0.1.0.2
-- term-rewriting-0.2
-- graphviz-2999.18.0.1
-resolver: lts-3.14
